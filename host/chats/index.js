@@ -84,6 +84,19 @@ export function apply(ctx, config = {}) {
   markMounted(ctx, 'chats')
   const admin = createAdmin({ ctx, config })
 
+  // Boot-time reconciliation: forget archive/pin/workspace references to chats
+  // whose artifacts are gone, so a restart leaves no invisible residue.
+  ctx.effect(() => {
+    const timer = setTimeout(() => {
+      admin.prune().then((counts) => {
+        const total = counts.archived + counts.pinned + counts.detached
+        if (total > 0) ctx.logger?.info?.(`yukari-chats: 清理了 ${total} 条失效引用`)
+      }).catch(() => {})
+    }, 2000)
+    timer.unref?.()
+    return () => clearTimeout(timer)
+  }, 'chat-manager: prune dead references')
+
   ctx.effect(
     () =>
       ctx.webServer.register({
