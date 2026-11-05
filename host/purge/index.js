@@ -16,10 +16,9 @@ import { markMounted } from '../shared/mounted.js'
 import { DEFAULT_PURGE_PROMPT } from './lib/default-prompt.js'
 import { ensurePresetFiles, registerPresetService, UNRESTRICTED_PRESET_ID } from './lib/preset.js'
 import { rewritePromptAssembly } from './lib/rewriter.js'
+import { BODY_LIMITS, guardRoute, readJsonBody, sendJson } from '../shared/http.js'
 
 export const API_PATH = '/purge/api'
-const MAX_BODY_BYTES = 128 * 1024
-
 /** Services this plugin needs */
 export const inject = ['systemPrompt', 'webServer', 'connection']
 
@@ -31,31 +30,6 @@ function resolveDshHome() {
 
 function promptFilePath(dshHome) {
   return path.join(dshHome, 'yukari-purge-prompt.md')
-}
-
-function sendJson(res, status, value) {
-  const body = JSON.stringify(value)
-  res.statusCode = status
-  res.setHeader('content-type', 'application/json; charset=utf-8')
-  res.setHeader('cache-control', 'no-store')
-  res.end(body)
-}
-
-async function readJsonBody(req) {
-  const chunks = []
-  let size = 0
-  for await (const chunk of req) {
-    size += chunk.length
-    if (size > MAX_BODY_BYTES) throw new Error('request body is too large')
-    chunks.push(chunk)
-  }
-  if (size === 0) return {}
-  try {
-    const val = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-    return val !== null && typeof val === 'object' ? val : {}
-  } catch {
-    throw new Error('request body is not valid JSON')
-  }
 }
 
 /**
@@ -165,73 +139,65 @@ export function apply(ctx, config = {}) {
       ctx.webServer.register({
         kind: 'prefix',
         path: API_PATH,
-        handler: async (req, res) => {
-          const rejection = ctx.connection.requestRejection(req)
-          if (rejection !== undefined && rejection !== null) {
-            res.statusCode = rejection
-            res.end()
-            return
-          }
+        handler: guardRoute(ctx, async (req, res) => {
 
           const url = new URL(String(req.url), 'http://localhost')
           const action = url.pathname.slice(API_PATH.length).replace(/^\/+|\/+$/g, '')
 
-          try {
-            // GET /purge/api/config
-            if (req.method === 'GET' && (action === 'config' || action === '')) {
-              sendJson(res, 200, {
-                ok: true,
-                presetId: UNRESTRICTED_PRESET_ID,
-                presetName: '无限制模式',
-                isCustom,
-                prompt: activePrompt,
-                defaultPrompt: DEFAULT_PURGE_PROMPT,
-              })
-              return
-            }
-
-            // POST /purge/api/config
-            if (req.method === 'POST' && action === 'config') {
-              const body = await readJsonBody(req)
-              if (typeof body.prompt === 'string') {
-                activePrompt = body.prompt
-                isCustom = true
-                try {
-                  fs.writeFileSync(customFile, activePrompt, 'utf8')
-                } catch (writeErr) {
-                  // If disk write fails, in-memory still active
-                  ctx.logger?.warn?.('yukari-purge: 保存提示词到磁盘失败: %s', writeErr?.message)
-                }
-                sendJson(res, 200, { ok: true, isCustom: true, prompt: activePrompt })
-                return
-              }
-              sendJson(res, 400, { ok: false, error: 'prompt must be a string' })
-              return
-            }
-
-            // POST /purge/api/reset
-            if (req.method === 'POST' && action === 'reset') {
-              activePrompt = DEFAULT_PURGE_PROMPT
-              isCustom = false
-              try {
-                if (fs.existsSync(customFile)) {
-                  fs.unlinkSync(customFile)
-                }
-              } catch {}
-              sendJson(res, 200, {
-                ok: true,
-                isCustom: false,
-                prompt: activePrompt,
-                defaultPrompt: DEFAULT_PURGE_PROMPT,
-              })
-              return
-            }
-
-            sendJson(res, 404, { ok: false, error: 'not found' })
-          } catch (err) {
-            sendJson(res, 500, { ok: false, error: err?.message || String(err) })
+          
+          // GET /purge/api/config
+          if (req.method === 'GET' && (action === 'config' || action === '')) {
+            sendJson(res, 200, {
+              ok: true,
+              presetId: UNRESTRICTED_PRESET_ID,
+              presetName: '无限制模式',
+              isCustom,
+              prompt: activePrompt,
+              defaultPrompt: DEFAULT_PURGE_PROMPT,
+            })
+            return
           }
-        },
+
+          // POST /purge/api/config
+          if (req.method === 'POST' && action === 'config') {
+            const body = await readJsonBody(req, BODY_LIMITS.large)
+            if (typeof body.prompt === 'string') {
+              activePrompt = body.prompt
+              isCustom = true
+              try {
+                fs.writeFileSync(customFile, activePrompt, 'utf8')
+              } catch (writeErr) {
+                // If disk write fails, in-memory still active
+                ctx.logger?.warn?.('yukari-purge: 保存提示词到磁盘失败: %s', writeErr?.message)
+              }
+              sendJson(res, 200, { ok: true, isCustom: true, prompt: activePrompt })
+              return
+            }
+            sendJson(res, 400, { ok: false, error: 'prompt must be a string' })
+            return
+          }
+
+          // POST /purge/api/reset
+          if (req.method === 'POST' && action === 'reset') {
+            activePrompt = DEFAULT_PURGE_PROMPT
+            isCustom = false
+            try {
+              if (fs.existsSync(customFile)) {
+                fs.unlinkSync(customFile)
+              }
+            } catch {}
+            sendJson(res, 200, {
+              ok: true,
+              isCustom: false,
+              prompt: activePrompt,
+              defaultPrompt: DEFAULT_PURGE_PROMPT,
+            })
+            return
+          }
+
+          sendJson(res, 404, { ok: false, error: 'not found' })
+
+        }),
       }),
     `yukari: ${API_PATH}/*`,
   )

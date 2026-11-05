@@ -31,10 +31,10 @@ test('relative paths cannot climb out of the workspace root', () => {
   assert.equal(safeRelative(''), '')
   assert.equal(safeRelative('./a/b'), 'a/b')
   assert.equal(safeRelative('a/./b/'), 'a/b')
-  assert.throws(() => safeRelative('../etc/passwd'), /climbs outside/u)
-  assert.throws(() => safeRelative('a/../../b'), /climbs outside/u)
-  assert.throws(() => safeRelative('/etc/passwd'), /must be relative/u)
-  assert.throws(() => safeRelative('C:/Windows'), /must be relative/u)
+  assert.throws(() => safeRelative('../etc/passwd'), /超出工作区/u)
+  assert.throws(() => safeRelative('a/../../b'), /超出工作区/u)
+  assert.throws(() => safeRelative('/etc/passwd'), /必须相对于/u)
+  assert.throws(() => safeRelative('C:/Windows'), /必须相对于/u)
 })
 
 test('resolving a path refuses to follow a symbolic link outside the root', async (t) => {
@@ -46,9 +46,9 @@ test('resolving a path refuses to follow a symbolic link outside the root', asyn
   const outside = await temporary(t)
   await writeFile(path.join(outside, 'secret.txt'), 'secret')
   await symlink(path.join(outside, 'secret.txt'), path.join(root, 'leak.txt'))
-  await assert.rejects(resolveInside(root, 'leak.txt'), /escapes the workspace root/u)
+  await assert.rejects(resolveInside(root, 'leak.txt'), /符号链接指向工作区外/u)
 
-  await assert.rejects(resolveInside(root, 'missing.txt'), /does not exist/u)
+  await assert.rejects(resolveInside(root, 'missing.txt'), /路径不存在/u)
 })
 
 test('the archive writer produces a ZIP the reader can unpack, unicode names included', async (t) => {

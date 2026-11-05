@@ -13,29 +13,14 @@ import path from 'node:path'
 import { markMounted } from '../shared/mounted.js'
 import { BrowserManager, resolveRuntime, sandboxDecision } from './lib/browser.js'
 import { BrowserRuntime } from './lib/runtime.js'
+import { guardRoute, sendJson, messageOf } from '../shared/http.js'
 
 export const API_PATH = '/browser/api'
-const messageOf = (error) => (error instanceof Error ? error.message : String(error))
-
-/** Serialize a cache-bypassed browser runtime response. */
-function sendJson(res, status, value) {
-  res.statusCode = status
-  res.setHeader('content-type', 'application/json; charset=utf-8')
-  res.setHeader('cache-control', 'no-store')
-  res.end(JSON.stringify(value))
-}
-
 /** Register connection-guarded runtime status and retry routes. */
 export function registerRuntimeApi(ctx, runtime, details = {}) {
   ctx.webServer.register({
     kind: 'prefix', path: API_PATH,
-    handler: async (req, res) => {
-      const rejection = ctx.connection.requestRejection(req)
-      if (rejection !== undefined && rejection !== null) {
-        res.statusCode = rejection
-        res.end()
-        return
-      }
+    handler: guardRoute(ctx, async (req, res) => {
       const action = new URL(String(req.url), 'http://localhost').pathname.slice(API_PATH.length).replace(/^\/+|\/+$/g, '')
       if (action === 'state') {
         if (req.method !== 'GET') return sendJson(res, 405, { ok: false, error: 'use GET' })
@@ -43,14 +28,12 @@ export function registerRuntimeApi(ctx, runtime, details = {}) {
       }
       if (action === 'install/retry') {
         if (req.method !== 'POST') return sendJson(res, 405, { ok: false, error: 'use POST' })
-        try {
-          return sendJson(res, 200, { ok: true, state: runtime.state(), executablePath: await runtime.retry() })
-        } catch (error) {
-          return sendJson(res, 500, { ok: false, error: messageOf(error), state: runtime.state() })
-        }
+        
+        return sendJson(res, 200, { ok: true, state: runtime.state(), executablePath: await runtime.retry() })
+
       }
       return sendJson(res, 404, { ok: false, error: `unknown browser action "${action}"` })
-    },
+    }),
   })
 }
 
@@ -364,7 +347,6 @@ export function apply(ctx, config, dependencies = {}) {
     viewportHeight: options.viewportHeight,
     settleMs: options.settleMs,
     executable,
-    ready: executable !== null,
     runtime: runtime.state(),
     sandbox: sandboxDecision(options),
   })

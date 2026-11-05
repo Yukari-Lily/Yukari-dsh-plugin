@@ -1,6 +1,0 @@
-{
-  "meta": {
-    "title": "Proxy",
-    "description": "Shadowsocks egress: import several nodes and route all outbound traffic through the one you pick."
-  }
-}

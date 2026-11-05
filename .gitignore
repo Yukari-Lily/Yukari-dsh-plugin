@@ -18,3 +18,7 @@ host/browser/runtime/
 # Browser output
 screenshots/
 *.png.bak
+
+# Crash dumps from a browser run
+core
+core.*

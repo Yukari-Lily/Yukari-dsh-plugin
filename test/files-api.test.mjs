@@ -36,24 +36,43 @@ function request(url, { method = 'GET', body } = {}) {
   }
 }
 
-async function mount(root, config = {}) {
+async function mount(root, options = {}) {
   let route = null
+  const counters = { registry: 0, sessions: 0 }
   const ctx = {
     webServer: { register: (value) => { route = value } },
     connection: { requestRejection: () => undefined },
     effect: (callback) => { const cleanup = callback(); return () => cleanup?.() },
     logger: { warn: () => {}, info: () => {} },
-    get: (name) => (name === 'workspaceRegistry'
-      ? { list: () => [{ id: 'ws-1', title: 'Test', path: root, sessionIds: [] }] }
-      : undefined),
+    get: (name) => {
+      if (name === 'workspaceRegistry') {
+        return {
+          list: () => {
+            counters.registry += 1
+            return [{ id: 'ws-1', title: 'Test', path: root, sessionIds: [] }]
+          },
+        }
+      }
+      if (name === 'sessionQuery') {
+        return {
+          listSessions: async () => {
+            counters.sessions += 1
+            return options.sessions ?? []
+          },
+        }
+      }
+      return undefined
+    },
   }
-  apply(ctx, config)
+  apply(ctx, options.config ?? {})
   assert.ok(route !== null, 'the route registers')
-  return async (url, options) => {
+  const call = async (url, init) => {
     const res = response()
-    await route.handler(request(url, options), res)
+    await route.handler(request(url, init), res)
     return res
   }
+  call.counters = counters
+  return call
 }
 
 async function workspace(t) {
@@ -84,11 +103,11 @@ test('the API lists a workspace and refuses paths outside it', async (t) => {
 
   const escape = await call(`/files/api/list?root=${encodeURIComponent(root)}&path=../`)
   assert.equal(escape.statusCode, 400)
-  assert.match(escape.json().error, /climbs outside/u)
+  assert.match(escape.json().error, /超出工作区/u)
 
   const unknown = await call(`/files/api/list?root=${encodeURIComponent('/etc')}&path=`)
   assert.equal(unknown.statusCode, 400)
-  assert.match(unknown.json().error, /unknown workspace root/u)
+  assert.match(unknown.json().error, /未知的工作区/u)
 })
 
 test('a single file downloads with an attachment header', async (t) => {
@@ -121,9 +140,34 @@ test('an archive request must select something and stay inside the root', async 
   const call = await mount(root)
   const empty = await call('/files/api/archive', { method: 'POST', body: { root, paths: [] } })
   assert.equal(empty.statusCode, 400)
-  assert.match(empty.json().error, /at least one/u)
+  assert.match(empty.json().error, /至少选择一个/u)
 
   const climb = await call('/files/api/archive', { method: 'POST', body: { root, paths: ['../etc'] } })
   assert.equal(climb.statusCode, 400)
-  assert.match(climb.json().error, /climbs outside/u)
+  assert.match(climb.json().error, /超出工作区/u)
+})
+
+test('listing never scans the session index, and roots are cached', async (t) => {
+  const root = await workspace(t)
+  const call = await mount(root)
+  await call(`/files/api/roots`)
+  await call(`/files/api/roots`)
+  await call(`/files/api/list?root=${encodeURIComponent(root)}&path=`)
+  assert.equal(call.counters.registry, 1, 'the cached root list is reused')
+  assert.equal(call.counters.sessions, 0, 'a directory listing does not touch the session index')
+})
+
+test('the preview anchor is resolved on demand and reports the newest chat', async (t) => {
+  const root = await workspace(t)
+  const call = await mount(root, {
+    sessions: [
+      { header: { id: 'older', cwd: root, createdAt: 1 } },
+      { header: { id: 'newer', cwd: root, createdAt: 2 } },
+      { header: { id: 'other', cwd: '/elsewhere', createdAt: 3 } },
+    ],
+  })
+  const res = await call(`/files/api/anchor?root=${encodeURIComponent(root)}`)
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.json().sessionId, 'newer')
+  assert.equal(call.counters.sessions, 1)
 })

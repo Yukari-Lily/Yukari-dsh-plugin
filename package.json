@@ -1,6 +1,6 @@
 {
   "name": "yukari-dsh-plugin",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "自用插件合集：会话管理、站点发布、出站代理、无限制模式、自动就绪的无头浏览器与运行时控制。",
   "icon": "./icon.png",
   "author": "YG",
@@ -15,13 +15,6 @@
     "./sites": "./host/sites/index.js",
     "./proxy": "./host/proxy/index.js",
     "./purge": "./host/purge/index.js",
-    "./browser/locale/*.json": "./locale/browser/*.json",
-    "./chats/locale/*.json": "./locale/chats/*.json",
-    "./runtime/locale/*.json": "./locale/runtime/*.json",
-    "./sites/locale/*.json": "./locale/sites/*.json",
-    "./proxy/locale/*.json": "./locale/proxy/*.json",
-    "./purge/locale/*.json": "./locale/purge/*.json",
-    "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.png",
     "./browser/icon": "./icon.png",
     "./chats/icon": "./icon.png",
@@ -30,8 +23,7 @@
     "./proxy/icon": "./icon.png",
     "./purge/icon": "./icon.png",
     "./files": "./host/files/index.js",
-    "./files/icon": "./icon.png",
-    "./files/locale/*.json": "./locale/files/*.json"
+    "./files/icon": "./icon.png"
   },
   "files": [
     "index.js",
@@ -39,7 +31,6 @@
     "host/**/*.js",
     "host/purge/presets/**",
     "cordis.patch.yml",
-    "locale/**/*.json",
     "icon.png",
     "LICENSE"
   ],

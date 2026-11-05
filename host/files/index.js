@@ -12,6 +12,7 @@ import { lstat, readdir, realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { markMounted } from '../shared/mounted.js'
 import { writeZip } from './lib/zip-writer.js'
+import { guardRoute, readJsonBody, sendJson } from '../shared/http.js'
 
 /** JSON API prefix served to the panel. */
 export const API_PATH = '/files/api'
@@ -19,44 +20,16 @@ export const API_PATH = '/files/api'
 /** Services this component needs. */
 export const inject = ['tools', 'webServer', 'connection']
 
-/** Largest accepted request body. */
-const MAX_BODY_BYTES = 64 * 1024
-
 /** Entries one directory listing returns. */
 const MAX_ENTRIES = 5000
+
+/** How long a resolved root list stays fresh. */
+const ROOTS_TTL_MS = 30_000
 
 /** Files one archive request may contain. */
 const MAX_ARCHIVE_FILES = 5000
 
-/** Serialize one JSON response. */
-function sendJson(res, status, value) {
-  res.statusCode = status
-  res.setHeader('content-type', 'application/json; charset=utf-8')
-  res.setHeader('cache-control', 'no-store')
-  res.end(JSON.stringify(value))
-}
-
-/** Read a bounded JSON body. */
-async function readJsonBody(req) {
-  const chunks = []
-  let size = 0
-  for await (const chunk of req) {
-    size += chunk.length
-    if (size > MAX_BODY_BYTES) throw new Error('request body is too large')
-    chunks.push(chunk)
-  }
-  if (size === 0) return {}
-  try {
-    const value = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-    return value !== null && typeof value === 'object' ? value : {}
-  } catch {
-    throw new Error('request body is not valid JSON')
-  }
-}
-
 /** Turn any thrown value into a message. */
-const messageOf = (error) => (error instanceof Error ? error.message : String(error))
-
 /**
  * Reject a relative path that could leave its root.
  * @param relative - user-supplied relative path.
@@ -65,9 +38,9 @@ const messageOf = (error) => (error instanceof Error ? error.message : String(er
 export function safeRelative(relative) {
   const text = String(relative ?? '').replace(/\\/g, '/').trim()
   if (text === '' || text === '.') return ''
-  if (text.startsWith('/') || /^[a-zA-Z]:/.test(text)) throw new Error('path must be relative to the workspace root')
+  if (text.startsWith('/') || /^[a-zA-Z]:/.test(text)) throw new Error('路径必须相对于工作区根目录')
   const segments = text.split('/').filter((segment) => segment !== '' && segment !== '.')
-  if (segments.some((segment) => segment === '..')) throw new Error('path climbs outside the workspace root')
+  if (segments.some((segment) => segment === '..')) throw new Error('路径不能超出工作区根目录')
   return segments.join('/')
 }
 
@@ -86,11 +59,11 @@ export async function resolveInside(root, relative, fs = { realpath, lstat, stat
   try {
     real = await fs.realpath(absolute)
   } catch {
-    throw new Error(`path does not exist: ${clean === '' ? '.' : clean}`)
+    throw new Error(`路径不存在：${clean === '' ? '.' : clean}`)
   }
   const realRoot = await fs.realpath(root)
   const inside = real === realRoot || real.startsWith(`${realRoot}${path.sep}`)
-  if (!inside) throw new Error(`symbolic link escapes the workspace root: ${clean}`)
+  if (!inside) throw new Error(`符号链接指向工作区外：${clean}`)
   return real
 }
 
@@ -98,7 +71,7 @@ export async function resolveInside(root, relative, fs = { realpath, lstat, stat
 async function listDirectory(root, relative, fs) {
   const directory = await resolveInside(root, relative, fs)
   const info = await fs.stat(directory)
-  if (!info.isDirectory()) throw new Error(`not a directory: ${relative}`)
+  if (!info.isDirectory()) throw new Error(`不是目录：${relative}`)
   const entries = []
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     if (entries.length >= MAX_ENTRIES) break
@@ -134,7 +107,7 @@ async function collectFiles(root, requested, fs) {
   const files = []
   const skipped = []
   const visit = async (relative) => {
-    if (files.length >= MAX_ARCHIVE_FILES) throw new Error(`the selection exceeds ${MAX_ARCHIVE_FILES} files`)
+    if (files.length >= MAX_ARCHIVE_FILES) throw new Error(`所选文件超过 ${MAX_ARCHIVE_FILES} 个`)
     const absolute = path.join(root, relative)
     const info = await fs.lstat(absolute)
     if (info.isSymbolicLink()) {
@@ -151,7 +124,7 @@ async function collectFiles(root, requested, fs) {
   }
   for (const item of requested) {
     const clean = safeRelative(item)
-    if (clean === '') throw new Error('select files or folders, not the whole workspace root')
+    if (clean === '') throw new Error('请选择具体文件或文件夹，不能是整个工作区')
     await resolveInside(root, clean, fs)
     await visit(clean)
   }
@@ -163,8 +136,15 @@ export function apply(ctx, config = {}) {
   markMounted(ctx, 'files')
   const fs = { realpath, lstat, stat }
 
-  /** Every root this component may serve. */
+  /** Roots change rarely; rebuilding them costs a realpath per workspace. */
+  let cachedRoots = null
+
+  /**
+   * Every root this component may serve, with a short cache.
+   * @returns `[{ id, title, path }]`.
+   */
   async function roots() {
+    if (cachedRoots !== null && Date.now() - cachedRoots.at < ROOTS_TTL_MS) return cachedRoots.value
     const registry = ctx.get?.('workspaceRegistry') ?? ctx.workspaceRegistry
     const list = []
     try {
@@ -177,15 +157,8 @@ export function apply(ctx, config = {}) {
     if (list.length === 0 || config.includeCwd === true) {
       list.push({ id: process.cwd(), title: path.basename(process.cwd()) || process.cwd(), path: process.cwd() })
     }
-    const query = ctx.get?.('sessionQuery') ?? ctx.sessionQuery
-    let records = []
-    try {
-      records = (await query?.listSessions?.()) ?? []
-    } catch {
-      records = []
-    }
     const seen = new Set()
-    const result = []
+    const value = []
     for (const root of list) {
       let real
       try {
@@ -195,20 +168,38 @@ export function apply(ctx, config = {}) {
       }
       if (seen.has(real)) continue
       seen.add(real)
-      // The newest chat in this workspace anchors the preview address.
-      const anchor = records
-        .filter((record) => record.header?.cwd === real || record.header?.cwd === root.path)
-        .sort((left, right) => (right.header.createdAt ?? 0) - (left.header.createdAt ?? 0))[0]
-      result.push({ id: real, title: root.title, path: real, sessionId: anchor?.header?.id ?? null })
+      value.push({ id: real, title: root.title, path: real })
     }
-    return result
+    cachedRoots = { at: Date.now(), value }
+    return value
+  }
+
+  /**
+   * The newest chat whose workspace is this root. Preview addresses are
+   * session-scoped, so it is only asked for when a preview is requested — not
+   * on every directory listing.
+   * @param rootId - resolved workspace root.
+   * @returns the session id, or null when the workspace has no chat.
+   */
+  async function anchorOf(rootId) {
+    const query = ctx.get?.('sessionQuery') ?? ctx.sessionQuery
+    let records = []
+    try {
+      records = (await query?.listSessions?.()) ?? []
+    } catch {
+      return null
+    }
+    const newest = records
+      .filter((record) => record.header?.cwd === rootId)
+      .sort((left, right) => (right.header.createdAt ?? 0) - (left.header.createdAt ?? 0))[0]
+    return newest?.header?.id ?? null
   }
 
   /** Resolve the `root` query value against the allowed roots. */
   async function rootOf(value) {
     const allowed = await roots()
     const found = allowed.find((root) => root.id === value)
-    if (found === undefined) throw new Error('unknown workspace root')
+    if (found === undefined) throw new Error('未知的工作区')
     return found
   }
 
@@ -217,72 +208,68 @@ export function apply(ctx, config = {}) {
       ctx.webServer.register({
         kind: 'prefix',
         path: API_PATH,
-        handler: async (req, res) => {
-          const rejection = ctx.connection.requestRejection(req)
-          if (rejection !== undefined && rejection !== null) {
-            res.statusCode = rejection
-            res.end()
-            return
-          }
+        handler: guardRoute(ctx, async (req, res) => {
           const url = new URL(String(req.url), 'http://localhost')
           const action = url.pathname.slice(API_PATH.length).replace(/^\/+|\/+$/g, '')
-          try {
-            if (action === 'roots' && req.method === 'GET') {
-              sendJson(res, 200, { ok: true, roots: await roots() })
-              return
-            }
-            if (action === 'list' && req.method === 'GET') {
-              const root = await rootOf(url.searchParams.get('root') ?? '')
-              const relative = safeRelative(url.searchParams.get('path') ?? '')
-              sendJson(res, 200, { ok: true, path: relative, entries: await listDirectory(root.id, relative, fs) })
-              return
-            }
-            if (action === 'download' && req.method === 'GET') {
-              const root = await rootOf(url.searchParams.get('root') ?? '')
-              const relative = safeRelative(url.searchParams.get('path') ?? '')
-              const file = await resolveInside(root.id, relative, fs)
-              const info = await stat(file)
-              if (!info.isFile()) throw new Error('only regular files can be downloaded')
-              res.statusCode = 200
-              res.setHeader('content-type', 'application/octet-stream')
-              res.setHeader('content-length', String(info.size))
-              res.setHeader('content-disposition', `attachment; filename*=UTF-8''${encodeURIComponent(path.basename(file))}`)
-              const stream = createReadStream(file)
-              stream.on('error', () => {
-                if (!res.writableEnded) res.destroy()
-              })
-              await new Promise((resolve) => {
-                stream.on('end', resolve)
-                stream.on('close', resolve)
-                stream.pipe(res)
-              })
-              return
-            }
-            if (action === 'archive' && req.method === 'POST') {
-              const body = await readJsonBody(req)
-              const root = await rootOf(typeof body.root === 'string' ? body.root : '')
-              const requested = Array.isArray(body.paths) ? body.paths.filter((item) => typeof item === 'string') : []
-              if (requested.length === 0) throw new Error('select at least one file or folder')
-              const { files, skipped } = await collectFiles(root.id, requested, fs)
-              if (files.length === 0) throw new Error('nothing to archive: every selected item is a symbolic link')
-              const name = `${path.basename(root.path) || 'workspace'}-${new Date().toISOString().slice(0, 10)}.zip`
-              res.statusCode = 200
-              res.setHeader('content-type', 'application/zip')
-              res.setHeader('content-disposition', `attachment; filename="${encodeURIComponent(name)}"`)
-              const result = await writeZip(res, files, {
-                maxTotalBytes: (Number(config.maxMb) > 0 ? Number(config.maxMb) : 1024) * 1048576,
-              })
-              res.end()
-              if (skipped.length > 0) ctx.logger?.warn?.(`yukari-files: skipped ${skipped.length} symbolic links`)
-              void result
-              return
-            }
-            sendJson(res, 404, { ok: false, error: `unknown file action "${action}"` })
-          } catch (error) {
-            if (!res.headersSent) sendJson(res, 400, { ok: false, error: messageOf(error) })
-            else res.end()
+          
+          if (action === 'roots' && req.method === 'GET') {
+            sendJson(res, 200, { ok: true, roots: await roots() })
+            return
           }
-        },
+          if (action === 'anchor' && req.method === 'GET') {
+            const root = await rootOf(url.searchParams.get('root') ?? '')
+            sendJson(res, 200, { ok: true, sessionId: await anchorOf(root.id) })
+            return
+          }
+          if (action === 'list' && req.method === 'GET') {
+            const root = await rootOf(url.searchParams.get('root') ?? '')
+            const relative = safeRelative(url.searchParams.get('path') ?? '')
+            sendJson(res, 200, { ok: true, path: relative, entries: await listDirectory(root.id, relative, fs) })
+            return
+          }
+          if (action === 'download' && req.method === 'GET') {
+            const root = await rootOf(url.searchParams.get('root') ?? '')
+            const relative = safeRelative(url.searchParams.get('path') ?? '')
+            const file = await resolveInside(root.id, relative, fs)
+            const info = await stat(file)
+            if (!info.isFile()) throw new Error('只能下载普通文件')
+            res.statusCode = 200
+            res.setHeader('content-type', 'application/octet-stream')
+            res.setHeader('content-length', String(info.size))
+            res.setHeader('content-disposition', `attachment; filename*=UTF-8''${encodeURIComponent(path.basename(file))}`)
+            const stream = createReadStream(file)
+            stream.on('error', () => {
+              if (!res.writableEnded) res.destroy()
+            })
+            await new Promise((resolve) => {
+              stream.on('end', resolve)
+              stream.on('close', resolve)
+              stream.pipe(res)
+            })
+            return
+          }
+          if (action === 'archive' && req.method === 'POST') {
+            const body = await readJsonBody(req)
+            const root = await rootOf(typeof body.root === 'string' ? body.root : '')
+            const requested = Array.isArray(body.paths) ? body.paths.filter((item) => typeof item === 'string') : []
+            if (requested.length === 0) throw new Error('请至少选择一个文件或文件夹')
+            const { files, skipped } = await collectFiles(root.id, requested, fs)
+            if (files.length === 0) throw new Error('没有可打包的内容：所选项目都是符号链接')
+            const name = `${path.basename(root.path) || 'workspace'}-${new Date().toISOString().slice(0, 10)}.zip`
+            res.statusCode = 200
+            res.setHeader('content-type', 'application/zip')
+            res.setHeader('content-disposition', `attachment; filename="${encodeURIComponent(name)}"`)
+            const result = await writeZip(res, files, {
+              maxTotalBytes: (Number(config.maxMb) > 0 ? Number(config.maxMb) : 1024) * 1048576,
+            })
+            res.end()
+            if (skipped.length > 0) ctx.logger?.warn?.(`yukari-files: skipped ${skipped.length} symbolic links`)
+            void result
+            return
+          }
+          sendJson(res, 404, { ok: false, error: `未知的文件操作「${action}」` })
+
+        }),
       }),
     `yukari-files: ${API_PATH}/*`,
   )

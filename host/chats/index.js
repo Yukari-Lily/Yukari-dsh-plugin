@@ -10,43 +10,15 @@
  */
 import { markMounted } from '../shared/mounted.js'
 import { API_PATH, createAdmin, messageOf } from './lib/admin.js'
+import { guardRoute, readJsonBody, sendJson } from '../shared/http.js'
 
 export { API_PATH }
-
-/** Largest accepted request body. */
-const MAX_BODY_BYTES = 64 * 1024
 
 /** Rows one inventory tool answer carries. */
 const TOOL_ROW_LIMIT = 200
 
 /** Services this bundle needs. */
 export const inject = ['sessionPersistence', 'sessionQuery', 'sessions', 'webServer', 'connection', 'tools']
-
-/** Serialize one JSON response. */
-function sendJson(res, status, value) {
-  res.statusCode = status
-  res.setHeader('content-type', 'application/json; charset=utf-8')
-  res.setHeader('cache-control', 'no-store')
-  res.end(JSON.stringify(value))
-}
-
-/** Read a bounded JSON body. */
-async function readJsonBody(req) {
-  const chunks = []
-  let size = 0
-  for await (const chunk of req) {
-    size += chunk.length
-    if (size > MAX_BODY_BYTES) throw new Error('request body is too large')
-    chunks.push(chunk)
-  }
-  if (size === 0) return {}
-  try {
-    const value = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-    return value !== null && typeof value === 'object' ? value : {}
-  } catch {
-    throw new Error('request body is not valid JSON')
-  }
-}
 
 /** Trim one chat row to the shape an agent tool answer needs. */
 function toolRow(row) {
@@ -89,51 +61,43 @@ export function apply(ctx, config = {}) {
       ctx.webServer.register({
         kind: 'prefix',
         path: API_PATH,
-        handler: async (req, res) => {
-          const rejection = ctx.connection.requestRejection(req)
-          if (rejection !== undefined && rejection !== null) {
-            res.statusCode = rejection
-            res.end()
-            return
-          }
+        handler: guardRoute(ctx, async (req, res) => {
           const url = new URL(String(req.url), 'http://localhost')
           const action = url.pathname.slice(API_PATH.length).replace(/^\/+|\/+$/g, '')
-          try {
-            if (action === '' || action === 'state') {
-              if (req.method !== 'GET') {
-                sendJson(res, 405, { ok: false, error: 'use GET' })
-                return
-              }
-              sendJson(res, 200, { ok: true, state: await admin.snapshot() })
+          
+          if (action === '' || action === 'state') {
+            if (req.method !== 'GET') {
+              sendJson(res, 405, { ok: false, error: 'use GET' })
               return
             }
-            if (req.method !== 'POST') {
-              sendJson(res, 405, { ok: false, error: 'use POST' })
-              return
-            }
-            const body = await readJsonBody(req)
-            if (action === 'delete') {
-              const result = await admin.remove({
-                ids: body.ids,
-                deleteFiles: body.deleteFiles === true,
-                deleteWorkspaceDir: body.deleteWorkspaceDir === true,
-                deleteWorkspace: body.deleteWorkspace === true,
-                workspaceId: body.workspaceId,
-                workspacePath: body.workspacePath,
-              })
-              sendJson(res, 200, { ok: true, ...result })
-              return
-            }
-            if (action === 'archive') {
-              const result = await admin.setArchived({ id: body.id, archived: body.archived === true })
-              sendJson(res, 200, { ok: true, ...result })
-              return
-            }
-            sendJson(res, 404, { ok: false, error: `unknown action "${action}"` })
-          } catch (error) {
-            sendJson(res, 400, { ok: false, error: messageOf(error) })
+            sendJson(res, 200, { ok: true, state: await admin.snapshot() })
+            return
           }
-        },
+          if (req.method !== 'POST') {
+            sendJson(res, 405, { ok: false, error: 'use POST' })
+            return
+          }
+          const body = await readJsonBody(req)
+          if (action === 'delete') {
+            const result = await admin.remove({
+              ids: body.ids,
+              deleteFiles: body.deleteFiles === true,
+              deleteWorkspaceDir: body.deleteWorkspaceDir === true,
+              deleteWorkspace: body.deleteWorkspace === true,
+              workspaceId: body.workspaceId,
+              workspacePath: body.workspacePath,
+            })
+            sendJson(res, 200, { ok: true, ...result })
+            return
+          }
+          if (action === 'archive') {
+            const result = await admin.setArchived({ id: body.id, archived: body.archived === true })
+            sendJson(res, 200, { ok: true, ...result })
+            return
+          }
+          sendJson(res, 404, { ok: false, error: `unknown action "${action}"` })
+
+        }),
       }),
     `chat-manager: ${API_PATH}/*`,
   )

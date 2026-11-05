@@ -23,6 +23,9 @@ export const API_PATH = '/chat-manager/api'
 /** Largest id batch one delete request may carry. */
 export const MAX_DELETE_IDS = 500
 
+/** Directory stats run at most this many at a time. */
+const STAT_CONCURRENCY = 8
+
 /** Most titles one listing folds from cold logs. */
 export const DEFAULT_TITLE_BUDGET = 160
 
@@ -277,14 +280,22 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
     const { found, warning } = await foldTitles(pendingTitles)
     if (warning !== null) warnings.push(warning)
 
-    for (const row of rows) {
-      if (row.title === null) row.title = found.get(row.id) ?? null
-      const info = await directoryStat(row.directory)
-      row.stored = info !== null && info.isDirectory
-      row.updatedAt = Math.max(row.createdAt, info?.mtimeMs ?? 0)
-      delete row.directory
-      delete row.persistedAt
+    // Bounded concurrency: one stat per row, at most eight in flight, so a
+    // thousand chats cost a few hundred milliseconds instead of a minute.
+    let cursor = 0
+    const worker = async () => {
+      while (cursor < rows.length) {
+        const row = rows[cursor]
+        cursor += 1
+        if (row.title === null) row.title = found.get(row.id) ?? null
+        const info = await directoryStat(row.directory)
+        row.stored = info !== null && info.isDirectory
+        row.updatedAt = Math.max(row.createdAt, info?.mtimeMs ?? 0)
+        delete row.directory
+        delete row.persistedAt
+      }
     }
+    await Promise.all(Array.from({ length: Math.min(STAT_CONCURRENCY, rows.length) }, worker))
 
     rows.sort((left, right) => {
       if (right.updatedAt !== left.updatedAt) return right.updatedAt - left.updatedAt

@@ -22,6 +22,7 @@ import { promisify } from 'node:util'
 import { planRestart, scheduleRestart } from './host/runtime/lib/restart.js'
 import { compare } from './host/runtime/lib/versions.js'
 import { mountedComponents } from './host/shared/mounted.js'
+import { guardRoute, messageOf, readJsonBody, sendJson } from './host/shared/http.js'
 
 const execFileAsync = promisify(execFile)
 const PLUGIN_DIR = path.dirname(fileURLToPath(import.meta.url))
@@ -46,33 +47,6 @@ function packageVersion(dir = PLUGIN_DIR) {
 
 const RUNNING_VERSION = packageVersion()
 
-/** Read a bounded JSON body; an empty body is an empty object. */
-async function readJsonBody(req) {
-  const chunks = []
-  let size = 0
-  for await (const chunk of req) {
-    size += chunk.length
-    if (size > 16 * 1024) throw new Error('request body is too large')
-    chunks.push(chunk)
-  }
-  if (size === 0) return {}
-  try {
-    const value = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-    return value !== null && typeof value === 'object' ? value : {}
-  } catch {
-    throw new Error('request body is not valid JSON')
-  }
-}
-
-/** Serialize one JSON response. */
-function sendJson(res, status, value) {
-  res.statusCode = status
-  res.setHeader('content-type', 'application/json; charset=utf-8')
-  res.setHeader('cache-control', 'no-store')
-  res.end(JSON.stringify(value))
-}
-
-const messageOf = (error) => (error instanceof Error ? error.message : String(error))
 
 /* ------------------------------------------------------------- install info */
 
@@ -305,6 +279,63 @@ export function apply(ctx) {
   let updating = false
   let restartQueued = false
 
+  /** Everything except the icon, behind the connection guard and one error boundary. */
+  const guarded = guardRoute(ctx, async (req, res) => {
+    const url = new URL(String(req.url), 'http://localhost')
+    const action = url.pathname.slice(API_PATH.length).replace(/^\/+|\/+$/g, '')
+
+    if ((action === '' || action === 'overview') && req.method === 'GET') {
+      sendJson(res, 200, {
+        ok: true,
+        overview: {
+          version: RUNNING_VERSION,
+          pid: process.pid,
+          hostname: hostname(),
+          at: new Date().toISOString(),
+          components: mountedComponents(ctx),
+        },
+      })
+      return
+    }
+    if (action === 'update' && req.method === 'GET') {
+      sendJson(res, 200, { ok: true, update: await checkUpdate() })
+      return
+    }
+    if (action === 'update' && req.method === 'POST') {
+      if (updating) throw new Error('更新正在进行中')
+      const body = await readJsonBody(req).catch(() => ({}))
+      updating = true
+      try {
+        const before = await checkUpdate()
+        if (!before.available) {
+          sendJson(res, 200, { ok: true, updated: false, update: before })
+          return
+        }
+        const result = await applyUpdate(before)
+        // The client may be reloaded by HMR while the files change, so a
+        // requested restart is scheduled here, not in the browser.
+        let restarted = false
+        if (body.restart === true) {
+          scheduleRestart(planRestart({ mode: 'auto' }), { delayMs: 900, reason: 'yukari plugin update' })
+          restarted = true
+        }
+        sendJson(res, 200, { ok: true, ...result, restarted, update: { ...before, available: false, pendingRestart: true } })
+      } finally {
+        updating = false
+      }
+      return
+    }
+    if (action === 'restart' && req.method === 'POST') {
+      if (restartQueued) throw new Error('重启已经在队列里')
+      const plan = planRestart({ mode: 'auto' })
+      const ack = scheduleRestart(plan, { delayMs: 800, reason: 'yukari panel' })
+      restartQueued = true
+      sendJson(res, 202, { ok: true, ...ack })
+      return
+    }
+    sendJson(res, 404, { ok: false, error: `unknown action "${action}"` })
+  })
+
   ctx.effect(
     () =>
       ctx.webServer.register({
@@ -314,6 +345,7 @@ export function apply(ctx) {
           const url = new URL(String(req.url), 'http://localhost')
           const action = url.pathname.slice(API_PATH.length).replace(/^\/+|\/+$/g, '')
 
+          // The icon is fetched by <img> and has to answer without the guard.
           if (action === 'icon' && req.method === 'GET') {
             const bytes = iconBytes()
             res.statusCode = bytes.length === 0 ? 404 : 200
@@ -322,68 +354,7 @@ export function apply(ctx) {
             res.end(bytes)
             return
           }
-
-          const rejection = ctx.connection.requestRejection(req)
-          if (rejection !== undefined && rejection !== null) {
-            res.statusCode = rejection
-            res.end()
-            return
-          }
-
-          try {
-            if ((action === '' || action === 'overview') && req.method === 'GET') {
-              sendJson(res, 200, {
-                ok: true,
-                overview: {
-                  version: RUNNING_VERSION,
-                  pid: process.pid,
-                  hostname: hostname(),
-                  at: new Date().toISOString(),
-                  components: mountedComponents(ctx),
-                },
-              })
-              return
-            }
-            if (action === 'update' && req.method === 'GET') {
-              sendJson(res, 200, { ok: true, update: await checkUpdate() })
-              return
-            }
-            if (action === 'update' && req.method === 'POST') {
-              if (updating) throw new Error('更新正在进行中')
-              const body = await readJsonBody(req).catch(() => ({}))
-              updating = true
-              try {
-                const before = await checkUpdate()
-                if (!before.available) {
-                  sendJson(res, 200, { ok: true, updated: false, update: before })
-                  return
-                }
-                const result = await applyUpdate(before)
-                // The client may be reloaded by HMR while the files change, so a
-                // requested restart is scheduled here, not in the browser.
-                let restarted = false
-                if (body.restart === true) {
-                  scheduleRestart(planRestart({ mode: 'auto' }), { delayMs: 900, reason: 'yukari plugin update' })
-                  restarted = true
-                }
-                sendJson(res, 200, { ok: true, ...result, restarted, update: { ...before, available: false, pendingRestart: true } })
-              } finally {
-                updating = false
-              }
-              return
-            }
-            if (action === 'restart' && req.method === 'POST') {
-              if (restartQueued) throw new Error('重启已经在队列里')
-              const plan = planRestart({ mode: 'auto' })
-              const ack = scheduleRestart(plan, { delayMs: 800, reason: 'yukari panel' })
-              restartQueued = true
-              sendJson(res, 202, { ok: true, ...ack })
-              return
-            }
-            sendJson(res, 404, { ok: false, error: `unknown action "${action}"` })
-          } catch (error) {
-            sendJson(res, 400, { ok: false, error: messageOf(error) })
-          }
+          return guarded(req, res)
         },
       }),
     `yukari: ${API_PATH}/*`,

@@ -12,46 +12,15 @@
  */
 import { markMounted } from '../shared/mounted.js'
 import { ProxyController } from './lib/controller.js'
+import { guardRoute, readJsonBody, sendJson, messageOf } from '../shared/http.js'
 
 /** JSON API prefix served to the Web panel. */
 export const API_PATH = '/ssproxy/api'
 
-/** Largest accepted request body. */
-const MAX_BODY_BYTES = 64 * 1024
-
 /** Services this plugin needs. */
 export const inject = ['tools', 'webServer', 'connection']
 
-/** Serialize one JSON response. */
-function sendJson(res, status, value) {
-  const body = JSON.stringify(value)
-  res.statusCode = status
-  res.setHeader('content-type', 'application/json; charset=utf-8')
-  res.setHeader('cache-control', 'no-store')
-  res.end(body)
-}
-
-/** Read a bounded JSON body. */
-async function readJsonBody(req) {
-  const chunks = []
-  let size = 0
-  for await (const chunk of req) {
-    size += chunk.length
-    if (size > MAX_BODY_BYTES) throw new Error('request body is too large')
-    chunks.push(chunk)
-  }
-  if (size === 0) return {}
-  try {
-    const value = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-    return value !== null && typeof value === 'object' ? value : {}
-  } catch {
-    throw new Error('request body is not valid JSON')
-  }
-}
-
 /** Turn any thrown value into a message. */
-const messageOf = (error) => (error instanceof Error ? error.message : String(error))
-
 /**
  * Resolve a tool's `id` / `name` argument to a node id: an exact id, else a
  * case-insensitive exact name, else a unique name substring.
@@ -182,72 +151,64 @@ export function apply(ctx, config = {}) {
       ctx.webServer.register({
         kind: 'prefix',
         path: API_PATH,
-        handler: async (req, res) => {
-          const rejection = ctx.connection.requestRejection(req)
-          if (rejection !== undefined && rejection !== null) {
-            res.statusCode = rejection
-            res.end()
-            return
-          }
+        handler: guardRoute(ctx, async (req, res) => {
           const url = new URL(String(req.url), 'http://localhost')
           const action = url.pathname.slice(API_PATH.length).replace(/^\/+|\/+$/g, '')
-          try {
-            if (action === 'state') {
-              if (req.method !== 'GET') {
-                sendJson(res, 405, { ok: false, error: 'use GET' })
-                return
-              }
-              sendJson(res, 200, { ok: true, state: controller.state() })
+          
+          if (action === 'state') {
+            if (req.method !== 'GET') {
+              sendJson(res, 405, { ok: false, error: 'use GET' })
               return
             }
-            if (req.method !== 'POST') {
-              sendJson(res, 405, { ok: false, error: 'use POST' })
-              return
-            }
-            const body = await readJsonBody(req)
-            if (action === 'enable') {
-              sendJson(res, 200, { ok: true, state: await controller.enable() })
-              return
-            }
-            if (action === 'disable') {
-              sendJson(res, 200, { ok: true, state: await controller.disable() })
-              return
-            }
-            if (action === 'configure') {
-              sendJson(res, 200, { ok: true, state: await controller.configure(body) })
-              return
-            }
-            if (action === 'test') {
-              const test = await controller.test(body.target, body.id)
-              sendJson(res, 200, { ok: true, test, state: controller.state() })
-              return
-            }
-            if (action === 'test-all') {
-              sendJson(res, 200, { ok: true, state: await controller.testAll(body.target) })
-              return
-            }
-            if (action === 'import') {
-              const result = await controller.importNodes(String(body.text ?? body.uri ?? ''))
-              sendJson(res, 200, { ok: true, ...result })
-              return
-            }
-            if (action === 'select') {
-              sendJson(res, 200, { ok: true, state: await controller.select(body.id) })
-              return
-            }
-            if (action === 'remove') {
-              sendJson(res, 200, { ok: true, state: await controller.removeNode(body.id) })
-              return
-            }
-            if (action === 'reset') {
-              sendJson(res, 200, { ok: true, state: await controller.reset() })
-              return
-            }
-            sendJson(res, 404, { ok: false, error: `unknown action "${action}"` })
-          } catch (error) {
-            sendJson(res, 400, { ok: false, error: messageOf(error), state: controller.state() })
+            sendJson(res, 200, { ok: true, state: controller.state() })
+            return
           }
-        },
+          if (req.method !== 'POST') {
+            sendJson(res, 405, { ok: false, error: 'use POST' })
+            return
+          }
+          const body = await readJsonBody(req)
+          if (action === 'enable') {
+            sendJson(res, 200, { ok: true, state: await controller.enable() })
+            return
+          }
+          if (action === 'disable') {
+            sendJson(res, 200, { ok: true, state: await controller.disable() })
+            return
+          }
+          if (action === 'configure') {
+            sendJson(res, 200, { ok: true, state: await controller.configure(body) })
+            return
+          }
+          if (action === 'test') {
+            const test = await controller.test(body.target, body.id)
+            sendJson(res, 200, { ok: true, test, state: controller.state() })
+            return
+          }
+          if (action === 'test-all') {
+            sendJson(res, 200, { ok: true, state: await controller.testAll(body.target) })
+            return
+          }
+          if (action === 'import') {
+            const result = await controller.importNodes(String(body.text ?? body.uri ?? ''))
+            sendJson(res, 200, { ok: true, ...result })
+            return
+          }
+          if (action === 'select') {
+            sendJson(res, 200, { ok: true, state: await controller.select(body.id) })
+            return
+          }
+          if (action === 'remove') {
+            sendJson(res, 200, { ok: true, state: await controller.removeNode(body.id) })
+            return
+          }
+          if (action === 'reset') {
+            sendJson(res, 200, { ok: true, state: await controller.reset() })
+            return
+          }
+          sendJson(res, 404, { ok: false, error: `unknown action "${action}"` })
+
+        }),
       }),
     `ss-proxy: POST ${API_PATH}/*`,
   )

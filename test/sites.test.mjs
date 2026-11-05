@@ -24,15 +24,15 @@ async function emptyStaging(store) {
 test('publish rejects symlinks before creating a stage', async (t) => {
   const { temporary, store, source } = await fixture(t)
   await symlink(path.join(temporary, 'outside'), path.join(source, 'linked'))
-  await assert.rejects(store.publish({ source, slug: 'safe' }), /symbolic links are not allowed/)
+  await assert.rejects(store.publish({ source, slug: 'safe' }), /不允许符号链接/)
   assert.equal(await store.list().then((sites) => sites.length), 0)
   await emptyStaging(store)
-  await assert.rejects(store.publish({ source: path.join(source, 'linked'), slug: 'safe' }), /symbolic link|does not exist/)
+  await assert.rejects(store.publish({ source: path.join(source, 'linked'), slug: 'safe' }), /符号链接|不存在/)
 })
 
 test('publish rejects source and publish state overlap', async (t) => {
   const { store, root } = await fixture(t)
-  await assert.rejects(store.publish({ source: root, slug: 'recursive' }), /publish root or state directory/)
+  await assert.rejects(store.publish({ source: root, slug: 'recursive' }), /发布目录或状态目录/)
   await emptyStaging(store)
 })
 
@@ -40,14 +40,14 @@ test('publish enforces the file-count limit without leaking staging', async (t) 
   const { store, source } = await fixture(t)
   store.maxFiles = 1
   await writeFile(path.join(source, 'extra.txt'), 'extra')
-  await assert.rejects(store.publish({ source, slug: 'limited' }), /more than 1 files/)
+  await assert.rejects(store.publish({ source, slug: 'limited' }), /文件数超过 1 个/)
   await emptyStaging(store)
 })
 
 test('publish cleans staging when validation fails after copying', async (t) => {
   const { store, source } = await fixture(t)
   await writeFile(path.join(source, 'index.html'), '<script src="/absolute.js"></script>')
-  await assert.rejects(store.publish({ source, slug: 'invalid' }), /absolute root asset link/)
+  await assert.rejects(store.publish({ source, slug: 'invalid' }), /根路径资源引用/)
   await emptyStaging(store)
 })
 

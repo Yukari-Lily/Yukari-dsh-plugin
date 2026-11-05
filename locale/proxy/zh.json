@@ -1,6 +1,0 @@
-{
-  "meta": {
-    "title": "代理",
-    "description": "Shadowsocks 出站代理：导入多个节点，选一个接管全部出站流量。"
-  }
-}

@@ -99,48 +99,20 @@ window.__ModuleLoader__.load({
       saved: '已保存',
       close: '关闭',
       loading: '加载中…',
-      never: '从未',
       none: '—',
       open: '打开',
       copy: '复制',
       copied: '已复制',
       clearSearch: '清空',
-      showPassword: '显示密码',
-      hidePassword: '隐藏密码',
       expand: '展开',
       collapse: '收起',
 
       offTitle: '「{name}」已关闭',
       offHint: '在侧边栏「插件」页启用 Yukari 的「{name}」组件后刷新即可使用。',
-      offList: '已关闭：{names}',
 
-      ovGo: '管理',
-      ovTotal: '会话总数',
       ovArchived: '已归档',
-      ovLive: '打开中',
-      ovStored: '占用',
-      ovWorkspaces: '工作区',
-      ovVersion: 'DSH 版本',
-      ovChannel: '更新通道',
-      ovUptime: '已运行',
-      ovSitesCount: '已发布',
-      ovLatestSite: '最近发布',
-      ovPrefix: '访问前缀',
-      ovState: '状态',
-      ovNode: '当前节点',
-      ovNodes: '节点数',
-      ovTraffic: '下行流量',
-      ovViewport: '视口',
-      ovChromium: 'Chromium',
       ovReady: '已就绪',
-      ovNotReady: '未检测到 Chromium',
-      ovPurgeReady: '已注册',
-      ovPurgePrompt: '提示词',
-      ovPurgeCustom: '自定义',
-      ovPurgeDefault: '内置默认',
       ovPurgeHow: '在对话输入框下方的模式菜单里选「无限制模式」',
-      ovUpdateReady: '有新版本',
-      ovUpToDate: '最新',
 
       cSearch: '搜索标题、ID 或路径',
       cFilter: '会话范围',
@@ -181,7 +153,6 @@ window.__ModuleLoader__.load({
       cDeleteOne: '永久删除这个会话？',
       cDeleteOneHint: '会话记录、归档和置顶标记会一并移除，无法恢复。',
       cDeleteOneSub: '永久删除这个会话及其 {n} 个子会话？',
-      cForceOne: '包括已加载的会话',
       cSubagentTag: '子会话',
       cSubSessions: '{n} 个子会话',
       cLockedByParent: '随主会话一起选中，不能单独取消',
@@ -200,7 +171,6 @@ window.__ModuleLoader__.load({
       sPrefixHint: '站点链接 = 前缀 + /站点名/。填你自己的对外地址，例如 https://pages.example.com 或 https://dsh.example.com/p',
       sPrefixDefault: '恢复默认',
       sPrefixUnset: '还在用默认前缀（dsh 本身不提供 /p 页面）。发布目录需要由你自己的静态服务对外提供，把那个地址填在这里，链接才能打开。',
-      sPrefixSaved: '访问前缀已保存',
       sCount: '共 {n} 个站点',
       sCountOne: '共 1 个站点',
       sEmpty: '还没有发布过站点',
@@ -210,8 +180,6 @@ window.__ModuleLoader__.load({
       sFiles: '{n} 个文件',
       sVersion: 'v{version}',
       sNoMatch: '没有匹配的站点',
-      sGone: '已下线 /{slug}/',
-      sKept: '没有找到 /{slug}/',
 
       tabFiles: '文件',
       fWorkspace: '工作区',
@@ -220,14 +188,16 @@ window.__ModuleLoader__.load({
       fSize: '大小',
       fPreview: '预览',
       fDownload: '下载',
-      fDownloadN: '打包下载 {n} 项',
+      fDownloadFilesN: '下载 {n} 个文件',
+      fZipN: '打包下载 {n} 项',
+      fZipReason: '超过 {n} 个文件时自动改用打包，避免连续弹出下载框',
       fSelectAll: '全选',
       fPick: '选择',
       fUnpick: '取消',
       fSymlink: '符号链接',
       fEmpty: '这个目录是空的',
       fEmptyHint: '换一个工作区或返回上级目录。',
-      fHint: '已选 {n} 项；预览使用 DSH 自己的文件预览。',
+      fHint: '已选 {n} 项；只选文件时逐个下载，含文件夹或超过 10 个文件时打包。',
       fNoSession: '这个工作区还没有会话，无法预览（下载不受影响）',
       fNoPreview: '当前界面没有文件预览服务，只能下载',
 
@@ -236,8 +206,6 @@ window.__ModuleLoader__.load({
       pEnabled: '已接管出站流量',
       pDisabled: '直连',
       pPending: '已启用，等待连接',
-      pRunning: '运行中',
-      pStopped: '未启动',
       pNodes: '节点',
       pNoNodes: '还没有节点',
       pNoNodesHint: '把 ss:// 链接、订阅内容或 Clash 配置粘贴到下面导入。',
@@ -254,36 +222,24 @@ window.__ModuleLoader__.load({
       pImported: '导入 {added} 个节点',
       pImportedUpdated: '，更新 {updated} 个',
       pImportedSkipped: '，跳过 {skipped} 个不支持的节点',
-      pSelected: '已切换到 {name}',
-      pTested: '{name} 可用，延迟 {ms}ms',
-      pEnabledNotice: '代理已启用',
-      pDisabledNotice: '代理已停用',
       pSettings: '高级设置',
       pLocalPort: '本地端口',
       pBypass: '直连名单',
-      pSaved: '设置已保存',
       pInvalidPort: '本地端口需在 1024–65535 之间',
       pReset: '清空全部节点',
       pConfirmReset: '确认清空全部节点？',
-      pResetDone: '已清空节点',
-      pStats: '流量',
       pActive: '在途连接',
-      pTotal: '累计连接',
-      pUp: '上行',
-      pDown: '下行',
       pFailures: '失败',
       pLastError: '上次错误',
       pStateFile: '节点和密码保存在本地状态文件（权限 0600），重启后自动恢复。',
 
       gTitle: '无限制模式',
       gDesc: '插件注册了一个独立的对话模式「无限制模式」。在对话输入框下方的模式菜单里选中它，下面的提示词才会注入；标准模式和其他模式完全不受影响。',
-      gPreset: '预设 ID',
       gPrompt: '系统提示词',
       gChars: '{n} 字',
       gCustom: '自定义',
       gDefault: '内置默认',
       gSave: '保存并生效',
-      gSaved: '提示词已保存，立即生效',
       gReset: '恢复默认',
       gConfirmReset: '确认恢复默认',
       gResetDone: '已恢复内置提示词',
@@ -307,35 +263,21 @@ window.__ModuleLoader__.load({
       rNeedsRestart: '新版本已安装，重启后生效',
       rUpdated: '已安装 {version}',
       rUpdatedSame: '已经是 {version}',
-      rQueued: '已安排重启',
       rCardVersion: '版本',
-      rRunning: '运行中',
       rOnDisk: '已安装',
       rLatest: '通道最新',
-      rCheckedAt: '上次检查',
       rCardProcess: '进程',
-      rHost: '主机',
-      rPid: 'PID',
       rNode: 'Node',
       rUptime: '已运行',
       rChannel: '通道',
-      rProfile: '配置档',
-      rCardRestart: '更新源与重启',
-      rRegistry: 'npm 源',
       rStrategy: '重启方式',
       rExecve: '原地重新执行',
       rExit: '退出后由容器拉起',
       rCommand: '执行自定义命令',
-      rLastRestart: '上次重启',
       rCardActivity: '最近操作',
-      rNoActivity: '本次启动后还没有操作。',
-      rOk: '成功',
       rFail: '失败',
-      rDocker: 'Docker',
-      rBare: '宿主机',
       rRestarting: '正在重启 DSH',
       rRestartingHint: '等待服务重新响应，页面会自动刷新。',
-      rRestartWait: '第 {n} 次探测',
       rRestartSlow: '一直没有响应。可用 docker compose logs -f dsh 查看日志。',
       rBack: '已恢复，正在刷新…',
       rHint: '重启时页面会断开几秒，会话不受影响。',
@@ -397,48 +339,20 @@ window.__ModuleLoader__.load({
       saved: 'Saved',
       close: 'Close',
       loading: 'Loading…',
-      never: 'never',
       none: '—',
       open: 'Open',
       copy: 'Copy',
       copied: 'Copied',
       clearSearch: 'Clear',
-      showPassword: 'Show password',
-      hidePassword: 'Hide password',
       expand: 'Expand',
       collapse: 'Collapse',
 
       offTitle: '“{name}” is turned off',
       offHint: 'Enable the Yukari “{name}” component on the Plugins page, then refresh.',
-      offList: 'Turned off: {names}',
 
-      ovGo: 'Manage',
-      ovTotal: 'Chats',
       ovArchived: 'Archived',
-      ovLive: 'Open',
-      ovStored: 'On disk',
-      ovWorkspaces: 'Workspaces',
-      ovVersion: 'DSH version',
-      ovChannel: 'Channel',
-      ovUptime: 'Uptime',
-      ovSitesCount: 'Published',
-      ovLatestSite: 'Latest',
-      ovPrefix: 'URL prefix',
-      ovState: 'State',
-      ovNode: 'Node',
-      ovNodes: 'Nodes',
-      ovTraffic: 'Downloaded',
-      ovViewport: 'Viewport',
-      ovChromium: 'Chromium',
       ovReady: 'Ready',
-      ovNotReady: 'Chromium not found',
-      ovPurgeReady: 'Registered',
-      ovPurgePrompt: 'Prompt',
-      ovPurgeCustom: 'Custom',
-      ovPurgeDefault: 'Built-in',
       ovPurgeHow: 'Pick “Unrestricted” in the mode menu under the chat input',
-      ovUpdateReady: 'Update available',
-      ovUpToDate: 'Up to date',
 
       cSearch: 'Search title, id or path',
       cFilter: 'Scope',
@@ -479,7 +393,6 @@ window.__ModuleLoader__.load({
       cDeleteOne: 'Permanently delete this chat?',
       cDeleteOneHint: 'History, archive and pin marks are removed together. This cannot be undone.',
       cDeleteOneSub: 'Permanently delete this chat and its {n} subagent chats?',
-      cForceOne: 'Include this loaded chat',
       cSubagentTag: 'Subagent',
       cSubSessions: '{n} subagent chats',
       cLockedByParent: 'Selected with its parent chat and cannot be unticked alone',
@@ -498,7 +411,6 @@ window.__ModuleLoader__.load({
       sPrefixHint: 'Site link = prefix + /name/. Use your public address, e.g. https://pages.example.com or https://dsh.example.com/p',
       sPrefixDefault: 'Reset',
       sPrefixUnset: 'Still on the default prefix (dsh itself does not serve /p). Serve the publish root with your own static host and enter its address here so links open.',
-      sPrefixSaved: 'URL prefix saved',
       sCount: '{n} sites',
       sCountOne: '1 site',
       sEmpty: 'No site published yet',
@@ -508,8 +420,6 @@ window.__ModuleLoader__.load({
       sFiles: '{n} files',
       sVersion: 'v{version}',
       sNoMatch: 'No site matches',
-      sGone: 'Unpublished /{slug}/',
-      sKept: 'No site at /{slug}/',
 
       tabFiles: 'Files',
       fWorkspace: 'Workspace',
@@ -518,14 +428,16 @@ window.__ModuleLoader__.load({
       fSize: 'Size',
       fPreview: 'Preview',
       fDownload: 'Download',
-      fDownloadN: 'Download {n} as ZIP',
+      fDownloadFilesN: 'Download {n} files',
+      fZipN: 'Download {n} as ZIP',
+      fZipReason: 'More than {n} files are packed into one ZIP to avoid a download prompt per file',
       fSelectAll: 'Select all',
       fPick: 'Select',
       fUnpick: 'Clear',
       fSymlink: 'symlink',
       fEmpty: 'This folder is empty',
       fEmptyHint: 'Pick another workspace or go up a level.',
-      fHint: '{n} selected; preview uses the DSH file viewer.',
+      fHint: '{n} selected; files download one by one, folders or more than ten files are zipped.',
       fNoSession: 'This workspace has no chat yet, so preview is unavailable (download still works)',
       fNoPreview: 'No file preview service in this surface; download only',
 
@@ -534,8 +446,6 @@ window.__ModuleLoader__.load({
       pEnabled: 'Routing outbound traffic',
       pDisabled: 'Direct',
       pPending: 'Enabled, connecting',
-      pRunning: 'running',
-      pStopped: 'stopped',
       pNodes: 'Nodes',
       pNoNodes: 'No nodes yet',
       pNoNodesHint: 'Paste ss:// links, a subscription or a Clash config below.',
@@ -552,36 +462,24 @@ window.__ModuleLoader__.load({
       pImported: 'Imported {added} nodes',
       pImportedUpdated: ', updated {updated}',
       pImportedSkipped: ', skipped {skipped} unsupported',
-      pSelected: 'Switched to {name}',
-      pTested: '{name} works, {ms}ms',
-      pEnabledNotice: 'Proxy enabled',
-      pDisabledNotice: 'Proxy disabled',
       pSettings: 'Advanced',
       pLocalPort: 'Local port',
       pBypass: 'Direct list',
-      pSaved: 'Settings saved',
       pInvalidPort: 'Local port must be 1024–65535',
       pReset: 'Remove all nodes',
       pConfirmReset: 'Remove all nodes?',
-      pResetDone: 'All nodes removed',
-      pStats: 'Traffic',
       pActive: 'Active',
-      pTotal: 'Total',
-      pUp: 'Up',
-      pDown: 'Down',
       pFailures: 'Failures',
       pLastError: 'Last error',
       pStateFile: 'Nodes and passwords are kept in a local state file (mode 0600) and restored after a restart.',
 
       gTitle: 'Unrestricted mode',
       gDesc: 'The plugin registers a separate chat mode, “Unrestricted”. The prompt below is injected only when you pick that mode in the menu under the chat input; the standard mode is untouched.',
-      gPreset: 'Preset id',
       gPrompt: 'System prompt',
       gChars: '{n} chars',
       gCustom: 'Custom',
       gDefault: 'Built-in',
       gSave: 'Save',
-      gSaved: 'Prompt saved and active',
       gReset: 'Restore default',
       gConfirmReset: 'Confirm restore',
       gResetDone: 'Built-in prompt restored',
@@ -605,35 +503,21 @@ window.__ModuleLoader__.load({
       rNeedsRestart: 'Installed — restart to load it',
       rUpdated: 'Installed {version}',
       rUpdatedSame: 'Already on {version}',
-      rQueued: 'Restart scheduled',
       rCardVersion: 'Version',
-      rRunning: 'Running',
       rOnDisk: 'Installed',
       rLatest: 'Newest',
-      rCheckedAt: 'Last checked',
       rCardProcess: 'Process',
-      rHost: 'Host',
-      rPid: 'PID',
       rNode: 'Node',
       rUptime: 'Uptime',
       rChannel: 'Channel',
-      rProfile: 'Profile',
-      rCardRestart: 'Source and restart',
-      rRegistry: 'npm registry',
       rStrategy: 'Restart method',
       rExecve: 're-exec in place',
       rExit: 'exit, container restarts it',
       rCommand: 'custom command',
-      rLastRestart: 'Last restart',
       rCardActivity: 'Recent activity',
-      rNoActivity: 'Nothing run since this start.',
-      rOk: 'ok',
       rFail: 'failed',
-      rDocker: 'Docker',
-      rBare: 'host',
       rRestarting: 'Restarting DSH',
       rRestartingHint: 'Waiting for the server to answer; the page reloads by itself.',
-      rRestartWait: 'attempt {n}',
       rRestartSlow: 'Still no answer. Check docker compose logs -f dsh.',
       rBack: 'Back online — reloading…',
       rHint: 'A restart drops this page for a few seconds; chats are not affected.',
@@ -1552,7 +1436,6 @@ window.__ModuleLoader__.load({
     function ChatsTab({ t, ui }) {
       const [data, setData] = React.useState(null)
       const [failure, setFailure] = React.useState(null)
-      const [notice, setNotice] = React.useState(null)
       const [flash, show] = useFlash()
       const [busy, setBusy] = React.useState('')
       const [query, setQuery] = React.useState('')
@@ -1654,14 +1537,12 @@ window.__ModuleLoader__.load({
         setRowConfirm(null)
         setDeleteFiles(false)
         setDeleteDir(target.workspace !== undefined)
-        setNotice(null)
         setConfirming(target)
       }
 
       const run = async (name, operation) => {
         setBusy(name)
         setFailure(null)
-        setNotice(null)
         try {
           return await operation()
         } catch (error) {
@@ -2083,7 +1964,6 @@ window.__ModuleLoader__.load({
     function SitesTab({ t }) {
       const [payload, setPayload] = React.useState(null)
       const [failure, setFailure] = React.useState(null)
-      const [notice, setNotice] = React.useState(null)
       const [flash, show] = useFlash()
       const [busy, setBusy] = React.useState('')
       const [query, setQuery] = React.useState('')
@@ -2121,7 +2001,6 @@ window.__ModuleLoader__.load({
       const run = async (name, operation) => {
         setBusy(name)
         setFailure(null)
-        setNotice(null)
         try {
           await operation()
         } catch (error) {
@@ -2269,11 +2148,6 @@ window.__ModuleLoader__.load({
       return `dsh-resource://file/session/${encodeURIComponent(sessionId)}/${encoded}`
     }
 
-    function formatSize(bytes) {
-      if (typeof bytes !== 'number' || bytes <= 0) return '—'
-      return formatBytes(bytes)
-    }
-
     /** Breadcrumb + listing of one workspace, with download and preview. */
     function FilesTab({ t, ui }) {
       const [roots, setRoots] = React.useState(null)
@@ -2326,13 +2200,14 @@ window.__ModuleLoader__.load({
       const toggle = (entry) => setSelected((current) =>
         current.includes(entry.path) ? current.filter((item) => item !== entry.path) : [...current, entry.path])
 
-      const preview = (entry) => {
+      const preview = async (entry) => {
+        if (root === null || entry.type !== 'file') return
         try {
-          if (root === null || entry.type !== 'file') return
-          if (root.sessionId === null) throw new Error(t('fNoSession'))
-          ui.openResource(root.sessionId, path === '' ? entry.name : `${path}/${entry.name}`)
+          const payload = await getJson(`${API.files}/anchor?root=${encodeURIComponent(root.id)}`, signal)
+          if (payload.sessionId === null || payload.sessionId === undefined) throw new Error(t('fNoSession'))
+          ui.openResource(payload.sessionId, entry.path)
         } catch (error) {
-          setFailure(failureOf(error))
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
         }
       }
 
@@ -2345,8 +2220,20 @@ window.__ModuleLoader__.load({
         anchor.click()
       }
 
+      /** Files alone go straight to the browser; a folder (or a large batch) becomes one ZIP. */
+      const entryOf = (target) => entries.find((entry) => entry.path === target) ?? null
+      const hasDirectory = selected.some((target) => entryOf(target)?.type === 'dir')
+      const packAsZip = hasDirectory || selected.length > 10
+
       const downloadSelected = async () => {
         if (root === null || selected.length === 0) return
+        if (!packAsZip) {
+          for (const target of selected) {
+            const entry = entryOf(target)
+            if (entry !== null) downloadOne(entry)
+          }
+          return
+        }
         setBusy('archive')
         setFailure(null)
         try {
@@ -2410,9 +2297,15 @@ window.__ModuleLoader__.load({
           h(RefreshButton, { t, onClick: load, spinning: busy === 'load' }),
           h(
             'button',
-            { type: 'button', className: 'yk-btn yk-btn-solid', onClick: downloadSelected, disabled: busy !== '' || selected.length === 0 },
+            {
+              type: 'button',
+              className: 'yk-btn yk-btn-solid',
+              onClick: downloadSelected,
+              disabled: busy !== '' || selected.length === 0,
+              title: !packAsZip || hasDirectory ? undefined : fill(t('fZipReason'), { n: 10 }),
+            },
             busy === 'archive' ? h(Spinner) : h(DownloadIcon),
-            fill(t('fDownloadN'), { n: selected.length }),
+            fill(packAsZip ? t('fZipN') : t('fDownloadFilesN'), { n: selected.length }),
           ),
         ),
         h(Failure, { t, name: 'files', error: failure, onRetry: load }),
@@ -2470,7 +2363,7 @@ window.__ModuleLoader__.load({
                       entry.type === 'symlink' ? h(Chip, { kind: 'warn' }, t('fSymlink')) : null,
                     ),
                   ),
-                  h('span', { className: 'yk-itemMeta yk-metaRight yk-mono' }, isDir ? '' : formatSize(entry.size)),
+                  h('span', { className: 'yk-itemMeta yk-metaRight yk-mono' }, isDir ? '' : entry.size > 0 ? formatBytes(entry.size) : '—'),
                   h(
                     'div',
                     { className: 'yk-itemActions' },
@@ -2497,7 +2390,6 @@ window.__ModuleLoader__.load({
     function ProxyTab({ t }) {
       const [state, setState] = React.useState(null)
       const [failure, setFailure] = React.useState(null)
-      const [notice, setNotice] = React.useState(null)
       const [flash, show] = useFlash()
       const [busy, setBusy] = React.useState('')
       const [importText, setImportText] = React.useState('')
@@ -2536,7 +2428,6 @@ window.__ModuleLoader__.load({
       const run = async (name, operation) => {
         setBusy(name)
         setFailure(null)
-        setNotice(null)
         try {
           await operation()
         } catch (error) {
@@ -2823,7 +2714,6 @@ window.__ModuleLoader__.load({
       const [config, setConfig] = React.useState(null)
       const [prompt, setPrompt] = React.useState('')
       const [busy, setBusy] = React.useState('')
-      const [notice, setNotice] = React.useState(null)
       const [flash, show] = useFlash()
       const [failure, setFailure] = React.useState(null)
       const [confirmReset, setConfirmReset] = React.useState(false)
@@ -2853,7 +2743,6 @@ window.__ModuleLoader__.load({
       const run = async (name, operation) => {
         setBusy(name)
         setFailure(null)
-        setNotice(null)
         try {
           await operation()
         } catch (error) {
@@ -2941,7 +2830,6 @@ window.__ModuleLoader__.load({
     function RuntimeTab({ t, onRestart }) {
       const [snap, setSnap] = React.useState(null)
       const [failure, setFailure] = React.useState(null)
-      const [notice, setNotice] = React.useState(null)
       const [flash, show] = useFlash()
       const [busy, setBusy] = React.useState('')
       const [autoRestart, setAutoRestart] = React.useState(true)
@@ -2970,7 +2858,6 @@ window.__ModuleLoader__.load({
       const run = async (name, operation) => {
         setBusy(name)
         setFailure(null)
-        setNotice(null)
         try {
           await operation()
         } catch (error) {

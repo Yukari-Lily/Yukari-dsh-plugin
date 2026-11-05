@@ -7,41 +7,13 @@
  */
 import { markMounted } from '../shared/mounted.js'
 import { SiteStore } from './lib/sites.js'
+import { guardRoute, readJsonBody, sendJson } from '../shared/http.js'
 
 /** JSON API prefix the Web panel calls. */
 export const API_PATH = '/publish/api'
 
-/** Largest accepted request body. */
-const MAX_BODY_BYTES = 64 * 1024
-
 /** Services this plugin needs. */
 export const inject = ['tools', 'webServer', 'connection']
-
-/** Serialize one JSON response. */
-function sendJson(res, status, value) {
-  res.statusCode = status
-  res.setHeader('content-type', 'application/json; charset=utf-8')
-  res.setHeader('cache-control', 'no-store')
-  res.end(JSON.stringify(value))
-}
-
-/** Read a bounded JSON body. */
-async function readJsonBody(req) {
-  const chunks = []
-  let size = 0
-  for await (const chunk of req) {
-    size += chunk.length
-    if (size > MAX_BODY_BYTES) throw new Error('request body is too large')
-    chunks.push(chunk)
-  }
-  if (size === 0) return {}
-  try {
-    const value = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-    return value !== null && typeof value === 'object' ? value : {}
-  } catch {
-    throw new Error('request body is not valid JSON')
-  }
-}
 
 /** User agent the deployment's edge accepts; a bare curl UA is rejected with 403. */
 const BROWSER_UA =
@@ -65,9 +37,6 @@ async function probe(url) {
     clearTimeout(timer)
   }
 }
-
-/** Turn any thrown value into a message. */
-const messageOf = (error) => (error instanceof Error ? error.message : String(error))
 
 /** Human-readable byte count. */
 const mb = (bytes) => `${(Number(bytes) / 1048576).toFixed(1)} MB`
@@ -231,58 +200,50 @@ export function apply(ctx, config = {}) {
       ctx.webServer.register({
         kind: 'prefix',
         path: API_PATH,
-        handler: async (req, res) => {
-          const rejection = ctx.connection.requestRejection(req)
-          if (rejection !== undefined && rejection !== null) {
-            res.statusCode = rejection
-            res.end()
-            return
-          }
+        handler: guardRoute(ctx, async (req, res) => {
           const url = new URL(String(req.url), 'http://localhost')
           const action = url.pathname.slice(API_PATH.length).replace(/^\/+|\/+$/g, '')
-          try {
-            if (action === 'list') {
-              if (req.method !== 'GET') {
-                sendJson(res, 405, { ok: false, error: 'use GET' })
-                return
-              }
-              sendJson(res, 200, {
-                ok: true,
-                sites: await store.list(),
-                root: store.root,
-                publicBase: store.publicBase,
-                defaultPublicBase: store.defaultPublicBase,
-                customPublicBase: store.customPublicBase !== null,
-              })
+          
+          if (action === 'list') {
+            if (req.method !== 'GET') {
+              sendJson(res, 405, { ok: false, error: 'use GET' })
               return
             }
-            if (req.method !== 'POST') {
-              sendJson(res, 405, { ok: false, error: 'use POST' })
-              return
-            }
-            const body = await readJsonBody(req)
-            if (action === 'settings') {
-              await store.setPublicBase(body.publicBase)
-              sendJson(res, 200, {
-                ok: true,
-                sites: await store.list(),
-                root: store.root,
-                publicBase: store.publicBase,
-                defaultPublicBase: store.defaultPublicBase,
-                customPublicBase: store.customPublicBase !== null,
-              })
-              return
-            }
-            if (action === 'delete') {
-              const result = await store.remove(String(body.slug ?? ''))
-              sendJson(res, 200, { ok: true, ...result, sites: await store.list() })
-              return
-            }
-            sendJson(res, 404, { ok: false, error: `unknown action "${action}"` })
-          } catch (error) {
-            sendJson(res, 400, { ok: false, error: messageOf(error) })
+            sendJson(res, 200, {
+              ok: true,
+              sites: await store.list(),
+              root: store.root,
+              publicBase: store.publicBase,
+              defaultPublicBase: store.defaultPublicBase,
+              customPublicBase: store.customPublicBase !== null,
+            })
+            return
           }
-        },
+          if (req.method !== 'POST') {
+            sendJson(res, 405, { ok: false, error: 'use POST' })
+            return
+          }
+          const body = await readJsonBody(req)
+          if (action === 'settings') {
+            await store.setPublicBase(body.publicBase)
+            sendJson(res, 200, {
+              ok: true,
+              sites: await store.list(),
+              root: store.root,
+              publicBase: store.publicBase,
+              defaultPublicBase: store.defaultPublicBase,
+              customPublicBase: store.customPublicBase !== null,
+            })
+            return
+          }
+          if (action === 'delete') {
+            const result = await store.remove(String(body.slug ?? ''))
+            sendJson(res, 200, { ok: true, ...result, sites: await store.list() })
+            return
+          }
+          sendJson(res, 404, { ok: false, error: `unknown action "${action}"` })
+
+        }),
       }),
     `publish-sites: ${API_PATH}/*`,
   )

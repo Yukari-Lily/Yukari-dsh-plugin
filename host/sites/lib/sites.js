@@ -41,7 +41,7 @@ async function* walk(directory, sourceRoot = directory) {
   for (const entry of entries) {
     const file = path.join(directory, entry.name)
     if (entry.isSymbolicLink()) {
-      throw new Error(`symbolic links are not allowed: ${path.relative(sourceRoot, file) || file}`)
+      throw new Error(`不允许符号链接：${path.relative(sourceRoot, file) || file}`)
     }
     if (entry.isDirectory()) {
       yield* walk(file, sourceRoot)
@@ -179,10 +179,10 @@ export class SiteStore {
   /** Reject a slug that could escape the publish root. */
   assertSlug(slug) {
     if (!SLUG.test(slug)) {
-      throw new Error(`invalid slug "${slug}": use lowercase letters, digits, dot, dash or underscore (1-41 chars)`)
+      throw new Error(`无效的 slug「${slug}」：只能用小写字母、数字、点、短横线和下划线（1-41 字符）`)
     }
     const target = path.resolve(this.root, slug)
-    if (path.dirname(target) !== this.root) throw new Error(`invalid slug "${slug}"`)
+    if (path.dirname(target) !== this.root) throw new Error(`无效的 slug「${slug}」`)
     return target
   }
 
@@ -247,16 +247,16 @@ export class SiteStore {
    */
   async publish({ source, slug, title }) {
     await this.init()
-    if (typeof source !== 'string' || source.trim() === '') throw new Error('source directory is required')
+    if (typeof source !== 'string' || source.trim() === '') throw new Error('必须指定源目录')
     const from = path.resolve(source.trim())
     let sourceInfo
     try {
       sourceInfo = await lstat(from)
     } catch {
-      throw new Error(`source directory does not exist: ${from}`)
+      throw new Error(`源目录不存在：${from}`)
     }
-    if (sourceInfo.isSymbolicLink()) throw new Error(`source directory must not be a symbolic link: ${from}`)
-    if (!sourceInfo.isDirectory()) throw new Error(`source is not a directory: ${from}`)
+    if (sourceInfo.isSymbolicLink()) throw new Error(`源目录不能是符号链接：${from}`)
+    if (!sourceInfo.isDirectory()) throw new Error(`源路径不是目录：${from}`)
 
     const [realSource, realRoot, realState] = await Promise.all([
       realpath(from),
@@ -266,7 +266,7 @@ export class SiteStore {
     const protectedPath = (parent, child) => child === parent || child.startsWith(`${parent}${path.sep}`)
     if (protectedPath(realRoot, realSource) || protectedPath(realState, realSource)
       || protectedPath(realSource, realRoot) || protectedPath(realSource, realState)) {
-      throw new Error('source must not contain, or be contained by, the publish root or state directory')
+      throw new Error('源目录不能与发布目录或状态目录互相包含')
     }
 
     let files = 0
@@ -274,13 +274,13 @@ export class SiteStore {
     for await (const entry of walk(realSource)) {
       files += 1
       bytes += entry.size
-      if (files > this.maxFiles) throw new Error(`site has more than ${this.maxFiles} files`)
+      if (files > this.maxFiles) throw new Error(`站点文件数超过 ${this.maxFiles} 个`)
     }
     if (bytes > this.maxMb * 1048576) {
-      throw new Error(`site is ${formatBytes(bytes)}, above the ${this.maxMb} MB limit`)
+      throw new Error(`站点体积 ${formatBytes(bytes)}，超过 ${this.maxMb} MB 上限`)
     }
     const index = await lstat(path.join(realSource, 'index.html')).catch(() => null)
-    if (!index?.isFile()) throw new Error(`source has no index.html at its top level: ${from}`)
+    if (!index?.isFile()) throw new Error(`源目录顶层缺少 index.html：${from}`)
 
     const resolvedSlug = this.normalizeSlug(slug ?? path.basename(from))
     const target = this.assertSlug(resolvedSlug)
@@ -306,7 +306,7 @@ export class SiteStore {
       const existing = await lstat(target).catch(() => null)
       if (existing !== null) {
         if (!existing.isDirectory() || existing.isSymbolicLink()) {
-          throw new Error(`publish target is not a regular directory: ${target}`)
+          throw new Error(`发布目标不是普通目录：${target}`)
         }
         retired = await uniquePath(this.trashDir, id)
         await rename(target, retired)
@@ -365,7 +365,7 @@ export class SiteStore {
       .trim()
       .toLowerCase()
       .replace(/\s+/g, '-')
-    if (slug === '') throw new Error('slug is required')
+    if (slug === '') throw new Error('必须填写 slug')
     return slug
   }
 
@@ -397,7 +397,7 @@ export class SiteStore {
     if (offenders.length > 0) {
       await rm(directory, { recursive: true, force: true })
       throw new Error(
-        `absolute root asset link found in ${offenders.slice(0, 5).join(', ')}: the site is served under ${this.publicBase}/, so build with a relative base (Vite base: './')`,
+        `发现根路径资源引用：${offenders.slice(0, 5).join(', ')}；站点挂在 ${this.publicBase}/ 下，构建时请用相对路径（Vite 的 base: './'）`,
       )
     }
   }

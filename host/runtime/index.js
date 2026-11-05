@@ -23,12 +23,10 @@ import { markMounted } from '../shared/mounted.js'
 import { NpmRunner, locateRunningPackage } from './lib/npm.js'
 import { canExecve, planRestart, scheduleRestart } from './lib/restart.js'
 import { compare, normalizeChannel, pickLatest } from './lib/versions.js'
+import { guardRoute, readJsonBody, sendJson, messageOf } from '../shared/http.js'
 
 /** JSON API prefix served to the Web panel. */
 export const API_PATH = '/dshctl/api'
-
-/** Largest accepted request body. */
-const MAX_BODY_BYTES = 32 * 1024
 
 /** How long a cached "installed on disk" reading stays fresh. */
 const INSTALLED_TTL_MS = 30_000
@@ -36,35 +34,7 @@ const INSTALLED_TTL_MS = 30_000
 /** Services this plugin needs. */
 export const inject = ['tools', 'webServer', 'connection']
 
-/** Serialize one JSON response. */
-function sendJson(res, status, value) {
-  res.statusCode = status
-  res.setHeader('content-type', 'application/json; charset=utf-8')
-  res.setHeader('cache-control', 'no-store')
-  res.end(JSON.stringify(value))
-}
-
-/** Read a bounded JSON body. */
-async function readJsonBody(req) {
-  const chunks = []
-  let size = 0
-  for await (const chunk of req) {
-    size += chunk.length
-    if (size > MAX_BODY_BYTES) throw new Error('request body is too large')
-    chunks.push(chunk)
-  }
-  if (size === 0) return {}
-  try {
-    const value = JSON.parse(Buffer.concat(chunks).toString('utf8'))
-    return value !== null && typeof value === 'object' ? value : {}
-  } catch {
-    throw new Error('request body is not valid JSON')
-  }
-}
-
 /** Turn any thrown value into a message. */
-const messageOf = (error) => (error instanceof Error ? error.message : String(error))
-
 /** Seconds as a compact human duration. */
 function duration(seconds) {
   const value = Math.max(0, Math.round(seconds))
@@ -436,49 +406,41 @@ export function apply(ctx, config = {}) {
       ctx.webServer.register({
         kind: 'prefix',
         path: API_PATH,
-        handler: async (req, res) => {
-          const rejection = ctx.connection.requestRejection(req)
-          if (rejection !== undefined && rejection !== null) {
-            res.statusCode = rejection
-            res.end()
-            return
-          }
+        handler: guardRoute(ctx, async (req, res) => {
           const url = new URL(String(req.url), 'http://localhost')
           const action = url.pathname.slice(API_PATH.length).replace(/^\/+|\/+$/g, '')
-          try {
-            if (action === '' || action === 'state') {
-              if (req.method !== 'GET') {
-                sendJson(res, 405, { ok: false, error: 'use GET' })
-                return
-              }
-              sendJson(res, 200, { ok: true, state: await snapshot() })
+          
+          if (action === '' || action === 'state') {
+            if (req.method !== 'GET') {
+              sendJson(res, 405, { ok: false, error: 'use GET' })
               return
             }
-            if (req.method !== 'POST') {
-              sendJson(res, 405, { ok: false, error: 'use POST' })
-              return
-            }
-            const body = await readJsonBody(req)
-            if (action === 'check') {
-              const result = await check()
-              sendJson(res, 200, { ok: true, ...result, state: await snapshot() })
-              return
-            }
-            if (action === 'update') {
-              const result = await upgrade({ version: body.version, restart: body.restart === true })
-              sendJson(res, 200, { ok: true, ...result, state: await snapshot() })
-              return
-            }
-            if (action === 'restart') {
-              const result = await restart({ dryRun: body.dryRun === true, delayMs: body.delayMs, reason: 'panel' })
-              sendJson(res, 202, { ok: true, ...result })
-              return
-            }
-            sendJson(res, 404, { ok: false, error: `unknown action "${action}"` })
-          } catch (error) {
-            sendJson(res, 400, { ok: false, error: messageOf(error) })
+            sendJson(res, 200, { ok: true, state: await snapshot() })
+            return
           }
-        },
+          if (req.method !== 'POST') {
+            sendJson(res, 405, { ok: false, error: 'use POST' })
+            return
+          }
+          const body = await readJsonBody(req)
+          if (action === 'check') {
+            const result = await check()
+            sendJson(res, 200, { ok: true, ...result, state: await snapshot() })
+            return
+          }
+          if (action === 'update') {
+            const result = await upgrade({ version: body.version, restart: body.restart === true })
+            sendJson(res, 200, { ok: true, ...result, state: await snapshot() })
+            return
+          }
+          if (action === 'restart') {
+            const result = await restart({ dryRun: body.dryRun === true, delayMs: body.delayMs, reason: 'panel' })
+            sendJson(res, 202, { ok: true, ...result })
+            return
+          }
+          sendJson(res, 404, { ok: false, error: `unknown action "${action}"` })
+
+        }),
       }),
     `dsh-control: ${API_PATH}/*`,
   )
