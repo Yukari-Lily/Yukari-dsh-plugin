@@ -10,7 +10,8 @@
  */
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { BrowserManager } from './lib/browser.js'
+import { markMounted } from '../shared/mounted.js'
+import { BrowserManager, resolveRuntime } from './lib/browser.js'
 
 /** Read one positive number from the plugin row config. */
 const positive = (value, fallback) => (Number.isFinite(value) && value > 0 ? value : fallback)
@@ -300,10 +301,22 @@ function registerTools(ctx, config) {
 
 /** Register the browser tools and tie the browser lifetime to this plugin. */
 export function apply(ctx, config) {
-  if (ctx.root) ctx.root['yukari.browser'] = true
-  const browser = registerTools(ctx, normalizeConfig(config ?? {}))
+  const options = normalizeConfig(config ?? {})
+  let executable = null
+  try {
+    executable = resolveRuntime(options).executablePath
+  } catch {
+    executable = null
+  }
+  markMounted(ctx, 'browser', {
+    viewportWidth: options.viewportWidth,
+    viewportHeight: options.viewportHeight,
+    settleMs: options.settleMs,
+    executable,
+    ready: executable !== null,
+  })
+  const browser = registerTools(ctx, options)
   ctx.effect(() => () => {
-    if (ctx.root) ctx.root['yukari.browser'] = false
     void browser.dispose()
   })
 }

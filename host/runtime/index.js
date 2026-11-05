@@ -19,6 +19,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { hostname } from 'node:os'
 import path from 'node:path'
+import { markMounted } from '../shared/mounted.js'
 import { NpmRunner, locateRunningPackage } from './lib/npm.js'
 import { canExecve, planRestart, scheduleRestart } from './lib/restart.js'
 import { compare, normalizeChannel, pickLatest } from './lib/versions.js'
@@ -94,7 +95,7 @@ function readLastRestart(file) {
  * @param config - channel, registry, restartMode, restartCommand, restartDelayMs.
  */
 export function apply(ctx, config = {}) {
-  if (ctx.root) ctx.root['yukari.runtime'] = true
+  markMounted(ctx, 'runtime')
   const running = locateRunningPackage()
   const startedAt = Date.now()
   const dshHome = process.env.DSH_HOME ?? path.join(process.env.HOME ?? '', '.dsh')

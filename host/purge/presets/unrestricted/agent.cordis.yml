@@ -1,12 +1,6 @@
-# managed-by: dsh-purge（插件管理：内容随版本更新；你自己改过就别留这行，插件就不会覆盖）
-# The `unrestricted` agent preset: 无限制模式（骨架，由红队预设裁剪）。
-#
-# 只保留 agent 平面的通用部分：人设、工具行、计划/压缩/委派分组。
-# 宿主平面（审批、沙箱、模型路由、持久化）仍由 profile 决定——
-# 这些闸由 dsh-purge 的宿主补丁拆，预设不重复实现。
-#
-# 这是 dsh-purge 自带的骨架：`purge-community preset install` 会把它落到
-# $DSH_HOME/.agent-presets/unrestricted/，随后 #76 / #24 这两条补丁才会生效。
+# managed-by: yukari-purge（插件随版本刷新此文件；自己改过就删掉这一行，插件就不再覆盖）
+# 「无限制模式」agent 预设：工具面与标准模式一致，破甲提示词由 yukari-purge 在装配阶段注入。
+# 宿主平面（审批、沙箱、模型路由、持久化）仍由 profile 决定。
 
 # ── identity ────────────────────────────────────────────────────────────────
 
@@ -282,7 +276,6 @@
 
 # The `web` service and its search provider stay in the host composition; only
 # the model-facing tool is per-session.
-# 出厂 fetch: false；补丁 #24 会在「应用」时打开（锚点要求这四行紧挨着，别往中间加注释）。
 - id: present
   name: '@deepseek-ai/dsh-tool-present'
 

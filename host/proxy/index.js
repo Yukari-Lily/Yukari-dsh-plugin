@@ -10,6 +10,7 @@
  * sessions launched afterwards.
  * @module @local/ss-proxy
  */
+import { markMounted } from '../shared/mounted.js'
 import { ProxyController } from './lib/controller.js'
 
 /** JSON API prefix served to the Web panel. */
@@ -48,14 +49,31 @@ async function readJsonBody(req) {
   }
 }
 
-/** Node fields safe to return: the password stays on the Host. */
-function publicNode(node) {
-  const { password: _password, ...rest } = node
-  return rest
-}
-
 /** Turn any thrown value into a message. */
 const messageOf = (error) => (error instanceof Error ? error.message : String(error))
+
+/**
+ * Resolve a tool's `id` / `name` argument to a node id: an exact id, else a
+ * case-insensitive exact name, else a unique name substring.
+ * @returns the id, or undefined when neither was given.
+ */
+function resolveNodeId(nodes, args) {
+  if (typeof args?.id === 'string' && args.id.trim() !== '') return args.id.trim()
+  if (typeof args?.name !== 'string' || args.name.trim() === '') return undefined
+  const query = args.name.trim().toLowerCase()
+  const exact = nodes.filter((node) => node.name.toLowerCase() === query)
+  const matches = exact.length > 0 ? exact : nodes.filter((node) => node.name.toLowerCase().includes(query))
+  if (matches.length === 1) return matches[0].id
+  if (matches.length === 0) throw new Error(`no node named "${args.name}"`)
+  throw new Error(`"${args.name}" matches ${matches.length} nodes (${matches.map((node) => `${node.name} [${node.id}]`).join(', ')}); pass an id`)
+}
+
+/** Resolve a node that the action requires. */
+function requireNodeId(nodes, args) {
+  const id = resolveNodeId(nodes, args)
+  if (id === undefined) throw new Error('pass the node `id` or `name`')
+  return id
+}
 
 /**
  * Register the Host half.
@@ -63,7 +81,7 @@ const messageOf = (error) => (error instanceof Error ? error.message : String(er
  * @param config - plugin row config used as first-run defaults.
  */
 export function apply(ctx, config = {}) {
-  if (ctx.root) ctx.root['yukari.proxy'] = true
+  markMounted(ctx, 'proxy')
   const log = (message) => {
     try {
       ctx.logger?.('ss-proxy')?.warn?.(message)
@@ -83,16 +101,18 @@ export function apply(ctx, config = {}) {
       ctx.tools.register({
         name: 'ss_proxy',
         description:
-          'Control the Shadowsocks egress proxy. `enable` routes this process outbound HTTP (web fetch/search, MCP, LLM) and child-process HTTP through the node, and newly launched browser sessions use it too; `disable` restores direct access. `configure` changes the node, `import` accepts an ss:// link or a Shadowsocks JSON config, `test` probes the node with one real request, `status` reports the current route; `reset` forgets the stored node and password. The node password is stored in the local state file (mode 0600), so an enabled route comes back by itself after a Host restart.',
+          'Control the Shadowsocks egress proxy, which holds a list of nodes with one active. `enable` routes this process outbound HTTP (web fetch/search, MCP, LLM) and child-process HTTP through the active node, and newly launched browser sessions use it too; `disable` restores direct access. `list` shows the nodes (no passwords), `import` adds every node in `uri` (ss:// links, a base64 subscription, Clash YAML, or JSON), `select` switches the active node and `remove` deletes one (both by `id` or `name`), `configure` edits a node (`id`/`name`, default the active one) or the global local port/bypass, `test` probes a node (default the active one) with one real request, `test_all` probes every node, `status` reports the current route; `reset` forgets all nodes and passwords. Passwords are stored in the local state file (mode 0600), so an enabled route comes back by itself after a Host restart.',
         parameters: {
           type: 'object',
           additionalProperties: false,
           properties: {
             action: {
               type: 'string',
-              enum: ['status', 'enable', 'disable', 'configure', 'test', 'import', 'reset'],
+              enum: ['status', 'list', 'enable', 'disable', 'configure', 'test', 'test_all', 'import', 'select', 'remove', 'reset'],
               description: 'Operation to perform.',
             },
+            id: { type: 'string', description: 'Node id (from `list`), for `select`, `remove`, `configure`, `test`.' },
+            name: { type: 'string', description: 'Node name instead of `id`: case-insensitive exact match, else a unique substring. For `configure`, this selects the node; it is not a rename.' },
             server: { type: 'string', description: 'Shadowsocks server host or IP, for `configure`. Omit to keep the current value.' },
             port: { type: 'number', description: 'Shadowsocks server port, for `configure`.' },
             method: {
@@ -105,10 +125,9 @@ export function apply(ctx, config = {}) {
             bypass: { type: 'string', description: 'Comma-separated host suffixes kept direct, for `configure`.' },
             uri: {
               type: 'string',
-              description: 'An ss:// share link, or a Shadowsocks JSON config (Clash/subscription object, array, or several pasted objects), for `import`.',
+              description: 'Nodes to add, for `import`: ss:// links (one per line), a base64 subscription, a Clash YAML `proxies:` list, or Shadowsocks JSON.',
             },
-            apply: { type: 'boolean', description: 'For `import`, apply the parsed node immediately (default true).' },
-            target: { type: 'string', description: 'host:port probe target for `test` (default www.gstatic.com:80).' },
+            target: { type: 'string', description: 'host:port probe target for `test` / `test_all` (default www.gstatic.com:80).' },
           },
           required: ['action'],
         },
@@ -116,18 +135,21 @@ export function apply(ctx, config = {}) {
           schema: { type: 'object', additionalProperties: true, properties: { ok: { type: 'boolean' }, state: { type: 'object' } } },
           render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
         },
-        timeoutMs: 60000,
+        timeoutMs: 120000,
         isConcurrencySafe: () => false,
         execute: async (args) => {
           const action = String(args?.action ?? '')
           try {
+            const nodes = controller.state().nodes
             if (action === 'status') return { ok: true, state: controller.state() }
+            if (action === 'list') return { ok: true, activeId: controller.state().activeId, nodes }
             if (action === 'enable') return { ok: true, state: await controller.enable() }
             if (action === 'disable') return { ok: true, state: await controller.disable() }
             if (action === 'configure') {
               return {
                 ok: true,
                 state: await controller.configure({
+                  id: resolveNodeId(nodes, args),
                   server: args.server,
                   port: args.port,
                   method: args.method,
@@ -137,22 +159,15 @@ export function apply(ctx, config = {}) {
                 }),
               }
             }
-            if (action === 'import') {
-              const node = controller.parse(String(args.uri ?? ''))
-              if (args.apply === false) return { ok: true, node: publicNode(node), state: controller.state() }
-              const state = await controller.configure({
-                server: node.server,
-                port: node.port,
-                method: node.method,
-                password: node.password,
-              })
-              return { ok: true, node: publicNode(node), state }
-            }
+            if (action === 'import') return { ok: true, ...(await controller.importNodes(String(args.uri ?? ''))) }
+            if (action === 'select') return { ok: true, state: await controller.select(requireNodeId(nodes, args)) }
+            if (action === 'remove') return { ok: true, state: await controller.removeNode(requireNodeId(nodes, args)) }
             if (action === 'reset') return { ok: true, state: await controller.reset() }
             if (action === 'test') {
-              const result = await controller.test(args.target)
+              const result = await controller.test(args.target, resolveNodeId(nodes, args))
               return { ok: true, test: result, state: controller.state() }
             }
+            if (action === 'test_all') return { ok: true, state: await controller.testAll(args.target) }
             throw new Error(`unknown action "${action}"`)
           } catch (error) {
             return { ok: false, error: messageOf(error), state: controller.state() }
@@ -203,23 +218,29 @@ export function apply(ctx, config = {}) {
               return
             }
             if (action === 'test') {
-              const test = await controller.test(body.target)
+              const test = await controller.test(body.target, body.id)
               sendJson(res, 200, { ok: true, test, state: controller.state() })
               return
             }
+            if (action === 'test-all') {
+              sendJson(res, 200, { ok: true, state: await controller.testAll(body.target) })
+              return
+            }
             if (action === 'import') {
-              const node = controller.parse(String(body.uri ?? ''))
-              if (body.apply === false) {
-                sendJson(res, 200, { ok: true, node: publicNode(node), state: controller.state() })
-                return
-              }
-              const state = await controller.configure({
-                server: node.server,
-                port: node.port,
-                method: node.method,
-                password: node.password,
-              })
-              sendJson(res, 200, { ok: true, node: publicNode(node), state })
+              const result = await controller.importNodes(String(body.text ?? body.uri ?? ''))
+              sendJson(res, 200, { ok: true, ...result })
+              return
+            }
+            if (action === 'select') {
+              sendJson(res, 200, { ok: true, state: await controller.select(body.id) })
+              return
+            }
+            if (action === 'remove') {
+              sendJson(res, 200, { ok: true, state: await controller.removeNode(body.id) })
+              return
+            }
+            if (action === 'reset') {
+              sendJson(res, 200, { ok: true, state: await controller.reset() })
               return
             }
             sendJson(res, 404, { ok: false, error: `unknown action "${action}"` })

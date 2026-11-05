@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Runtime & Restart",
-    "description": "DSH version check, safe restart, and version switching."
+    "title": "Status",
+    "description": "Check, update and restart DSH."
   }
 }

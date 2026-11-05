@@ -8,6 +8,7 @@
  *
  * @module @local/chat-manager
  */
+import { markMounted } from '../shared/mounted.js'
 import { API_PATH, createAdmin, messageOf } from './lib/admin.js'
 
 export { API_PATH }
@@ -80,7 +81,7 @@ function renderInventory(_args, value) {
  * @param config - sessionsRoot and titleBudget.
  */
 export function apply(ctx, config = {}) {
-  if (ctx.root) ctx.root['yukari.chats'] = true
+  markMounted(ctx, 'chats')
   const admin = createAdmin({ ctx, config })
 
   ctx.effect(
@@ -112,7 +113,14 @@ export function apply(ctx, config = {}) {
             }
             const body = await readJsonBody(req)
             if (action === 'delete') {
-              const result = await admin.remove({ ids: body.ids, force: body.force === true })
+              const result = await admin.remove({
+                ids: body.ids,
+                force: body.force === true,
+                deleteFiles: body.deleteFiles === true,
+                deleteWorkspaceDir: body.deleteWorkspaceDir === true,
+                workspaceId: body.workspaceId,
+                workspacePath: body.workspacePath,
+              })
               sendJson(res, 200, { ok: true, ...result })
               return
             }

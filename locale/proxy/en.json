@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Shadowsocks Proxy",
-    "description": "Outbound egress proxy service for Agent and Harness."
+    "title": "Proxy",
+    "description": "Shadowsocks egress: import several nodes and route all outbound traffic through the one you pick."
   }
 }

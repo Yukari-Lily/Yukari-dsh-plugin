@@ -1,11 +1,12 @@
 /**
- * Proxy lifecycle: node configuration, the local proxy server, the process-wide
+ * Proxy lifecycle: the node list, the local proxy server, the process-wide
  * egress route, persistence, and the connectivity probe.
  *
  * One instance is shared by the Web panel's HTTP actions and the `ss_proxy`
  * agent tool, so both callers exercise the same operations.
  * @module @local/ss-proxy/controller
  */
+import crypto from 'node:crypto'
 import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import net from 'node:net'
 import path from 'node:path'
@@ -13,7 +14,7 @@ import os from 'node:os'
 import { LocalProxy } from './local-proxy.js'
 import { installEgress } from './egress.js'
 import { METHOD_NAMES, cipherFor, openTunnel } from './shadowsocks.js'
-import { parseNodeInput } from './ss-uri.js'
+import { parseNodeInput, parseNodesInput } from './ss-uri.js'
 
 /** Default node fields. */
 const DEFAULT_NODE = { server: '', port: 8388, method: 'aes-256-gcm', password: '' }
@@ -26,6 +27,9 @@ const DEFAULT_TEST_TARGET = 'www.gstatic.com:80'
 
 /** Wait between reconnect attempts while a saved route cannot be restored. */
 const RETRY_DELAY_MS = 20000
+
+/** Nodes probed at once by `testAll`. */
+const TEST_CONCURRENCY = 4
 
 /** Clamp a value into an integer range. */
 function integerInRange(value, min, max, fallback) {
@@ -57,6 +61,12 @@ function parseTestTarget(value) {
   return { host: text.slice(0, index), port: Number(text.slice(index + 1)) }
 }
 
+/** Turn any thrown value into a message. */
+const messageOf = (error) => (error instanceof Error ? error.message : String(error))
+
+/** Whether two nodes reach the same server with the same credentials. */
+const sameNode = (a, b) => a.server === b.server && a.port === b.port && a.method === b.method && a.password === b.password
+
 /** The controller behind both the Web panel and the agent tool. */
 export class ProxyController {
   #stateFile
@@ -65,6 +75,7 @@ export class ProxyController {
   #proxy = null
   #egress = null
   #lastTest = null
+  #nodeTests = new Map()
   #lastError = null
   #startedAt = null
   #retryTimer = null
@@ -77,14 +88,21 @@ export class ProxyController {
     this.#log = log
     const home = process.env.DSH_HOME ?? path.join(os.homedir(), '.dsh')
     this.#stateFile = typeof config.stateFile === 'string' && config.stateFile.length > 0 ? config.stateFile : path.join(home, 'ss-proxy.json')
-    this.#state = {
-      enabled: false,
-      node: {
-        server: typeof config.server === 'string' ? config.server : DEFAULT_NODE.server,
+    const nodes = []
+    if (typeof config.server === 'string' && config.server.trim().length > 0) {
+      nodes.push({
+        id: this.#newId(nodes),
+        name: config.server.trim(),
+        server: config.server.trim(),
         port: integerInRange(config.port, 1, 65535, DEFAULT_NODE.port),
         method: normalizeMethod(config.method, DEFAULT_NODE.method),
         password: typeof config.password === 'string' ? config.password : DEFAULT_NODE.password,
-      },
+      })
+    }
+    this.#state = {
+      enabled: false,
+      activeId: nodes[0]?.id ?? null,
+      nodes,
       localPort: integerInRange(config.localPort, 1024, 65535, 17890),
       bypass: typeof config.bypass === 'string' && config.bypass.length > 0 ? config.bypass : DEFAULT_BYPASS,
       autoStart: config.autoStart === true,
@@ -94,22 +112,31 @@ export class ProxyController {
   /**
    * Load persisted state and re-establish the route it recorded.
    *
-   * The saved password travels with the node, so a restart resumes the same
+   * The saved password travels with each node, so a restart resumes the same
    * tunnel instead of dropping the user back to direct egress. A node that is
    * unreachable at boot keeps the saved intent and is retried in the
    * background; the intent only changes when the user changes it.
    */
   async init() {
+    let migrated = false
     try {
       const raw = await readFile(this.#stateFile, 'utf8')
       const saved = JSON.parse(raw)
       if (saved !== null && typeof saved === 'object') {
-        const node = saved.node ?? {}
-        this.#state.node = {
-          server: typeof node.server === 'string' && node.server !== '' ? node.server : this.#state.node.server,
-          port: integerInRange(node.port, 1, 65535, this.#state.node.port),
-          method: normalizeMethod(node.method, this.#state.node.method),
-          password: typeof node.password === 'string' ? node.password : this.#state.node.password,
+        if (Array.isArray(saved.nodes)) {
+          const nodes = []
+          for (const entry of saved.nodes) {
+            const node = this.#savedNode(entry, nodes)
+            if (node !== null) nodes.push(node)
+          }
+          this.#state.nodes = nodes
+          this.#state.activeId = typeof saved.activeId === 'string' ? saved.activeId : null
+        } else if (typeof saved.node?.server === 'string' && saved.node.server.trim() !== '') {
+          // Legacy single-node file: the node becomes the first, active entry.
+          const node = this.#savedNode({ ...saved.node, name: saved.node.server }, [])
+          this.#state.nodes = [node]
+          this.#state.activeId = node.id
+          migrated = true
         }
         this.#state.localPort = integerInRange(saved.localPort, 1024, 65535, this.#state.localPort)
         if (typeof saved.bypass === 'string') this.#state.bypass = saved.bypass
@@ -119,6 +146,8 @@ export class ProxyController {
     } catch (error) {
       if (error?.code !== 'ENOENT') this.#log(`state file unreadable: ${error.message}`)
     }
+    this.#ensureActive()
+    if (migrated) await this.#persist()
     if (!this.#state.enabled && this.#state.autoStart) this.#state.enabled = true
     if (!this.#state.enabled) return
     if (!this.#nodeReady()) {
@@ -144,6 +173,47 @@ export class ProxyController {
     await this.#teardown()
   }
 
+  /** Sanitize one persisted node; null when it has no server. */
+  #savedNode(entry, existing) {
+    if (entry === null || typeof entry !== 'object') return null
+    const server = typeof entry.server === 'string' ? entry.server.trim() : ''
+    if (server.length === 0) return null
+    const id = typeof entry.id === 'string' && entry.id.length > 0 && !existing.some((node) => node.id === entry.id) ? entry.id : this.#newId(existing)
+    return {
+      id,
+      name: typeof entry.name === 'string' && entry.name.trim().length > 0 ? entry.name.trim() : server,
+      server,
+      port: integerInRange(entry.port, 1, 65535, DEFAULT_NODE.port),
+      method: normalizeMethod(entry.method, DEFAULT_NODE.method),
+      password: typeof entry.password === 'string' ? entry.password : '',
+    }
+  }
+
+  /** A short id not used by any node. */
+  #newId(nodes = this.#state.nodes) {
+    let id = crypto.randomUUID().slice(0, 8)
+    while (nodes.some((node) => node.id === id)) id = crypto.randomUUID().slice(0, 8)
+    return id
+  }
+
+  /** The active node, or null. */
+  #active() {
+    return this.#state.nodes.find((node) => node.id === this.#state.activeId) ?? null
+  }
+
+  /** The node with this id; throws when there is none. */
+  #find(id) {
+    if (id === undefined || id === null || String(id) === '') throw new Error('node id is required')
+    const node = this.#state.nodes.find((entry) => entry.id === String(id))
+    if (node === undefined) throw new Error(`unknown node "${id}"`)
+    return node
+  }
+
+  /** Keep `activeId` pointing at an existing node whenever there is one. */
+  #ensureActive() {
+    if (this.#active() === null) this.#state.activeId = this.#state.nodes[0]?.id ?? null
+  }
+
   /** Retry a pending reconnect in the background while the intent stands. */
   #scheduleRetry() {
     if (this.#retryTimer !== null || !this.#state.enabled) return
@@ -151,7 +221,8 @@ export class ProxyController {
       this.#retryTimer = null
       if (!this.#state.enabled || this.#proxy !== null) return
       try {
-        if (!this.#nodeReady()) return
+        // Keep waiting: a node selected or imported later resumes the route.
+        if (!this.#nodeReady()) return this.#scheduleRetry()
         await this.enable()
       } catch (error) {
         this.#lastError = `reconnect failed: ${error.message}`
@@ -168,9 +239,8 @@ export class ProxyController {
     this.#retryTimer = null
   }
 
-  /** Fail fast when the node's TCP port is unreachable. */
-  #probeServer(timeoutMs) {
-    const node = this.#state.node
+  /** Fail fast when a node's TCP port is unreachable. */
+  #probeServer(node, timeoutMs) {
     return new Promise((resolve, reject) => {
       const socket = net.connect({ host: node.server, port: node.port })
       const timer = setTimeout(() => {
@@ -189,25 +259,35 @@ export class ProxyController {
     })
   }
 
-  /** Whether the node has everything a connection needs. */
-  #nodeReady() {
-    const node = this.#state.node
+  /** Whether a node (default the active one) has everything a connection needs. */
+  #nodeReady(node = this.#active()) {
+    if (node === null) return false
     return node.server.length > 0 && Number.isInteger(node.port) && node.password.length > 0 && METHOD_NAMES.includes(node.method)
   }
 
-  /** Snapshot for the panel and the tool. */
+  /** Snapshot for the panel and the tool; passwords never leave the Host. */
   state() {
+    const active = this.#active()
     return {
       enabled: this.#state.enabled,
       running: this.#proxy !== null,
       localPort: this.#state.localPort,
-      node: {
-        server: this.#state.node.server,
-        port: this.#state.node.port,
-        method: this.#state.node.method,
-        hasPassword: this.#state.node.password.length > 0,
-      },
-      passwordStored: this.#state.node.password.length > 0,
+      node:
+        active === null
+          ? { server: DEFAULT_NODE.server, port: DEFAULT_NODE.port, method: DEFAULT_NODE.method, hasPassword: false }
+          : { server: active.server, port: active.port, method: active.method, hasPassword: active.password.length > 0 },
+      passwordStored: active !== null && active.password.length > 0,
+      activeId: active?.id ?? null,
+      nodes: this.#state.nodes.map((node) => ({
+        id: node.id,
+        name: node.name,
+        server: node.server,
+        port: node.port,
+        method: node.method,
+        hasPassword: node.password.length > 0,
+        active: node === active,
+        lastTest: this.#nodeTests.get(node.id) ?? null,
+      })),
       bypass: this.#state.bypass,
       methods: METHOD_NAMES,
       stats: this.#proxy?.stats() ?? { active: 0, total: 0, bytesUp: 0, bytesDown: 0, failures: 0 },
@@ -219,29 +299,49 @@ export class ProxyController {
     }
   }
 
-  /** Validate and apply a configuration patch. */
+  /**
+   * Validate and apply a configuration patch.
+   *
+   * `patch.id` picks the node to edit (default the active one); with no nodes
+   * at all, a `server` creates the first one. `localPort` and `bypass` are global.
+   */
   async configure(patch = {}) {
     const previousLocalPort = this.#state.localPort
-    const next = { ...this.#state.node }
-    if (patch.server !== undefined) {
-      const server = String(patch.server).trim()
-      if (server.length === 0) throw new Error('server is required')
-      next.server = server
+    const target = patch.id !== undefined && patch.id !== null && patch.id !== '' ? this.#find(patch.id) : this.#active()
+    let next = null
+    if (target !== null || patch.server !== undefined) {
+      next = target === null ? { id: this.#newId(), name: '', ...DEFAULT_NODE } : { ...target }
+      if (patch.server !== undefined) {
+        const server = String(patch.server).trim()
+        if (server.length === 0) throw new Error('server is required')
+        next.server = server
+      }
+      if (patch.port !== undefined) {
+        const port = integerInRange(patch.port, 1, 65535, Number.NaN)
+        if (Number.isNaN(port)) throw new Error('port must be 1-65535')
+        next.port = port
+      }
+      if (patch.method !== undefined) next.method = normalizeMethod(patch.method)
+      if (typeof patch.password === 'string' && patch.password.length > 0) next.password = patch.password
+      if (patch.clearPassword === true) next.password = ''
+      if (typeof patch.name === 'string') next.name = patch.name.trim()
+      if (next.name.length === 0) next.name = next.server
     }
-    if (patch.port !== undefined) {
-      const port = integerInRange(patch.port, 1, 65535, Number.NaN)
-      if (Number.isNaN(port)) throw new Error('port must be 1-65535')
-      next.port = port
-    }
-    if (patch.method !== undefined) next.method = normalizeMethod(patch.method)
-    if (typeof patch.password === 'string' && patch.password.length > 0) next.password = patch.password
-    if (patch.clearPassword === true) next.password = ''
-    this.#state.node = next
+    let localPort = this.#state.localPort
     if (patch.localPort !== undefined) {
-      const localPort = integerInRange(patch.localPort, 1024, 65535, Number.NaN)
+      localPort = integerInRange(patch.localPort, 1024, 65535, Number.NaN)
       if (Number.isNaN(localPort)) throw new Error('local port must be 1024-65535')
-      this.#state.localPort = localPort
     }
+    if (next !== null) {
+      if (target === null) {
+        this.#state.nodes.push(next)
+      } else {
+        if (!sameNode(target, next)) this.#nodeTests.delete(target.id)
+        this.#state.nodes[this.#state.nodes.indexOf(target)] = next
+      }
+      this.#ensureActive()
+    }
+    this.#state.localPort = localPort
     if (typeof patch.bypass === 'string') this.#state.bypass = patch.bypass.trim()
     this.#lastError = null
     await this.#persist()
@@ -259,40 +359,128 @@ export class ProxyController {
     return this.state()
   }
 
-  /** Forget the stored node and return to the initial state. */
+  /**
+   * Add every node found in pasted text (links, subscription, Clash YAML, JSON).
+   * A node already stored with the same server, port, method and password only
+   * has its name refreshed.
+   * @returns `{ added, updated, skipped, state }`.
+   */
+  async importNodes(text) {
+    const parsed = parseNodesInput(text, METHOD_NAMES)
+    let added = 0
+    let updated = 0
+    let first = null
+    for (const entry of parsed.nodes) {
+      const candidate = {
+        server: entry.server.trim(),
+        port: entry.port,
+        method: normalizeMethod(entry.method),
+        password: entry.password,
+      }
+      const name = typeof entry.name === 'string' ? entry.name.trim() : ''
+      let node = this.#state.nodes.find((existing) => sameNode(existing, candidate))
+      if (node === undefined) {
+        node = { id: this.#newId(), name: name || `${candidate.server}:${candidate.port}`, ...candidate }
+        this.#state.nodes.push(node)
+        added += 1
+      } else {
+        if (name.length > 0) node.name = name
+        updated += 1
+      }
+      first ??= node
+    }
+    if (this.#active() === null && first !== null) this.#state.activeId = first.id
+    this.#lastError = null
+    await this.#persist()
+    return { added, updated, skipped: parsed.skipped, state: this.state() }
+  }
+
+  /**
+   * Make a node the active one. While the proxy is on, the new node's port is
+   * probed first and an unreachable node leaves the current one in place.
+   */
+  async select(id) {
+    const node = this.#find(id)
+    if (node === this.#active()) return this.state()
+    if (this.#state.enabled) {
+      if (!this.#nodeReady(node)) throw new Error(`node "${node.name}" is missing its server or password`)
+      await this.#probeServer(node, 4000)
+    }
+    // New connections pick the node up through `resolveNode`; open ones finish on the old node.
+    this.#state.activeId = node.id
+    this.#lastTest = this.#nodeTests.get(node.id) ?? null
+    this.#lastError = null
+    await this.#persist()
+    if (this.#state.enabled && this.#proxy === null) {
+      try {
+        await this.enable()
+      } catch (error) {
+        this.#lastError = `reconnect failed: ${error.message}`
+        this.#scheduleRetry()
+      }
+    }
+    return this.state()
+  }
+
+  /** Remove a node; removing the last one while enabled turns the proxy off. */
+  async removeNode(id) {
+    const node = this.#find(id)
+    const wasActive = node === this.#active()
+    this.#state.nodes = this.#state.nodes.filter((entry) => entry !== node)
+    this.#nodeTests.delete(node.id)
+    if (wasActive) {
+      this.#state.activeId = null
+      this.#lastTest = null
+    }
+    this.#ensureActive()
+    if (this.#state.nodes.length === 0 && this.#state.enabled) {
+      this.#cancelRetry()
+      await this.#teardown()
+      this.#state.enabled = false
+    }
+    await this.#persist()
+    return this.state()
+  }
+
+  /** Forget every stored node and return to the initial state. */
   async reset() {
     this.#cancelRetry()
     await this.#teardown()
     this.#state = {
       enabled: false,
-      node: { ...DEFAULT_NODE },
+      activeId: null,
+      nodes: [],
       localPort: this.#state.localPort,
       bypass: DEFAULT_BYPASS,
       autoStart: false,
     }
     this.#lastError = null
     this.#lastTest = null
+    this.#nodeTests.clear()
     await this.#persist()
     return this.state()
   }
 
-  /** Parse an ss:// link or a Clash/subscription JSON config into node fields. */
+  /** Parse an ss:// link or a Clash/subscription config into the first node's fields. */
   parse(input) {
     const node = parseNodeInput(input, METHOD_NAMES)
     return { ...node, method: normalizeMethod(node.method) }
   }
 
-  /** Turn the proxy on for the whole process. */
+  /** Turn the proxy on for the whole process, routed through the active node. */
   async enable() {
-    if (!this.#nodeReady()) throw new Error('fill in the Shadowsocks server, port and password first')
+    const node = this.#active()
+    if (node === null) throw new Error('add a Shadowsocks node first')
+    if (!this.#nodeReady(node)) throw new Error('fill in the Shadowsocks server, port and password first')
     this.#lastError = null
     // Refuse to point every outbound request at a node that cannot be reached.
-    if (this.#egress === null) await this.#probeServer(4000)
+    if (this.#egress === null) await this.#probeServer(node, 4000)
     if (this.#proxy === null) {
       const proxy = new LocalProxy({
         resolveNode: () => {
-          if (!this.#nodeReady()) throw new Error('Shadowsocks node is not configured')
-          return this.#state.node
+          const active = this.#active()
+          if (!this.#nodeReady(active)) throw new Error('Shadowsocks node is not configured')
+          return active
         },
         log: (message) => this.#log(message),
       })
@@ -339,14 +527,52 @@ export class ProxyController {
   }
 
   /**
-   * Probe the node with one real HTTP request through a tunnel.
+   * Probe a node with one real HTTP request through a tunnel.
    * @param target - `host:port`, default `www.gstatic.com:80`.
+   * @param id - node to test, default the active one.
    */
-  async test(target) {
+  async test(target, id) {
     const destination = parseTestTarget(target)
-    if (!this.#nodeReady()) throw new Error('configure the Shadowsocks node first')
+    const node = id !== undefined && id !== null && id !== '' ? this.#find(id) : this.#active()
+    if (node === null) throw new Error('configure the Shadowsocks node first')
+    try {
+      if (!this.#nodeReady(node)) throw new Error('configure the Shadowsocks node first')
+      const result = await this.#probeThrough(node, destination)
+      this.#recordTest(node, result)
+      if (node === this.#active()) this.#lastTest = result
+      return result
+    } catch (error) {
+      this.#recordTest(node, { ok: false, error: messageOf(error), at: new Date().toISOString() })
+      throw error
+    }
+  }
+
+  /** Test every node, at most {@link TEST_CONCURRENCY} at a time; never throws. */
+  async testAll(target) {
+    const queue = [...this.#state.nodes]
+    const worker = async () => {
+      while (queue.length > 0) {
+        const node = queue.shift()
+        try {
+          await this.test(target, node.id)
+        } catch {
+          // Recorded on the node by `test`.
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(TEST_CONCURRENCY, queue.length) }, worker))
+    return this.state()
+  }
+
+  /** Keep a node's last result while it still exists. */
+  #recordTest(node, result) {
+    if (this.#state.nodes.includes(node)) this.#nodeTests.set(node.id, result)
+  }
+
+  /** One `GET /generate_204` through a fresh tunnel to the node. */
+  async #probeThrough(node, destination) {
     const startedAt = Date.now()
-    const tunnel = await openTunnel(this.#state.node, destination, { timeoutMs: 10000 })
+    const tunnel = await openTunnel(node, destination, { timeoutMs: 10000 })
     try {
       const request = `GET /generate_204 HTTP/1.1\r\nHost: ${destination.host}\r\nUser-Agent: ss-proxy-probe\r\nAccept: */*\r\nConnection: close\r\n\r\n`
       tunnel.write(request)
@@ -369,14 +595,13 @@ export class ProxyController {
       })
       const statusLine = response.toString('latin1').split('\r\n', 1)[0] ?? ''
       const status = Number(/^HTTP\/\d\.\d\s+(\d{3})/.exec(statusLine)?.[1] ?? 0)
-      this.#lastTest = {
+      return {
         ok: status > 0,
         status,
         target: `${destination.host}:${destination.port}`,
         ms: Date.now() - startedAt,
         at: new Date().toISOString(),
       }
-      return this.#lastTest
     } finally {
       tunnel.destroy()
     }
@@ -389,14 +614,17 @@ export class ProxyController {
     const payload = JSON.stringify(
       {
         enabled: this.#state.enabled,
+        activeId: this.#state.activeId,
         // Kept locally so a restart can resume the same route; the file is 0600
-        // and the password never leaves the Host (the panel only sees a flag).
-        node: {
-          server: this.#state.node.server,
-          port: this.#state.node.port,
-          method: this.#state.node.method,
-          password: this.#state.node.password,
-        },
+        // and passwords never leave the Host (the panel only sees a flag).
+        nodes: this.#state.nodes.map((node) => ({
+          id: node.id,
+          name: node.name,
+          server: node.server,
+          port: node.port,
+          method: node.method,
+          password: node.password,
+        })),
         localPort: this.#state.localPort,
         bypass: this.#state.bypass,
         autoStart: this.#state.autoStart,

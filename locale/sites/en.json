@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Static Sites",
-    "description": "Static web page publishing and hosting service."
+    "title": "Sites",
+    "description": "Publish built static sites under /p/, with your own public URL prefix."
   }
 }

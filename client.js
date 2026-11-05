@@ -13,6 +13,8 @@ window.__ModuleLoader__.load({
     const API = {
       overview: '/yukari/api/overview',
       update: '/yukari/api/update',
+      restart: '/yukari/api/restart',
+      icon: '/yukari/api/icon',
       chats: '/chat-manager/api',
       runtime: '/dshctl/api',
       sites: '/publish/api',
@@ -23,29 +25,40 @@ window.__ModuleLoader__.load({
     /* ------------------------------------------------------------------ i18n */
 
     const zh = {
-      title: 'Yukari',
-      subtitle: 'Harness 全系统控制中心',
+      title: 'Yukari插件合集',
       tabOverview: '概览',
       tabChats: '会话',
-      tabRuntime: '运行时',
       tabSites: '站点',
       tabProxy: '代理',
       tabPurge: '无限制模式',
+      tabRuntime: '状态',
 
-      updatePlugin: '更新 Yukari',
-      updatingPlugin: '正在更新…',
-      updateSuccess: 'Yukari 插件更新成功！',
-      updateRestartConfirm: '插件已拉取最新代码，需要重启 DSH 服务使修改生效。是否立即重启？',
-      updateRestartNow: '立即重启 DSH',
-      updateRestartLater: '稍后手动重启',
-      updateFailed: '更新失败：{error}',
-      cConfirmInline: '确认删除',
-      cConfirmDeleteOnce: '再次点击确认删除',
+      compChats: '会话管理',
+      compSites: '站点发布',
+      compProxy: '出站代理',
+      compPurge: '无限制模式',
+      compBrowser: '无头浏览器',
+      compRuntime: '运行状态',
+
+      upCheck: '检查更新',
+      upChecking: '正在检查…',
+      upLatest: '已是最新版本',
+      upAvailable: '发现新版本 {version}',
+      upNow: '立即更新',
+      upUpdating: '正在更新…',
+      upDone: '已更新到最新版本，重启后生效',
+      upPending: '新版本已安装，重启后生效',
+      upRestart: '立即重启',
+      upFailed: '检查更新失败：{error}',
+      upUpdateFailed: '更新失败：{error}',
+      upManual: '这份安装无法自动更新，请在「插件」页重新安装',
 
       refresh: '刷新',
       retry: '重试',
       cancel: '取消',
       confirm: '确认',
+      save: '保存',
+      close: '关闭',
       loading: '加载中…',
       never: '从未',
       none: '—',
@@ -55,180 +68,207 @@ window.__ModuleLoader__.load({
       clearSearch: '清空',
       showPassword: '显示密码',
       hidePassword: '隐藏密码',
+      expand: '展开',
+      collapse: '收起',
 
-      ovChats: '会话管理',
-      ovRuntime: '运行时环境',
-      ovSites: '静态站点',
-      ovProxy: '出站代理',
-      ovBrowser: '无头浏览器',
-      ovTotal: '总数',
+      offTitle: '「{name}」已关闭',
+      offHint: '在侧边栏「插件」页启用 Yukari 的「{name}」组件后刷新即可使用。',
+      offList: '已关闭：{names}',
+
+      ovGo: '管理',
+      ovTotal: '会话总数',
       ovArchived: '已归档',
       ovLive: '打开中',
       ovStored: '占用',
-      ovVersion: '版本',
-      ovChannel: '通道',
+      ovWorkspaces: '工作区',
+      ovVersion: 'DSH 版本',
+      ovChannel: '更新通道',
       ovUptime: '已运行',
       ovSitesCount: '已发布',
-      ovRoot: '发布路径',
-      ovLatest: '最近',
+      ovLatestSite: '最近发布',
+      ovPrefix: '访问前缀',
       ovState: '状态',
-      ovNode: '节点',
+      ovNode: '当前节点',
+      ovNodes: '节点数',
+      ovTraffic: '下行流量',
       ovViewport: '视口',
-      ovSettle: '等待',
-      ovTools: '工具数',
-      ovGo: '管理',
-      ovOn: '已启用',
-      ovOff: '未启用',
-      ovRecent: '最近站点',
+      ovChromium: 'Chromium',
+      ovReady: '已就绪',
+      ovNotReady: '未检测到 Chromium',
+      ovPurgeReady: '已注册',
+      ovPurgePrompt: '提示词',
+      ovPurgeCustom: '自定义',
+      ovPurgeDefault: '内置默认',
+      ovPurgeHow: '在对话输入框下方的模式菜单里选「无限制模式」',
       ovUpdateReady: '有新版本',
       ovUpToDate: '最新',
-      ovReady: '已就绪',
-      ovNotReady: '未就绪',
-      ovChromiumMissing: '容器或宿主未检测到 Chromium 可执行文件',
 
-      cSearch: '搜索标题、ID、工作区或路径',
+      cSearch: '搜索标题、ID 或路径',
       cFilter: '会话范围',
       cAll: '全部',
-      cVisible: '显示 {shown} / {total}',
-      cNoMatchHint: '换一个关键词，或切换到其他范围。',
       cActive: '在用',
       cArchived: '已归档',
+      cGroupByWorkspace: '按工作区',
+      cFlatList: '按时间',
+      cWorkspaceUnassigned: '未归属工作区',
+      cSelectWorkspace: '全选',
+      cDeleteWorkspace: '删除工作区',
       cDelete: '删除',
       cDeleteN: '删除 {n} 个',
       cConfirm: '永久删除 {n} 个会话？',
-      cConfirmHint: '会话产物、归档标记和固定标记会一起移除，无法恢复。',
-      cForce: '连正在使用的会话一起删除',
+      cConfirmWorkspace: '删除工作区「{name}」的 {n} 个会话？',
+      cConfirmHint: '会话记录、归档和置顶标记一并移除，无法恢复。',
+      cForce: '包括正在打开的会话',
+      cDeleteFiles: '同时删除这些会话新建的文件',
+      cDeleteFilesHint: '只删由 write / str_replace_editor 新建、且仍在工作区内的文件；命令行生成的文件和会话前已存在的文件不会动。',
+      cDeleteWorkspaceDir: '同时删除整个工作区目录',
+      cDeleteWorkspaceDirHint: '{path} 及其中所有文件都会被删除。',
       cArchive: '归档',
       cUnarchive: '取消归档',
       cSelected: '已选 {n}',
       cTotal: '共 {n} 个会话',
       cTotalOne: '共 1 个会话',
       cNoMatch: '没有匹配的会话',
-      cNoChats: '这个 Host 上还没有会话',
+      cNoMatchHint: '换一个关键词，或切换范围。',
+      cNoChats: '还没有会话',
       cDeleted: '已删除 {n} 个会话',
-      cKept: '{n} 个会话被保留',
+      cFilesDeleted: '清理了 {n} 个文件',
+      cDirDeleted: '工作区目录已删除',
       cLive: '打开中',
       cRunning: '运行中',
-      cArchivedTag: '归档',
-      cEvents: '{n} 次事件',
+      cArchivedTag: '已归档',
+      cEvents: '{n} 条事件',
+      cReason_live: '正在打开，需勾选「包括正在打开的会话」',
+      cReason_unknown: '找不到这个会话',
+      'cReason_no-artifact': '没有落盘记录',
+      'cReason_in-memory': '只存在于内存中',
+      'cReason_unsafe-path': '路径不安全，已跳过',
 
-      rCheck: '检查更新',
-      rChecking: '正在查询 npm…',
-      rUpdate: '更新并重启',
-      rUpdateOnly: '仅更新',
-      rRestart: '重启 dsh',
-      rConfirmUpdate: '确认更新并重启？',
-      rConfirmRestart: '确认重启？',
-      rVersionInput: '指定版本（可选）',
-      rCardVersion: '版本',
-      rRunning: '运行中',
-      rOnDisk: '磁盘上',
-      rLatest: '最新',
-      rUnknown: '未知',
-      rNotChecked: '还没检查',
-      rCheckedAt: '上次检查',
-      rUpToDate: '已是本通道最新',
-      rUpdateReady: '有新版本',
-      rNeedsRestart: '已装好但未生效，重启后加载',
-      rCardProcess: '进程状态',
-      rContainer: '容器环境',
-      rPid: 'PID',
-      rNode: 'Node',
-      rUptime: '已运行',
-      rChannel: '通道',
-      rProfile: '配置档',
-      rCardFeed: '更新源与重启',
-      rRegistry: 'npm 源',
-      rCache: 'npm 缓存',
-      rStrategy: '重启方式',
-      rExecve: '原地 re-exec 同一进程',
-      rExit: '退出，由守护进程拉起',
-      rCommand: '执行配置的命令',
-      rLastRestart: '上次重启',
-      rCardActivity: '最近操作记录',
-      rNoActivity: '这个进程里还没跑过操作。',
-      rOkLabel: '成功',
-      rFailLabel: '失败',
-      rActionKind: '操作类型',
-      rActionAt: '执行时间',
-      rActionResult: '结果',
-      rRestarting: '正在重启 dsh',
-      rRestartingHint: '等待进程重新应答，页面会自己刷新。',
-      rRestartWait: '第 {n} 次探测',
-      rRestartSlow: '一直没回应。用 `docker compose logs -f dsh` 看容器日志；重启记录写在 DSH_HOME/.dsh-control 下。',
-      rBack: '已恢复，正在刷新…',
-      rUpdated: '已安装 {version}',
-      rUpdatedSame: '已经是 {version}',
-      rCheckedNew: '{channel} 通道最新：{version}',
-      rCheckedSame: '已经是 {channel} 通道最新（{version}）',
-      rQueued: '重启已排队（{strategy}）',
-      rDocker: 'Docker 容器',
-      rBare: '裸机运行',
-      rHint: '重启期间页面会断几秒，会话本身不受影响。',
-
-      sSearch: '搜索站点名称或 slug',
+      sSearch: '搜索站点名称或路径',
+      sPrefix: '访问前缀',
+      sPrefixHint: '站点链接 = 前缀 + /站点名/。填你自己的对外地址，例如 https://pages.example.com 或 https://dsh.example.com/p',
+      sPrefixDefault: '恢复默认',
+      sPrefixSaved: '访问前缀已保存',
       sCount: '共 {n} 个站点',
       sCountOne: '共 1 个站点',
       sEmpty: '还没有发布过站点',
       sEmptyHint: '让智能体调用 publish_site，或把构建产物放进发布目录。',
       sUnpublish: '下线',
-      sConfirm: '下线 /{slug}/？',
-      sPublished: '发布于 {time}',
+      sPublished: '{time} 发布',
       sFiles: '{n} 个文件',
       sVersion: 'v{version}',
       sNoMatch: '没有匹配的站点',
       sGone: '已下线 /{slug}/',
       sKept: '没有找到 /{slug}/',
 
-      pStatus: '出口接管状态',
-      pEnable: '启用接管',
+      pEnable: '启用代理',
       pDisable: '停用代理',
-      pEnabled: '已接管全部出站流量',
-      pDisabled: '直连模式',
-      pRunning: '本地代理运行中',
-      pStopped: '本地代理未启动',
-      pNode: '节点配置',
-      pServer: '服务器地址',
-      pPort: '远程端口',
-      pMethod: '加密方式',
-      pPassword: '节点密码',
-      pPasswordKeep: '留空则保留原密码',
-      pLocalPort: '本地 SOCKS 端口',
-      pBypass: '直连白名单',
-      pSave: '保存配置',
-      pImport: '导入节点',
-      pImportPlaceholder: '粘贴 ss:// 链接或 Clash 配置 JSON',
-      pTest: '测试节点',
-      pTesting: '正在测试…',
-      pTestTarget: '测试目标 URL',
-      pReset: '清除节点',
-      pConfirmReset: '确认清除已保存的节点？',
-      pCardStats: '流量统计',
+      pEnabled: '已接管出站流量',
+      pDisabled: '直连',
+      pPending: '已启用，等待连接',
+      pRunning: '运行中',
+      pStopped: '未启动',
+      pNodes: '节点',
+      pNoNodes: '还没有节点',
+      pNoNodesHint: '把 ss:// 链接、订阅内容或 Clash 配置粘贴到下面导入。',
+      pUse: '使用',
+      pInUse: '使用中',
+      pTest: '测速',
+      pTestAll: '全部测速',
+      pTesting: '测速中…',
+      pRemove: '删除',
+      pConfirmRemove: '确认删除',
+      pImport: '导入',
+      pImportTitle: '导入节点',
+      pImportPlaceholder: '粘贴一个或多个 ss:// 链接、Base64 订阅内容或 Clash 配置（proxies 列表）',
+      pImported: '导入 {added} 个节点',
+      pImportedUpdated: '，更新 {updated} 个',
+      pImportedSkipped: '，跳过 {skipped} 个不支持的节点',
+      pSelected: '已切换到 {name}',
+      pTested: '{name} 可用，延迟 {ms}ms',
+      pEnabledNotice: '代理已启用',
+      pDisabledNotice: '代理已停用',
+      pSettings: '高级设置',
+      pLocalPort: '本地端口',
+      pBypass: '直连名单',
+      pSaved: '设置已保存',
+      pInvalidPort: '本地端口需在 1024–65535 之间',
+      pReset: '清空全部节点',
+      pConfirmReset: '确认清空全部节点？',
+      pResetDone: '已清空节点',
+      pStats: '流量',
       pActive: '在途连接',
       pTotal: '累计连接',
-      pUp: '上行流量',
-      pDown: '下行流量',
-      pFailures: '失败连接',
-      pFailuresTag: '有失败',
-      pEgress: '接管范围',
+      pUp: '上行',
+      pDown: '下行',
+      pFailures: '失败',
       pLastError: '上次错误',
-      pLastTest: '上次测试',
-      pOk: '可达',
-      pFail: '不可达',
-      pStored: '已存密码',
-      pNoPassword: '无密码',
-      pSaved: '配置已保存',
-      pImported: '已导入节点 {node}',
-      pTested: '节点可达，延迟 {ms}ms',
-      pEnabledNotice: '已启用代理接管',
-      pDisabledNotice: '已停用代理',
-      pResetDone: '已清除节点配置',
-      pNoNode: '未配置节点',
-      pInvalid: '请填写有效的服务器、远程端口（1–65535）和本地端口（1024–65535）。',
-      pPending: '已启用，等待重连',
-      pRetrying: '正在重连',
-      pPasswordLocal: '密码加密存在本地 state 文件（0600），重启后自动恢复接管',
-      pUnsaved: '有未保存的修改',
+      pStateFile: '节点和密码保存在本地状态文件（权限 0600），重启后自动恢复。',
+
+      gTitle: '无限制模式',
+      gDesc: '插件注册了一个独立的对话模式「无限制模式」。在对话输入框下方的模式菜单里选中它，下面的提示词才会注入；标准模式和其他模式完全不受影响。',
+      gPreset: '预设 ID',
+      gPrompt: '系统提示词',
+      gChars: '{n} 字',
+      gCustom: '自定义',
+      gDefault: '内置默认',
+      gSave: '保存并生效',
+      gSaved: '提示词已保存，立即生效',
+      gReset: '恢复默认',
+      gConfirmReset: '确认恢复默认',
+      gResetDone: '已恢复内置提示词',
+      gPlaceholder: '输入要在无限制模式下注入的系统提示词…',
+      gUnsaved: '有未保存的修改',
+
+      rCheck: '检查更新',
+      rChecking: '正在查询 npm…',
+      rUpdateTo: '更新到 {version}',
+      rUpdating: '正在安装…',
+      rAutoRestart: '装好后自动重启',
+      rRestart: '重启 DSH',
+      rConfirmRestart: '确认重启？',
+      rPickVersion: '指定版本',
+      rVersionInput: '例如 0.2.1-rc.5',
+      rInstall: '安装',
+      rUpToDate: '已是 {channel} 通道最新',
+      rUpdateReady: '可更新到 {version}',
+      rNotChecked: '还没检查',
+      rNeedsRestart: '新版本已安装，重启后生效',
+      rUpdated: '已安装 {version}',
+      rUpdatedSame: '已经是 {version}',
+      rQueued: '已安排重启',
+      rCardVersion: '版本',
+      rRunning: '运行中',
+      rOnDisk: '已安装',
+      rLatest: '通道最新',
+      rCheckedAt: '上次检查',
+      rCardProcess: '进程',
+      rHost: '主机',
+      rPid: 'PID',
+      rNode: 'Node',
+      rUptime: '已运行',
+      rChannel: '通道',
+      rProfile: '配置档',
+      rCardRestart: '更新源与重启',
+      rRegistry: 'npm 源',
+      rStrategy: '重启方式',
+      rExecve: '原地重新执行',
+      rExit: '退出后由容器拉起',
+      rCommand: '执行自定义命令',
+      rLastRestart: '上次重启',
+      rCardActivity: '最近操作',
+      rNoActivity: '本次启动后还没有操作。',
+      rOk: '成功',
+      rFail: '失败',
+      rDocker: 'Docker',
+      rBare: '宿主机',
+      rRestarting: '正在重启 DSH',
+      rRestartingHint: '等待服务重新响应，页面会自动刷新。',
+      rRestartWait: '第 {n} 次探测',
+      rRestartSlow: '一直没有响应。可用 docker compose logs -f dsh 查看日志。',
+      rBack: '已恢复，正在刷新…',
+      rHint: '重启时页面会断开几秒，会话不受影响。',
+
       relativeJustNow: '刚刚',
       relativeMinutes: ' 分钟前',
       relativeHours: ' 小时前',
@@ -236,29 +276,40 @@ window.__ModuleLoader__.load({
     }
 
     const en = {
-      title: 'Yukari',
-      subtitle: 'Harness Unified Control Surface',
+      title: 'Yukari Plugins',
       tabOverview: 'Overview',
       tabChats: 'Chats',
-      tabRuntime: 'Runtime',
       tabSites: 'Sites',
       tabProxy: 'Proxy',
       tabPurge: 'Unrestricted',
+      tabRuntime: 'Status',
 
-      updatePlugin: 'Update Yukari',
-      updatingPlugin: 'Updating…',
-      updateSuccess: 'Yukari updated successfully!',
-      updateRestartConfirm: 'The plugin has been updated. A restart of DSH is required for changes to take effect. Restart now?',
-      updateRestartNow: 'Restart DSH Now',
-      updateRestartLater: 'Restart Later',
-      updateFailed: 'Update failed: {error}',
-      cConfirmInline: 'Confirm',
-      cConfirmDeleteOnce: 'Click again to confirm delete',
+      compChats: 'Chats',
+      compSites: 'Sites',
+      compProxy: 'Proxy',
+      compPurge: 'Unrestricted mode',
+      compBrowser: 'Headless browser',
+      compRuntime: 'Status',
+
+      upCheck: 'Check for updates',
+      upChecking: 'Checking…',
+      upLatest: 'You are on the latest version',
+      upAvailable: 'Version {version} is available',
+      upNow: 'Update now',
+      upUpdating: 'Updating…',
+      upDone: 'Updated — restart to load it',
+      upPending: 'A new version is installed — restart to load it',
+      upRestart: 'Restart now',
+      upFailed: 'Update check failed: {error}',
+      upUpdateFailed: 'Update failed: {error}',
+      upManual: 'This install cannot update itself; reinstall it from the Plugins page',
 
       refresh: 'Refresh',
       retry: 'Retry',
       cancel: 'Cancel',
       confirm: 'Confirm',
+      save: 'Save',
+      close: 'Close',
       loading: 'Loading…',
       never: 'never',
       none: '—',
@@ -268,180 +319,207 @@ window.__ModuleLoader__.load({
       clearSearch: 'Clear',
       showPassword: 'Show password',
       hidePassword: 'Hide password',
+      expand: 'Expand',
+      collapse: 'Collapse',
 
-      ovChats: 'Chats',
-      ovRuntime: 'Runtime',
-      ovSites: 'Sites',
-      ovProxy: 'Proxy',
-      ovBrowser: 'Browser',
-      ovTotal: 'Total',
+      offTitle: '“{name}” is turned off',
+      offHint: 'Enable the Yukari “{name}” component on the Plugins page, then refresh.',
+      offList: 'Turned off: {names}',
+
+      ovGo: 'Manage',
+      ovTotal: 'Chats',
       ovArchived: 'Archived',
       ovLive: 'Open',
       ovStored: 'On disk',
-      ovVersion: 'Version',
+      ovWorkspaces: 'Workspaces',
+      ovVersion: 'DSH version',
       ovChannel: 'Channel',
       ovUptime: 'Uptime',
       ovSitesCount: 'Published',
-      ovRoot: 'Publish Path',
-      ovLatest: 'Latest',
+      ovLatestSite: 'Latest',
+      ovPrefix: 'URL prefix',
       ovState: 'State',
       ovNode: 'Node',
+      ovNodes: 'Nodes',
+      ovTraffic: 'Downloaded',
       ovViewport: 'Viewport',
-      ovSettle: 'Settle',
-      ovTools: 'Tools',
-      ovGo: 'Manage',
-      ovOn: 'Enabled',
-      ovOff: 'Off',
-      ovRecent: 'Recent',
+      ovChromium: 'Chromium',
+      ovReady: 'Ready',
+      ovNotReady: 'Chromium not found',
+      ovPurgeReady: 'Registered',
+      ovPurgePrompt: 'Prompt',
+      ovPurgeCustom: 'Custom',
+      ovPurgeDefault: 'Built-in',
+      ovPurgeHow: 'Pick “Unrestricted” in the mode menu under the chat input',
       ovUpdateReady: 'Update available',
       ovUpToDate: 'Up to date',
-      ovReady: 'Ready',
-      ovNotReady: 'Not Ready',
-      ovChromiumMissing: 'Chromium binary was not detected on host/container',
 
-      cSearch: 'Search title, id, workspace, or path',
-      cFilter: 'Chat scope',
+      cSearch: 'Search title, id or path',
+      cFilter: 'Scope',
       cAll: 'All',
-      cVisible: '{shown} of {total}',
-      cNoMatchHint: 'Try another keyword, or switch the scope.',
       cActive: 'Active',
       cArchived: 'Archived',
+      cGroupByWorkspace: 'By workspace',
+      cFlatList: 'By time',
+      cWorkspaceUnassigned: 'No workspace',
+      cSelectWorkspace: 'Select all',
+      cDeleteWorkspace: 'Delete workspace',
       cDelete: 'Delete',
       cDeleteN: 'Delete {n}',
       cConfirm: 'Permanently delete {n} chats?',
-      cConfirmHint: 'Artifacts, the archive flag, and the pin are removed with them. This cannot be undone.',
-      cForce: 'Also delete chats still in use',
+      cConfirmWorkspace: 'Delete the {n} chats of workspace “{name}”?',
+      cConfirmHint: 'Chat history, archive and pin marks are removed. This cannot be undone.',
+      cForce: 'Include chats that are open',
+      cDeleteFiles: 'Also delete files these chats created',
+      cDeleteFilesHint: 'Only files created by write / str_replace_editor that are still inside the workspace. Files made by shell commands or that existed before the chat are kept.',
+      cDeleteWorkspaceDir: 'Also delete the whole workspace directory',
+      cDeleteWorkspaceDirHint: '{path} and everything in it will be deleted.',
       cArchive: 'Archive',
       cUnarchive: 'Unarchive',
       cSelected: '{n} selected',
       cTotal: '{n} chats',
       cTotalOne: '1 chat',
-      cNoMatch: 'No chat matches this filter',
-      cNoChats: 'This Host stores no chats yet',
+      cNoMatch: 'No chat matches',
+      cNoMatchHint: 'Try another keyword or scope.',
+      cNoChats: 'No chats yet',
       cDeleted: 'Deleted {n} chats',
-      cKept: '{n} chats kept',
+      cFilesDeleted: 'removed {n} files',
+      cDirDeleted: 'workspace directory deleted',
       cLive: 'Open',
       cRunning: 'Running',
       cArchivedTag: 'Archived',
       cEvents: '{n} events',
+      cReason_live: 'open — tick “Include chats that are open”',
+      cReason_unknown: 'not found',
+      'cReason_no-artifact': 'nothing stored on disk',
+      'cReason_in-memory': 'exists only in memory',
+      'cReason_unsafe-path': 'unsafe path, skipped',
 
-      rCheck: 'Check for updates',
-      rChecking: 'Checking npm…',
-      rUpdate: 'Update and restart',
-      rUpdateOnly: 'Update only',
-      rRestart: 'Restart dsh',
-      rConfirmUpdate: 'Update and restart?',
-      rConfirmRestart: 'Restart now?',
-      rVersionInput: 'exact version (optional)',
-      rCardVersion: 'Version',
-      rRunning: 'Running',
-      rOnDisk: 'On disk',
-      rLatest: 'Newest',
-      rUnknown: 'unknown',
-      rNotChecked: 'not checked yet',
-      rCheckedAt: 'Last checked',
-      rUpToDate: 'newest on this channel',
-      rUpdateReady: 'update available',
-      rNeedsRestart: 'installed but not running — restart to load it',
-      rCardProcess: 'Process',
-      rContainer: 'Container',
-      rPid: 'PID',
-      rNode: 'Node',
-      rUptime: 'Uptime',
-      rChannel: 'Channel',
-      rProfile: 'Profile',
-      rCardFeed: 'Source and restart',
-      rRegistry: 'npm registry',
-      rCache: 'npm cache',
-      rStrategy: 'Restart method',
-      rExecve: 're-exec the process in place',
-      rExit: 'exit, supervisor restarts it',
-      rCommand: 'run the configured command',
-      rLastRestart: 'Last restart',
-      rCardActivity: 'Recent activity',
-      rNoActivity: 'Nothing run yet in this process.',
-      rOkLabel: 'ok',
-      rFailLabel: 'failed',
-      rActionKind: 'Action',
-      rActionAt: 'Time',
-      rActionResult: 'Result',
-      rRestarting: 'Restarting dsh',
-      rRestartingHint: 'Waiting for the process to answer again. The page reloads by itself.',
-      rRestartWait: 'attempt {n}',
-      rRestartSlow: 'Still no answer. Check the container log with `docker compose logs -f dsh`; the restart journal sits under DSH_HOME/.dsh-control.',
-      rBack: 'Back online — reloading…',
-      rUpdated: 'Installed {version}',
-      rUpdatedSame: 'Already on {version}',
-      rCheckedNew: 'Newest on {channel}: {version}',
-      rCheckedSame: 'Already on the newest {channel} release ({version})',
-      rQueued: 'Restart queued ({strategy})',
-      rDocker: 'Docker',
-      rBare: 'bare host',
-      rHint: 'A restart drops this page for a few seconds; the session survives it.',
-
-      sSearch: 'Search site title or slug',
+      sSearch: 'Search sites',
+      sPrefix: 'URL prefix',
+      sPrefixHint: 'Site link = prefix + /name/. Use your public address, e.g. https://pages.example.com or https://dsh.example.com/p',
+      sPrefixDefault: 'Reset',
+      sPrefixSaved: 'URL prefix saved',
       sCount: '{n} sites',
       sCountOne: '1 site',
       sEmpty: 'No site published yet',
       sEmptyHint: 'Ask the agent to call publish_site, or drop a build into the publish root.',
       sUnpublish: 'Unpublish',
-      sConfirm: 'Unpublish /{slug}/?',
       sPublished: 'published {time}',
       sFiles: '{n} files',
       sVersion: 'v{version}',
-      sNoMatch: 'No site matches this search',
+      sNoMatch: 'No site matches',
       sGone: 'Unpublished /{slug}/',
       sKept: 'No site at /{slug}/',
 
-      pStatus: 'Egress',
-      pEnable: 'Enable',
-      pDisable: 'Disable',
-      pEnabled: 'All outbound traffic routed',
+      pEnable: 'Enable proxy',
+      pDisable: 'Disable proxy',
+      pEnabled: 'Routing outbound traffic',
       pDisabled: 'Direct',
-      pRunning: 'local proxy running',
-      pStopped: 'local proxy stopped',
-      pNode: 'Node',
-      pServer: 'Server',
-      pPort: 'Port',
-      pMethod: 'Cipher',
-      pPassword: 'Password',
-      pPasswordKeep: 'Keep the stored one',
-      pLocalPort: 'Local port',
-      pBypass: 'Direct allowlist',
-      pSave: 'Save',
-      pImport: 'Import node',
-      pImportPlaceholder: 'Paste ss:// link or Clash config JSON',
-      pTest: 'Test node',
+      pPending: 'Enabled, connecting',
+      pRunning: 'running',
+      pStopped: 'stopped',
+      pNodes: 'Nodes',
+      pNoNodes: 'No nodes yet',
+      pNoNodesHint: 'Paste ss:// links, a subscription or a Clash config below.',
+      pUse: 'Use',
+      pInUse: 'In use',
+      pTest: 'Test',
+      pTestAll: 'Test all',
       pTesting: 'Testing…',
-      pTestTarget: 'Test target URL',
-      pReset: 'Forget node',
-      pConfirmReset: 'Forget the stored node?',
-      pCardStats: 'Traffic',
+      pRemove: 'Remove',
+      pConfirmRemove: 'Confirm',
+      pImport: 'Import',
+      pImportTitle: 'Import nodes',
+      pImportPlaceholder: 'Paste one or more ss:// links, a base64 subscription, or a Clash config (proxies list)',
+      pImported: 'Imported {added} nodes',
+      pImportedUpdated: ', updated {updated}',
+      pImportedSkipped: ', skipped {skipped} unsupported',
+      pSelected: 'Switched to {name}',
+      pTested: '{name} works, {ms}ms',
+      pEnabledNotice: 'Proxy enabled',
+      pDisabledNotice: 'Proxy disabled',
+      pSettings: 'Advanced',
+      pLocalPort: 'Local port',
+      pBypass: 'Direct list',
+      pSaved: 'Settings saved',
+      pInvalidPort: 'Local port must be 1024–65535',
+      pReset: 'Remove all nodes',
+      pConfirmReset: 'Remove all nodes?',
+      pResetDone: 'All nodes removed',
+      pStats: 'Traffic',
       pActive: 'Active',
       pTotal: 'Total',
       pUp: 'Up',
       pDown: 'Down',
       pFailures: 'Failures',
-      pFailuresTag: 'some failed',
-      pEgress: 'Scope',
       pLastError: 'Last error',
-      pLastTest: 'Last test',
-      pOk: 'reachable',
-      pFail: 'unreachable',
-      pStored: 'password stored',
-      pNoPassword: 'no password',
-      pSaved: 'Saved',
-      pImported: 'Imported {node}',
-      pTested: 'Node reachable in {ms}ms',
-      pEnabledNotice: 'Proxy enabled',
-      pDisabledNotice: 'Proxy disabled',
-      pResetDone: 'Node forgotten',
-      pNoNode: 'No node configured yet',
-      pInvalid: 'Enter a server, a remote port from 1–65535, and a local port from 1024–65535.',
-      pPending: 'Enabled — reconnecting',
-      pRetrying: 'Reconnecting',
-      pPasswordLocal: 'Password stored in the local state file (0600); the route resumes after a restart',
-      pUnsaved: 'Unsaved changes',
+      pStateFile: 'Nodes and passwords are kept in a local state file (mode 0600) and restored after a restart.',
+
+      gTitle: 'Unrestricted mode',
+      gDesc: 'The plugin registers a separate chat mode, “Unrestricted”. The prompt below is injected only when you pick that mode in the menu under the chat input; the standard mode is untouched.',
+      gPreset: 'Preset id',
+      gPrompt: 'System prompt',
+      gChars: '{n} chars',
+      gCustom: 'Custom',
+      gDefault: 'Built-in',
+      gSave: 'Save',
+      gSaved: 'Prompt saved and active',
+      gReset: 'Restore default',
+      gConfirmReset: 'Confirm restore',
+      gResetDone: 'Built-in prompt restored',
+      gPlaceholder: 'System prompt injected in unrestricted mode…',
+      gUnsaved: 'Unsaved changes',
+
+      rCheck: 'Check for updates',
+      rChecking: 'Asking npm…',
+      rUpdateTo: 'Update to {version}',
+      rUpdating: 'Installing…',
+      rAutoRestart: 'Restart when installed',
+      rRestart: 'Restart DSH',
+      rConfirmRestart: 'Restart now?',
+      rPickVersion: 'Pick version',
+      rVersionInput: 'e.g. 0.2.1-rc.5',
+      rInstall: 'Install',
+      rUpToDate: 'Newest on {channel}',
+      rUpdateReady: '{version} available',
+      rNotChecked: 'not checked yet',
+      rNeedsRestart: 'Installed — restart to load it',
+      rUpdated: 'Installed {version}',
+      rUpdatedSame: 'Already on {version}',
+      rQueued: 'Restart scheduled',
+      rCardVersion: 'Version',
+      rRunning: 'Running',
+      rOnDisk: 'Installed',
+      rLatest: 'Newest',
+      rCheckedAt: 'Last checked',
+      rCardProcess: 'Process',
+      rHost: 'Host',
+      rPid: 'PID',
+      rNode: 'Node',
+      rUptime: 'Uptime',
+      rChannel: 'Channel',
+      rProfile: 'Profile',
+      rCardRestart: 'Source and restart',
+      rRegistry: 'npm registry',
+      rStrategy: 'Restart method',
+      rExecve: 're-exec in place',
+      rExit: 'exit, container restarts it',
+      rCommand: 'custom command',
+      rLastRestart: 'Last restart',
+      rCardActivity: 'Recent activity',
+      rNoActivity: 'Nothing run since this start.',
+      rOk: 'ok',
+      rFail: 'failed',
+      rDocker: 'Docker',
+      rBare: 'host',
+      rRestarting: 'Restarting DSH',
+      rRestartingHint: 'Waiting for the server to answer; the page reloads by itself.',
+      rRestartWait: 'attempt {n}',
+      rRestartSlow: 'Still no answer. Check docker compose logs -f dsh.',
+      rBack: 'Back online — reloading…',
+      rHint: 'A restart drops this page for a few seconds; chats are not affected.',
+
       relativeJustNow: 'just now',
       relativeMinutes: 'm ago',
       relativeHours: 'h ago',
@@ -984,6 +1062,70 @@ window.__ModuleLoader__.load({
   background: rgba(255, 255, 255, 0.08);
 }
 
+/* Workspace Grouping */
+.yk-wsGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  margin-bottom: 8px;
+}
+.yk-wsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.04));
+  border: .5px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.08));
+  border-radius: var(--dsw-radius-md, 10px);
+  gap: 10px;
+}
+.yk-wsInfo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.yk-wsToggleBtn {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+}
+.yk-wsTitle {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.yk-wsPath {
+  font-size: 11px;
+  color: var(--dsw-alias-label-tertiary);
+  font-family: var(--dsw-font-mono, monospace);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+.yk-wsActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 /* Modern List Items (Chats / Sites) */
 .yk-list {
   display: flex;
@@ -1331,52 +1473,131 @@ button.yk-itemTitle:hover {
   .yk-navTab span:not(.yk-navTabLabel) { display: none; }
   .yk-btnLabel { display: none; }
 }
-.yk-modalBackdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  background: rgba(0, 0, 0, 0.65);
-  backdrop-filter: blur(4px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-.yk-modalCard {
-  width: 100%;
-  max-width: 440px;
-  background: var(--dsw-alias-bg-layer-2, #18181b);
-  border: .5px solid var(--dsw-alias-border-l2, rgba(255, 255, 255, 0.12));
-  border-radius: var(--dsw-radius-xl, 16px);
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.4);
-}
-.yk-modalTitle {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--dsw-alias-label-primary);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.yk-modalDesc {
-  font-size: 13.5px;
-  line-height: 1.5;
-  color: var(--dsw-alias-label-secondary);
-  margin: 0;
-}
-.yk-modalActions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 8px;
-}
 @media(prefers-reduced-motion: reduce) {
   .yk-page * { animation: none !important; transition: none !important; }
+}
+
+/* ---- v1.5 additions ---- */
+.yk-headLogo { width: 40px; height: 40px; box-shadow: none; overflow: visible; }
+.yk-headBrand { gap: 10px; }
+.yk-logoFallback {
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px; font-weight: 700;
+  background: rgba(168, 85, 247, 0.18); color: #c084fc;
+}
+.yk-btn-sm { height: 28px; padding: 0 10px; font-size: 12.5px; border-radius: 8px; }
+.yk-iconBtn.yk-btn-sm { width: 28px; padding: 0; }
+.yk-dangerHover:hover:not(:disabled) { color: var(--dsw-alias-state-error-primary, #ef4444); }
+.yk-grow { flex: 1 1 auto; }
+
+.yk-update { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+.yk-updateStatus {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 30px;
+  padding: 3px 6px 3px 12px; border-radius: 999px; font-size: 12.5px;
+  border: .5px solid var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
+  background: var(--dsw-alias-bg-layer-2, transparent);
+  color: var(--dsw-alias-label-secondary);
+  max-width: 100%;
+}
+.yk-updateStatus > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yk-updateStatus-ok { color: #10b981; border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.08); padding-right: 12px; }
+.yk-updateStatus-ok:has(.yk-btn) { padding-right: 4px; }
+.yk-updateStatus-warn { color: #f59e0b; border-color: rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.08); padding-right: 4px; }
+.yk-updateStatus-error { color: #ef4444; border-color: rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.08); }
+.yk-updateStatus-busy { padding-right: 12px; }
+.yk-updateStatus .yk-btn-sm { height: 24px; border-radius: 999px; }
+.yk-updateDismiss {
+  appearance: none; border: 0; background: transparent; color: inherit; cursor: pointer;
+  width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; opacity: .7;
+}
+.yk-updateDismiss:hover { opacity: 1; background: rgba(255, 255, 255, 0.08); }
+
+.yk-cardTools { display: flex; align-items: center; gap: 6px; }
+.yk-cardText { margin: 0; font-size: 13px; line-height: 1.65; color: var(--dsw-alias-label-secondary); }
+.yk-cardHint { font-size: 12px; color: var(--dsw-alias-label-tertiary); padding-top: 4px; }
+
+.yk-hero {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 14px 16px; border-radius: var(--dsw-radius-lg, 12px);
+  border: .5px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base));
+}
+.yk-heroDot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--dsw-alias-label-tertiary); opacity: .6; }
+.yk-hero-on .yk-heroDot { background: #10b981; opacity: 1; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15); }
+.yk-hero-warn .yk-heroDot { background: #f59e0b; opacity: 1; box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15); }
+.yk-heroMain { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.yk-heroTitle { font-size: 15px; font-weight: 600; color: var(--dsw-alias-label-primary); }
+.yk-heroSub { font-size: 12.5px; color: var(--dsw-alias-label-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yk-heroActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.yk-options { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 2px; }
+.yk-option { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 13px; color: var(--dsw-alias-label-primary); }
+.yk-option input { margin: 3px 0 0; accent-color: var(--dsw-alias-state-business-primary, #6366f1); flex: none; }
+.yk-option-danger { color: var(--dsw-alias-state-error-primary, #ef4444); }
+.yk-option-danger input { accent-color: #ef4444; }
+.yk-optionText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.yk-optionHint { font-size: 12px; color: var(--dsw-alias-label-tertiary); line-height: 1.5; overflow-wrap: anywhere; }
+.yk-heroActions .yk-option { align-items: center; font-size: 12.5px; color: var(--dsw-alias-label-secondary); }
+.yk-heroActions .yk-option input { margin: 0; }
+
+.yk-groups { display: flex; flex-direction: column; gap: 12px; }
+.yk-wsHeader { gap: 10px; }
+.yk-wsCount {
+  font-size: 11.5px; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(255, 255, 255, 0.08); color: var(--dsw-alias-label-secondary); flex: none;
+}
+.yk-item-selected { background: rgba(99, 102, 241, 0.08); }
+.yk-batchActions { display: flex; gap: 8px; }
+.yk-itemIcon { display: inline-flex; color: var(--dsw-alias-label-tertiary); flex: none; }
+.yk-itemTitle { text-decoration: none; }
+.yk-link { color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+
+.yk-settingRow {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px 10px;
+  padding: 12px 14px; border-radius: var(--dsw-radius-lg, 12px);
+  border: .5px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base));
+}
+.yk-settingLabel { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; white-space: nowrap; }
+.yk-settingHint { grid-column: 1 / -1; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
+
+.yk-nodeList { display: flex; flex-direction: column; gap: 6px; }
+.yk-node {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px;
+  border: .5px solid var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
+  transition: border-color .15s ease, background .15s ease;
+}
+.yk-node:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(255, 255, 255, 0.04)); }
+.yk-node-active { border-color: rgba(16, 185, 129, 0.45); background: rgba(16, 185, 129, 0.06); }
+.yk-nodeName { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.yk-radio {
+  appearance: none; flex: none; width: 18px; height: 18px; border-radius: 50%; padding: 0; cursor: pointer;
+  border: 1.5px solid var(--dsw-alias-border-l4, rgba(255, 255, 255, 0.35)); background: transparent;
+  display: inline-flex; align-items: center; justify-content: center; color: inherit;
+}
+.yk-radio[aria-checked="true"] { border-color: #10b981; box-shadow: inset 0 0 0 4px #10b981; cursor: default; }
+.yk-radio:disabled:not([aria-checked="true"]) { opacity: .5; cursor: default; }
+.yk-importBox { display: flex; gap: 8px; align-items: flex-end; padding-top: 4px; }
+.yk-importBox .yk-textarea { flex: 1 1 auto; }
+.yk-textarea { height: auto; min-height: 64px; padding: 9px 11px; resize: vertical; line-height: 1.5; font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 12px; }
+.yk-editor { min-height: 320px; }
+.yk-editorHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
+.yk-disclosure { display: flex; flex-direction: column; gap: 12px; }
+.yk-disclosureBtn {
+  appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 13px;
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 4px 0; align-self: flex-start;
+}
+.yk-disclosureBtn:hover { color: var(--dsw-alias-label-primary); }
+.yk-disclosureBody { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border-radius: var(--dsw-radius-lg, 12px); border: .5px solid var(--dsw-alias-border-l2); }
+
+@media(max-width: 640px) {
+  .yk-head { flex-direction: column; align-items: flex-start; }
+  .yk-update { justify-content: flex-start; }
+  .yk-settingRow { grid-template-columns: minmax(0, 1fr) auto; }
+  .yk-settingLabel { grid-column: 1 / -1; }
+  .yk-importBox { flex-direction: column; align-items: stretch; }
 }
 `;
 
@@ -1425,44 +1646,47 @@ button.yk-itemTitle:hover {
       return `${current.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
     }
 
-    async function getJson(url, signal) {
-      const response = await fetch(url, { headers: { accept: 'application/json' }, signal })
+    /**
+     * One JSON request. A route that is not registered (its component row is
+     * turned off) answers 404 or the SPA page instead of JSON: that becomes an
+     * error with `off: true`, so tabs can show a hint instead of "HTTP 404".
+     */
+    async function request(url, init) {
+      const response = await fetch(url, { ...init, cache: 'no-store' })
+      const type = response.headers.get('content-type') ?? ''
       let payload = null
-      try {
-        payload = await response.json()
-      } catch {
-        payload = null
+      if (type.includes('json')) {
+        try {
+          payload = await response.json()
+        } catch {
+          payload = null
+        }
       }
-      if (!response.ok || (payload !== null && payload.ok === false)) {
-        const message = payload !== null && payload.error ? payload.error : `HTTP ${response.status}`
-        const error = new Error(message)
-        if (payload !== null && typeof payload === 'object') Object.assign(error, payload)
+      if (payload === null) {
+        const error = new Error(`HTTP ${response.status}`)
+        error.status = response.status
+        error.off = response.status === 404 || (response.ok && !type.includes('json'))
+        throw error
+      }
+      if (!response.ok || payload.ok === false) {
+        const error = new Error(payload.error ? String(payload.error) : `HTTP ${response.status}`)
+        Object.assign(error, payload)
+        error.status = response.status
+        error.off = false
         throw error
       }
       return payload
     }
 
-    async function postJson(url, body, signal) {
-      const response = await fetch(url, {
+    const getJson = (url, signal) => request(url, { headers: { accept: 'application/json' }, signal })
+
+    const postJson = (url, body, signal) =>
+      request(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json', accept: 'application/json' },
         body: JSON.stringify(body ?? {}),
         signal,
       })
-      let payload = null
-      try {
-        payload = await response.json()
-      } catch {
-        payload = null
-      }
-      if (!response.ok || (payload !== null && payload.ok === false)) {
-        const message = payload !== null && payload.error ? payload.error : `HTTP ${response.status}`
-        const error = new Error(message)
-        if (payload !== null && typeof payload === 'object') Object.assign(error, payload)
-        throw error
-      }
-      return payload
-    }
 
     const messageOf = (error) => (error instanceof Error ? error.message : String(error))
 
@@ -1651,6 +1875,15 @@ button.yk-itemTitle:hover {
         ],
         props,
       )
+    const FolderIcon = (props) =>
+      glyph(
+        [
+          stroke('M3.8 6.4h4.4l2 2.2h8a1.4 1.4 0 0 1 1.4 1.4v7.6a1.4 1.4 0 0 1-1.4 1.4H3.8a1.4 1.4 0 0 1-1.4-1.4V7.8a1.4 1.4 0 0 1 1.4-1.4Z', { key: 'a' }),
+        ],
+        props,
+      )
+    const ChevronDownIcon = (props) => glyph(stroke('M6 9l6 6 6-6'), props)
+    const ChevronRightIcon = (props) => glyph(stroke('M9 6l6 6-6 6'), props)
 
     const Spinner = ({ size }) => h(RefreshIcon, { className: 'yk-spin', width: size ?? 15, height: size ?? 15 })
 
@@ -1772,260 +2005,347 @@ button.yk-itemTitle:hover {
       )
     }
 
+    /* ------------------------------------------------------- shared pieces */
+
+    /** Component key → its label key, in tab order. */
+    const COMPONENT_LABEL = {
+      chats: 'compChats',
+      sites: 'compSites',
+      proxy: 'compProxy',
+      purge: 'compPurge',
+      browser: 'compBrowser',
+      runtime: 'compRuntime',
+    }
+
+    /** Placeholder shown instead of an error when a component row is turned off. */
+    function OffState({ t, name }) {
+      const label = t(COMPONENT_LABEL[name] ?? name)
+      return h(Empty, {
+        icon: h(PowerIcon, { width: 22, height: 22 }),
+        title: fill(t('offTitle'), { name: label }),
+        hint: fill(t('offHint'), { name: label }),
+      })
+    }
+
+    /** Error banner, or the off placeholder when the component is gone. */
+    function Failure({ t, name, error, onRetry }) {
+      if (error === null || error === undefined) return null
+      if (error.off === true) return h(OffState, { t, name })
+      return h(Banner, {
+        kind: 'error',
+        text: error.message,
+        action: onRetry ? h('button', { type: 'button', className: 'yk-btn', onClick: onRetry }, t('retry')) : undefined,
+      })
+    }
+
+    /** Normalise a thrown value into `{ message, off }`. */
+    const failureOf = (error) => ({ message: messageOf(error), off: error?.off === true })
+
+    /** Checkbox row with an optional hint underneath. */
+    function Option({ checked, onChange, label, hint, danger, disabled }) {
+      return h(
+        'label',
+        { className: danger ? 'yk-option yk-option-danger' : 'yk-option' },
+        h('input', { type: 'checkbox', checked, disabled, onChange: (event) => onChange(event.target.checked) }),
+        h('span', { className: 'yk-optionText' }, h('span', null, label), hint ? h('span', { className: 'yk-optionHint' }, hint) : null),
+      )
+    }
+
+    /** Wait for the server to come back after a restart, then reload. */
+    function RestartWatch({ t }) {
+      const [attempts, setAttempts] = React.useState(0)
+      const [phase, setPhase] = React.useState('waiting')
+      React.useEffect(() => {
+        let count = 0
+        let stopped = false
+        // Give the old process time to go away before the first probe.
+        const timer = setInterval(async () => {
+          count += 1
+          setAttempts(count)
+          if (count > 60) {
+            clearInterval(timer)
+            setPhase('slow')
+            return
+          }
+          if (count < 3) return
+          try {
+            const response = await fetch(API.overview, { headers: { accept: 'application/json' }, cache: 'no-store' })
+            if (response.ok && !stopped) {
+              clearInterval(timer)
+              setPhase('back')
+              setTimeout(() => window.location.reload(), 800)
+            }
+          } catch {
+            /* still down */
+          }
+        }, 1000)
+        return () => {
+          stopped = true
+          clearInterval(timer)
+        }
+      }, [])
+      return h(
+        'div',
+        { className: 'yk-overlay', role: 'status' },
+        phase === 'back' ? h(CheckIcon, { width: 26, height: 26 }) : h(Spinner, { size: 26 }),
+        h('div', { className: 'yk-overlayTitle' }, phase === 'back' ? t('rBack') : t('rRestarting')),
+        h('div', { className: 'yk-overlayHint' }, phase === 'slow' ? t('rRestartSlow') : t('rRestartingHint')),
+        phase === 'waiting' ? h('div', { className: 'yk-statSub' }, fill(t('rRestartWait'), { n: attempts })) : null,
+      )
+    }
+
+    /** Ask whichever restart endpoint is available. */
+    async function requestRestart(components) {
+      if (components?.runtime) {
+        await postJson(`${API.runtime}/restart`, { delayMs: 600 })
+      } else {
+        await postJson(API.restart, {})
+      }
+    }
+
+    /** Search box with a clear button. */
+    function SearchBox({ value, onChange, placeholder, t }) {
+      return h(
+        'label',
+        { className: 'yk-search' },
+        h(SearchIcon),
+        h('input', { value, placeholder, 'aria-label': placeholder, onChange: (event) => onChange(event.target.value) }),
+        value !== ''
+          ? h(
+              'button',
+              {
+                type: 'button',
+                className: 'yk-searchClear',
+                title: t('clearSearch'),
+                'aria-label': t('clearSearch'),
+                onClick: (event) => {
+                  event.preventDefault()
+                  onChange('')
+                },
+              },
+              h(ClearIcon, { width: 12, height: 12 }),
+            )
+          : null,
+      )
+    }
+
+    const RefreshButton = ({ t, onClick, spinning }) =>
+      h(
+        'button',
+        { type: 'button', className: 'yk-btn yk-iconBtn yk-btn-ghost', onClick, disabled: spinning, title: t('refresh'), 'aria-label': t('refresh') },
+        h(RefreshIcon, { className: spinning ? 'yk-spin' : undefined }),
+      )
+
     /* ---------------------------------------------------------------- overview */
 
-    function OverviewTab({ t, onGo }) {
-      const [state, setState] = React.useState({ overview: null, chats: null, runtime: null, sites: null, proxy: null })
-      const [error, setError] = React.useState(null)
+    function OverviewTab({ t, components, onGo }) {
+      const [state, setState] = React.useState({ chats: null, runtime: null, sites: null, proxy: null, purge: null })
       const [busy, setBusy] = React.useState(false)
       const { signal, alive } = useAbortOnUnmount()
+      const on = (name) => components === null || Boolean(components[name])
 
       const load = React.useCallback(async () => {
         setBusy(true)
+        const want = (name, url) => (on(name) ? getJson(url, signal) : Promise.resolve(null))
         const settled = await Promise.allSettled([
-          getJson(API.overview, signal),
-          getJson(`${API.chats}/state`, signal),
-          getJson(`${API.runtime}/state`, signal),
-          getJson(`${API.sites}/list`, signal),
-          getJson(`${API.proxy}/state`, signal),
+          want('chats', `${API.chats}/state`),
+          want('runtime', `${API.runtime}/state`),
+          want('sites', `${API.sites}/list`),
+          want('proxy', `${API.proxy}/state`),
+          want('purge', `${API.purge}/config`),
         ])
-        const pick = (index) => (settled[index].status === 'fulfilled' ? settled[index].value : null)
-        const failures = settled.filter((entry) => entry.status === 'rejected' && entry.reason?.name !== 'AbortError')
         if (!alive.current) return
+        const pick = (index) => (settled[index].status === 'fulfilled' ? settled[index].value : null)
         setState({
-          overview: pick(0)?.overview ?? null,
-          chats: pick(1)?.state ?? null,
-          runtime: pick(2)?.state ?? null,
-          sites: pick(3)?.sites ?? null,
-          proxy: pick(4)?.state ?? null,
+          chats: pick(0)?.state ?? null,
+          runtime: pick(1)?.state ?? null,
+          sites: pick(2) ?? null,
+          proxy: pick(3)?.state ?? null,
+          purge: pick(4) ?? null,
         })
-        setError(failures.length === 0 ? null : messageOf(failures[0].reason))
         setBusy(false)
-      }, [])
+      }, [components])
 
       React.useEffect(() => {
         load()
       }, [load])
 
-      const chats = state.chats
-      const runtime = state.runtime
-      const sites = state.sites
-      const proxy = state.proxy
-      const browser = state.overview?.parts?.browser ?? null
+      const go = (key) => h('button', { type: 'button', className: 'yk-cardAction', onClick: () => onGo(key) }, t('ovGo'), ' →')
+      const dash = (value) => (value === null || value === undefined ? '—' : value)
+      const { chats, runtime, sites, proxy, purge } = state
+      const browser = components?.browser ?? null
+      const off = components === null ? [] : Object.keys(COMPONENT_LABEL).filter((name) => !components[name])
+      const activeNode = proxy?.nodes?.find((node) => node.active) ?? null
 
-      const go = (key) =>
-        h(
-          'button',
-          { type: 'button', className: 'yk-cardAction', onClick: () => onGo(key), title: t('ovGo') },
-          t('ovGo'),
-          ' →',
-        )
-
-      return h(
-        'div',
-        { className: 'yk-body' },
-        error !== null ? h(Banner, { kind: 'error', text: error, action: h('button', { type: 'button', className: 'yk-btn', onClick: load, disabled: busy }, t('retry')) }) : null,
-
-        /* Metric Stats Strip */
-        h(
-          'div',
-          { className: 'yk-statsGrid' },
-          h(
-            'div',
-            { className: 'yk-statCard', onClick: () => onGo('chats'), title: t('ovChats') },
-            h('div', { className: 'yk-statHead' }, h('span', null, t('ovChats')), h(ChatIcon, { width: 14, height: 14 })),
-            h('div', { className: 'yk-statValue' }, chats === null ? '—' : String(chats.totals.all)),
-            h('div', { className: 'yk-statSub' }, chats === null ? '—' : `${formatBytes(chats.totals.bytes)} 占用 · ${chats.totals.archived} 归档`),
-          ),
-          h(
-            'div',
-            { className: 'yk-statCard', onClick: () => onGo('runtime'), title: t('ovRuntime') },
-            h('div', { className: 'yk-statHead' }, h('span', null, t('ovRuntime')), h(PowerIcon, { width: 14, height: 14 })),
-            h('div', { className: 'yk-statValue' }, runtime?.runtime?.version ?? '—'),
-            h('div', { className: 'yk-statSub' }, runtime?.runtime?.uptime ? `已运行 ${runtime.runtime.uptime}` : (runtime?.update?.available ? t('ovUpdateReady') : t('ovUpToDate'))),
-          ),
-          h(
-            'div',
-            { className: 'yk-statCard', onClick: () => onGo('sites'), title: t('ovSites') },
-            h('div', { className: 'yk-statHead' }, h('span', null, t('ovSites')), h(GlobeIcon, { width: 14, height: 14 })),
-            h('div', { className: 'yk-statValue' }, sites === null ? '—' : String(sites.length)),
-            h('div', { className: 'yk-statSub' }, sites !== null && sites.length > 0 ? `/${sites[0].slug}/` : t('none')),
-          ),
-          h(
-            'div',
-            { className: 'yk-statCard', onClick: () => onGo('proxy'), title: t('ovProxy') },
-            h('div', { className: 'yk-statHead' }, h('span', null, t('ovProxy')), h(RouteIcon, { width: 14, height: 14 })),
-            h('div', { className: 'yk-statValue' }, proxy === null ? '—' : (proxy.enabled ? (proxy.running ? t('ovOn') : t('pPending')) : t('ovOff'))),
-            h('div', { className: 'yk-statSub' }, proxy?.stats ? `${formatBytes(proxy.stats.bytesDown)} 下行 · ${proxy.stats.active} 连接` : t('pDisabled')),
-          ),
-        ),
-
-        /* Subsystem 2-column Grid */
-        h(
-          'div',
-          { className: 'yk-grid' },
+      const cards = []
+      if (on('chats')) {
+        cards.push(
           h(
             Card,
-            { title: t('ovChats'), icon: h(ChatIcon, { width: 16, height: 16 }), action: go('chats') },
+            { key: 'chats', title: t('compChats'), icon: h(ChatIcon, { width: 16, height: 16 }), action: go('chats') },
             h(
               'div',
               { className: 'yk-rows' },
-              h(Row, { label: t('ovTotal'), value: chats === null ? '—' : String(chats.totals.all) }),
-              h(Row, { label: t('ovLive'), value: chats === null ? '—' : String(chats.totals.live), chips: chats?.totals?.live ? [{ text: t('cLive'), kind: 'ok', dot: true }] : [] }),
-              h(Row, { label: t('ovArchived'), value: chats === null ? '—' : String(chats.totals.archived) }),
+              h(Row, { label: t('ovTotal'), value: dash(chats?.totals?.all) }),
+              h(Row, { label: t('ovWorkspaces'), value: dash(chats?.workspaces?.length) }),
+              h(Row, { label: t('ovArchived'), value: dash(chats?.totals?.archived) }),
               h(Row, { label: t('ovStored'), value: chats === null ? '—' : formatBytes(chats.totals.bytes), mono: true }),
             ),
           ),
+        )
+      }
+      if (on('sites')) {
+        cards.push(
+          h(
+            Card,
+            { key: 'sites', title: t('compSites'), icon: h(GlobeIcon, { width: 16, height: 16 }), action: go('sites') },
+            h(
+              'div',
+              { className: 'yk-rows' },
+              h(Row, { label: t('ovSitesCount'), value: dash(sites?.sites?.length) }),
+              h(Row, { label: t('ovLatestSite'), value: sites?.sites?.[0]?.title ?? '—', clamp: true }),
+              h(Row, { label: t('ovPrefix'), value: dash(sites?.publicBase), mono: true, clamp: true }),
+            ),
+          ),
+        )
+      }
+      if (on('proxy')) {
+        cards.push(
           h(
             Card,
             {
-              title: t('ovRuntime'),
+              key: 'proxy',
+              title: t('compProxy'),
+              icon: h(RouteIcon, { width: 16, height: 16 }),
+              action: go('proxy'),
+              note: proxy === null ? undefined : proxy.enabled ? (proxy.running ? t('pEnabled') : t('pPending')) : t('pDisabled'),
+            },
+            h(
+              'div',
+              { className: 'yk-rows' },
+              h(Row, {
+                label: t('ovState'),
+                value: proxy === null ? '—' : proxy.enabled ? t('pEnabled') : t('pDisabled'),
+                chips: proxy === null ? [] : [{ text: proxy.running ? t('pRunning') : t('pStopped'), kind: proxy.running ? 'ok' : undefined, dot: true }],
+              }),
+              h(Row, { label: t('ovNode'), value: activeNode === null ? '—' : activeNode.name, clamp: true }),
+              h(Row, { label: t('ovNodes'), value: dash(proxy?.nodes?.length) }),
+              h(Row, { label: t('ovTraffic'), value: proxy === null ? '—' : formatBytes(proxy.stats?.bytesDown ?? 0), mono: true }),
+            ),
+          ),
+        )
+      }
+      if (on('purge')) {
+        cards.push(
+          h(
+            Card,
+            { key: 'purge', title: t('compPurge'), icon: h(PurgeIcon, { width: 16, height: 16 }), action: go('purge') },
+            h(
+              'div',
+              { className: 'yk-rows' },
+              h(Row, { label: t('ovState'), value: t('ovPurgeReady'), chips: [{ text: purge?.presetId ?? 'unrestricted', kind: 'ok', dot: true }] }),
+              h(Row, { label: t('ovPurgePrompt'), value: purge === null ? '—' : purge.isCustom ? t('ovPurgeCustom') : t('ovPurgeDefault') }),
+              h('div', { className: 'yk-cardHint' }, t('ovPurgeHow')),
+            ),
+          ),
+        )
+      }
+      if (on('runtime')) {
+        cards.push(
+          h(
+            Card,
+            {
+              key: 'runtime',
+              title: t('compRuntime'),
               icon: h(PowerIcon, { width: 16, height: 16 }),
               action: go('runtime'),
-              note: runtime?.update?.available === true ? t('ovUpdateReady') : (runtime?.update?.checkedAt ? t('ovUpToDate') : undefined),
+              note: runtime?.update?.available === true ? t('ovUpdateReady') : undefined,
             },
             h(
               'div',
               { className: 'yk-rows' },
               h(Row, {
                 label: t('ovVersion'),
-                value: runtime?.runtime?.version ?? '—',
+                value: dash(runtime?.runtime?.version),
                 mono: true,
-                chips: [
-                  ...(runtime?.update?.available === true ? [{ text: t('ovUpdateReady'), kind: 'warn' }] : []),
-                  ...(runtime?.disk?.stale === true ? [{ text: t('rNeedsRestart'), kind: 'warn' }] : []),
-                ],
+                chips: runtime?.disk?.stale === true ? [{ text: t('rNeedsRestart'), kind: 'warn' }] : [],
               }),
-              h(Row, { label: t('ovChannel'), value: runtime?.runtime?.channel ?? '—', mono: true }),
-              h(Row, { label: t('ovUptime'), value: runtime?.runtime?.uptime ?? '—' }),
-              h(Row, { label: t('rNode'), value: runtime?.runtime?.node ?? '—', mono: true }),
+              h(Row, { label: t('ovChannel'), value: dash(runtime?.runtime?.channel), mono: true }),
+              h(Row, { label: t('ovUptime'), value: dash(runtime?.runtime?.uptime) }),
             ),
           ),
+        )
+      }
+      if (browser !== null) {
+        cards.push(
           h(
             Card,
-            { title: t('ovSites'), icon: h(GlobeIcon, { width: 16, height: 16 }), action: go('sites') },
-            h(
-              'div',
-              { className: 'yk-rows' },
-              h(Row, { label: t('ovSitesCount'), value: sites === null ? '—' : String(sites.length) }),
-              h(Row, { label: t('ovLatest'), value: sites !== null && sites.length > 0 ? sites[0].title : t('none') }),
-              h(Row, { label: t('ovRecent'), value: sites !== null && sites.length > 0 ? `/${sites[0].slug}/` : '—', mono: true }),
-              h(Row, { label: t('ovRoot'), value: state.overview?.parts?.sites?.root ?? '/workspace/publish', mono: true, clamp: true }),
-            ),
-          ),
-          h(
-            Card,
-            {
-              title: t('ovProxy'),
-              icon: h(RouteIcon, { width: 16, height: 16 }),
-              action: go('proxy'),
-              note: proxy === null ? undefined : (proxy.enabled ? t('ovOn') : t('ovOff')),
-            },
+            { key: 'browser', title: t('compBrowser'), icon: h(OverviewIcon, { width: 16, height: 16 }) },
             h(
               'div',
               { className: 'yk-rows' },
               h(Row, {
                 label: t('ovState'),
-                value: proxy === null ? '—' : (proxy.enabled ? (proxy.running ? t('pEnabled') : t('pPending')) : t('pDisabled')),
-                chips: proxy === null ? [] : [{ text: proxy.running ? t('pRunning') : t('pStopped'), kind: proxy.running ? 'ok' : undefined, dot: true }],
+                value: browser.ready ? t('ovReady') : t('ovNotReady'),
+                chips: [{ text: 'Chromium', kind: browser.ready ? 'ok' : 'warn', dot: true }],
               }),
-              h(Row, {
-                label: t('ovNode'),
-                value: proxy === null || !proxy.node?.server ? t('pNoNode') : `${proxy.node.server}:${proxy.node.port}`,
-                mono: true,
-                clamp: true,
-              }),
-              h(Row, { label: t('pTotal'), value: proxy === null ? '—' : String(proxy.stats?.total ?? 0) }),
-              h(Row, { label: t('pDown'), value: proxy === null ? '—' : formatBytes(proxy.stats?.bytesDown ?? 0), mono: true }),
+              h(Row, { label: t('ovChromium'), value: browser.executable ?? '—', mono: true, clamp: true }),
+              h(Row, { label: t('ovViewport'), value: `${browser.viewportWidth}×${browser.viewportHeight}`, mono: true }),
             ),
           ),
-          h(
-            Card,
-            {
-              title: t('tabPurge'),
-              icon: h(PurgeIcon, { width: 16, height: 16 }),
-              action: go('purge'),
-              note: '预设已就绪',
-            },
-            h(
-              'div',
-              { className: 'yk-rows' },
-              h(Row, {
-                label: '模式支持',
-                value: '无限制模式 (unrestricted)',
-                mono: true,
-                chips: [{ text: '独立隔离', kind: 'ok', dot: true }],
-              }),
-              h(Row, { label: '生效时机', value: '会话下拉选择无限制模式时' }),
-              h(Row, { label: '标准模式', value: '100% 原始体验零干扰' }),
-              h(Row, { label: '注入机制', value: '纯插件上下文装配清洗' }),
-            ),
-          ),
+        )
+      }
 
-          /* Full-width Browser Subsystem with Real Host Detection */
-          h(
-            Card,
-            {
-              title: t('ovBrowser'),
-              span: true,
-              icon: h(OverviewIcon, { width: 16, height: 16 }),
-              note: browser === null ? undefined : `${browser.viewportWidth}×${browser.viewportHeight}`,
-            },
-            h(
+      return h(
+        'div',
+        { className: 'yk-body' },
+        busy && cards.length > 0 && chats === null && sites === null && proxy === null ? h(Loading, { text: t('loading') }) : null,
+        h('div', { className: 'yk-grid' }, cards),
+        off.length > 0
+          ? h(
               'div',
-              { className: 'yk-rows yk-rows-2col' },
-              h(Row, {
-                label: t('ovState'),
-                value: browser?.ready === true ? t('ovReady') : t('ovNotReady'),
-                chips: [
-                  browser?.ready === true
-                    ? { text: 'Chromium', kind: 'ok', dot: true }
-                    : { text: t('ovNotReady'), kind: 'warn', dot: true },
-                ],
-              }),
-              h(Row, {
-                label: 'Chromium Bin',
-                value: browser?.executable ?? t('ovChromiumMissing'),
-                mono: true,
-                clamp: true,
-              }),
-              h(Row, { label: t('ovViewport'), value: browser === null ? '—' : `${browser.viewportWidth}×${browser.viewportHeight}`, mono: true }),
-              h(Row, { label: t('ovSettle'), value: browser === null ? '—' : `${browser.settleMs}ms` }),
-              h(Row, { label: t('ovTools'), value: state.overview === null ? '—' : `${state.overview.tools.filter((name) => name.startsWith('browser_')).length} 个工具` }),
-              h(Row, { label: 'CDP Protocol', value: 'Chrome DevTools', mono: true }),
-            ),
-          ),
-        ),
-
-        /* Footer Info */
-        h(
-          'div',
-          { className: 'yk-foot' },
-          h('span', null, 'Yukari v1.3.0'),
-          h('span', { className: 'yk-footDot' }, '·'),
-          h('span', null, state.overview === null ? '—' : `${state.overview.hostname} (pid ${state.overview.pid})`),
-          h('span', { className: 'yk-footDot' }, '·'),
-          h('span', { className: 'yk-mono' }, state.overview?.parts?.sites?.publicBase || 'http://127.0.0.1:3080/p'),
-        ),
+              { className: 'yk-foot' },
+              h(PowerIcon, { width: 13, height: 13 }),
+              h('span', null, fill(t('offList'), { names: off.map((name) => t(COMPONENT_LABEL[name])).join('、') })),
+            )
+          : null,
       )
     }
 
     /* ---------------------------------------------------------------- chats */
 
+    const CHATS_GROUP_KEY = 'yukari-dsh-plugin:chats-group'
+
     function ChatsTab({ t, ui }) {
       const [data, setData] = React.useState(null)
-      const [error, setError] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
       const [notice, setNotice] = React.useState(null)
       const [busy, setBusy] = React.useState('')
       const [query, setQuery] = React.useState('')
       const [filter, setFilter] = React.useState('all')
+      const [groupBy, setGroupByState] = React.useState(() => {
+        try {
+          return window.localStorage.getItem(CHATS_GROUP_KEY) === 'flat' ? 'flat' : 'workspace'
+        } catch {
+          return 'workspace'
+        }
+      })
+      const [collapsed, setCollapsed] = React.useState([])
       const [selected, setSelected] = React.useState([])
       const [confirming, setConfirming] = React.useState(null)
-      const [inlineDeleteId, setInlineDeleteId] = React.useState(null)
-      const inlineDeleteTimer = React.useRef(null)
       const [force, setForce] = React.useState(false)
-      const [kept, setKept] = React.useState(null)
+      const [deleteFiles, setDeleteFiles] = React.useState(false)
+      const [deleteDir, setDeleteDir] = React.useState(false)
       const { signal, alive } = useAbortOnUnmount()
+
+      const setGroupBy = (value) => {
+        setGroupByState(value)
+        try {
+          window.localStorage.setItem(CHATS_GROUP_KEY, value)
+        } catch {
+          /* memory only */
+        }
+      }
 
       const load = React.useCallback(async () => {
         setBusy('load')
@@ -2033,10 +2353,10 @@ button.yk-itemTitle:hover {
           const payload = await getJson(`${API.chats}/state`, signal)
           if (!alive.current) return
           setData(payload.state)
-          setError(null)
+          setFailure(null)
           setSelected((current) => current.filter((id) => payload.state.sessions.some((row) => row.id === id)))
-        } catch (failure) {
-          if (alive.current && failure?.name !== 'AbortError') setError(messageOf(failure))
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
         } finally {
           if (alive.current) setBusy('')
         }
@@ -2045,49 +2365,6 @@ button.yk-itemTitle:hover {
       React.useEffect(() => {
         load()
       }, [load])
-
-      const rows = data === null ? [] : data.sessions
-      const needle = query.trim().toLowerCase()
-      const visible = rows.filter((row) => {
-        if (filter === 'active' && row.archived) return false
-        if (filter === 'archived' && !row.archived) return false
-        if (needle === '') return true
-        const haystack = [row.title ?? '', row.id, row.cwd ?? '', row.workspaceTitle ?? ''].join('\n').toLowerCase()
-        return haystack.includes(needle)
-      })
-
-      const toggle = (id) =>
-        setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
-
-      const run = async (name, operation) => {
-        setBusy(name)
-        setError(null)
-        setNotice(null)
-        setKept(null)
-        try {
-          const result = await operation()
-          return result
-        } catch (failure) {
-          setError(messageOf(failure))
-        } finally {
-          setBusy('')
-          setConfirming(null)
-          setForce(false)
-        }
-      }
-
-      const remove = (ids, useForce) =>
-        run('delete', async () => {
-          const payload = await postJson(`${API.chats}/delete`, { ids, force: useForce === true })
-          setData(payload.state)
-          setSelected((current) => current.filter((id) => !payload.ids.includes(id)))
-          const count = payload.deleted ?? 0
-          setNotice(fill(t('cDeleted'), { n: count }))
-          if (payload.failed && payload.failed.length > 0) {
-            setKept(payload.failed)
-            setError(payload.failed.map((item) => `${item.id}: ${item.reason}`).join('; '))
-          }
-        })
 
       React.useEffect(() => {
         if (confirming === null) return undefined
@@ -2098,6 +2375,98 @@ button.yk-itemTitle:hover {
         return () => document.removeEventListener('keydown', onKeyDown)
       }, [confirming])
 
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'chats' }))
+
+      const rows = data === null ? [] : data.sessions
+      const needle = query.trim().toLowerCase()
+      const visible = rows.filter((row) => {
+        if (filter === 'active' && row.archived) return false
+        if (filter === 'archived' && !row.archived) return false
+        if (needle === '') return true
+        return [row.title ?? '', row.id, row.cwd ?? '', row.workspaceTitle ?? ''].join('\n').toLowerCase().includes(needle)
+      })
+
+      const groups = (() => {
+        if (groupBy !== 'workspace') return null
+        const map = new Map()
+        for (const ws of data?.workspaces ?? []) {
+          map.set(ws.id, { id: ws.id, registered: true, title: ws.title || ws.path || ws.id, path: ws.path || '', rows: [] })
+        }
+        const loose = { id: '__none__', registered: false, title: t('cWorkspaceUnassigned'), path: '', rows: [] }
+        for (const row of visible) {
+          if (row.workspaceId && map.has(row.workspaceId)) {
+            map.get(row.workspaceId).rows.push(row)
+          } else if (row.cwd) {
+            const key = `cwd:${row.cwd}`
+            if (!map.has(key)) {
+              const base = row.cwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() || row.cwd
+              map.set(key, { id: key, registered: false, title: base, path: row.cwd, rows: [] })
+            }
+            map.get(key).rows.push(row)
+          } else {
+            loose.rows.push(row)
+          }
+        }
+        const list = [...map.values()].filter((group) => group.rows.length > 0)
+        if (loose.rows.length > 0) list.push(loose)
+        return list
+      })()
+
+      const toggle = (id) => setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
+
+      const ask = (target) => {
+        setForce(false)
+        setDeleteFiles(false)
+        setDeleteDir(false)
+        setNotice(null)
+        setConfirming(target)
+      }
+
+      const run = async (name, operation) => {
+        setBusy(name)
+        setFailure(null)
+        setNotice(null)
+        try {
+          return await operation()
+        } catch (error) {
+          setFailure(failureOf(error))
+          return null
+        } finally {
+          setBusy('')
+        }
+      }
+
+      const remove = () => {
+        const target = confirming
+        if (target === null) return
+        return run('delete', async () => {
+          const payload = await postJson(`${API.chats}/delete`, {
+            ids: target.ids,
+            force,
+            deleteFiles,
+            deleteWorkspaceDir: target.workspace !== undefined && deleteDir,
+            workspaceId: target.workspace?.registered ? target.workspace.id : undefined,
+            workspacePath: target.workspace?.path || undefined,
+          })
+          setData(payload.state)
+          setSelected((current) => current.filter((id) => !payload.ids.includes(id)))
+          setConfirming(null)
+          const parts = [fill(t('cDeleted'), { n: payload.deleted ?? 0 })]
+          if (payload.filesDeleted > 0) parts.push(fill(t('cFilesDeleted'), { n: payload.filesDeleted }))
+          if (payload.workspaceDirDeleted) parts.push(t('cDirDeleted'))
+          setNotice(parts.join(' · '))
+          const problems = [
+            ...(payload.failed ?? []).map((item) => {
+              const row = rows.find((candidate) => candidate.id === item.id)
+              const reason = t(`cReason_${item.reason}`)
+              return `${row?.title ?? item.id}：${reason.startsWith('cReason_') ? item.reason : reason}`
+            }),
+            ...(payload.notes ?? []).filter((note) => !/^已(删除|清空)工作区目录/.test(note)),
+          ]
+          if (problems.length > 0) setFailure({ message: problems.slice(0, 6).join('；'), off: false })
+        })
+      }
+
       const archive = (row) =>
         run('archive', async () => {
           const payload = await postJson(`${API.chats}/archive`, { id: row.id, archived: !row.archived })
@@ -2107,20 +2476,128 @@ button.yk-itemTitle:hover {
       const openSession = (id) => {
         try {
           ui.openSession(id)
-        } catch (failure) {
-          setError(messageOf(failure))
+        } catch (error) {
+          setFailure(failureOf(error))
         }
       }
 
-      const selectedRows = rows.filter((row) => selected.includes(row.id))
-      const confirmIds = selectedRows.length > 0 ? selectedRows.map((row) => row.id) : []
-      const deleteIds = confirming === 'bulk' ? confirmIds : confirming === null ? [] : [confirming]
-      const deleteRows = rows.filter((row) => deleteIds.includes(row.id))
-      const hasLive = deleteRows.some((row) => row.live)
-      const visibleSelected = visible.filter((row) => selected.includes(row.id)).length
-      const toggleAll = () => {
-        const ids = visible.map((row) => row.id)
-        setSelected((current) => (visibleSelected === ids.length ? current.filter((id) => !ids.includes(id)) : [...new Set([...current, ...ids])]))
+      const confirmRows = confirming === null ? [] : rows.filter((row) => confirming.ids.includes(row.id))
+      const hasLive = confirmRows.some((row) => row.live)
+      const confirmTitle =
+        confirming === null
+          ? ''
+          : confirming.workspace !== undefined
+            ? fill(t('cConfirmWorkspace'), { name: confirming.workspace.title, n: confirming.ids.length })
+            : fill(t('cConfirm'), { n: confirming.ids.length })
+
+      const renderRow = (row) => {
+        const checked = selected.includes(row.id)
+        const meta = [
+          groupBy === 'flat' ? row.workspaceTitle ?? null : null,
+          relativeTime(row.updatedAt, t),
+          row.bytes === null ? null : formatBytes(row.bytes),
+          row.events === null ? null : fill(t('cEvents'), { n: row.events }),
+        ].filter((item) => item !== null && item !== '')
+        return h(
+          'div',
+          { className: checked ? 'yk-item yk-item-selected' : 'yk-item', key: row.id },
+          h(
+            'button',
+            { type: 'button', className: 'yk-check', role: 'checkbox', 'aria-checked': checked ? 'true' : 'false', 'aria-label': row.title ?? row.id, onClick: () => toggle(row.id) },
+            checked ? h(CheckIcon, { width: 11, height: 11 }) : null,
+          ),
+          h(
+            'div',
+            { className: 'yk-itemMain' },
+            h(
+              'div',
+              { className: 'yk-itemTitleRow' },
+              h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => openSession(row.id), title: row.title ?? row.id }, row.title ?? row.id),
+              row.archived ? h(Chip, null, t('cArchivedTag')) : null,
+              row.running ? h(Chip, { kind: 'warn', dot: true }, t('cRunning')) : row.live ? h(Chip, { kind: 'ok', dot: true }, t('cLive')) : null,
+            ),
+            h('div', { className: 'yk-itemMeta' }, meta.map((part, index) => h('span', { key: index }, part))),
+          ),
+          h(
+            'div',
+            { className: 'yk-itemActions' },
+            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn', onClick: () => openSession(row.id), title: t('open'), 'aria-label': t('open') }, h(OpenIcon)),
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'yk-btn yk-btn-ghost yk-iconBtn',
+                onClick: () => archive(row),
+                disabled: busy !== '',
+                title: row.archived ? t('cUnarchive') : t('cArchive'),
+                'aria-label': row.archived ? t('cUnarchive') : t('cArchive'),
+              },
+              h(ArchiveIcon),
+            ),
+            h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-dangerHover', title: t('cDelete'), 'aria-label': t('cDelete'), disabled: busy !== '', onClick: () => ask({ ids: [row.id] }) },
+              h(TrashIcon),
+            ),
+          ),
+        )
+      }
+
+      const renderGroup = (group) => {
+        const isCollapsed = collapsed.includes(group.id)
+        const ids = group.rows.map((row) => row.id)
+        const picked = ids.filter((id) => selected.includes(id)).length
+        const allPicked = ids.length > 0 && picked === ids.length
+        return h(
+          'section',
+          { className: 'yk-wsGroup', key: group.id },
+          h(
+            'div',
+            { className: 'yk-wsHeader' },
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'yk-check',
+                role: 'checkbox',
+                'aria-checked': allPicked ? 'true' : picked > 0 ? 'mixed' : 'false',
+                'aria-label': `${t('cSelectWorkspace')} ${group.title}`,
+                onClick: () => setSelected((current) => (allPicked ? current.filter((id) => !ids.includes(id)) : [...new Set([...current, ...ids])])),
+              },
+              allPicked ? h(CheckIcon, { width: 11, height: 11 }) : null,
+            ),
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'yk-wsToggleBtn',
+                'aria-expanded': isCollapsed ? 'false' : 'true',
+                title: isCollapsed ? t('expand') : t('collapse'),
+                onClick: () => setCollapsed((current) => (current.includes(group.id) ? current.filter((id) => id !== group.id) : [...current, group.id])),
+              },
+              h(isCollapsed ? ChevronRightIcon : ChevronDownIcon, { width: 14, height: 14 }),
+              h(FolderIcon, { width: 15, height: 15 }),
+              h('span', { className: 'yk-wsTitle' }, group.title),
+              h('span', { className: 'yk-wsCount' }, String(group.rows.length)),
+              group.path ? h('span', { className: 'yk-wsPath', title: group.path }, group.path) : null,
+            ),
+            group.path
+              ? h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'yk-btn yk-btn-ghost yk-btn-sm yk-dangerHover',
+                    disabled: busy !== '',
+                    title: t('cDeleteWorkspace'),
+                    onClick: () => ask({ ids, workspace: group }),
+                  },
+                  h(TrashIcon, { width: 13, height: 13 }),
+                  h('span', { className: 'yk-btnLabel' }, t('cDeleteWorkspace')),
+                )
+              : null,
+          ),
+          isCollapsed ? null : h('div', { className: 'yk-list' }, group.rows.map(renderRow)),
+        )
       }
 
       return h(
@@ -2129,235 +2606,148 @@ button.yk-itemTitle:hover {
         h(
           'div',
           { className: 'yk-toolbar' },
-          h(
-            'label',
-            { className: 'yk-search' },
-            h(SearchIcon),
-            h('input', {
-              value: query,
-              placeholder: t('cSearch'),
-              'aria-label': t('cSearch'),
-              onChange: (event) => setQuery(event.target.value),
-            }),
-            query !== ''
-              ? h(
-                  'button',
-                  {
-                    type: 'button',
-                    className: 'yk-searchClear',
-                    title: t('clearSearch'),
-                    'aria-label': t('clearSearch'),
-                    onClick: (e) => {
-                      e.preventDefault()
-                      setQuery('')
-                    },
-                  },
-                  h(ClearIcon, { width: 12, height: 12 }),
-                )
-              : null,
-          ),
+          h(SearchBox, { value: query, onChange: setQuery, placeholder: t('cSearch'), t }),
           h(Segmented, {
             value: filter,
             onChange: setFilter,
             label: t('cFilter'),
             items: [
-              { key: 'all', label: t('cAll'), count: data === null ? undefined : data.totals.all },
-              { key: 'active', label: t('cActive'), count: data === null ? undefined : data.totals.active },
-              { key: 'archived', label: t('cArchived'), count: data === null ? undefined : data.totals.archived },
+              { key: 'all', label: t('cAll'), count: data?.totals?.all },
+              { key: 'active', label: t('cActive'), count: data?.totals?.active },
+              { key: 'archived', label: t('cArchived'), count: data?.totals?.archived },
             ],
           }),
-          h(
-            'button',
-            { type: 'button', className: 'yk-btn yk-iconBtn yk-btn-ghost', onClick: load, disabled: busy === 'load', title: t('refresh'), 'aria-label': t('refresh') },
-            h(RefreshIcon, { className: busy === 'load' ? 'yk-spin' : undefined }),
-          ),
+          h(Segmented, {
+            value: groupBy,
+            onChange: setGroupBy,
+            label: t('cGroupByWorkspace'),
+            items: [
+              { key: 'workspace', label: t('cGroupByWorkspace') },
+              { key: 'flat', label: t('cFlatList') },
+            ],
+          }),
+          h(RefreshButton, { t, onClick: load, spinning: busy === 'load' }),
         ),
 
-        /* Floating Batch Bar */
-        confirmIds.length > 0
+        selected.length > 0
           ? h(
               'div',
               { className: 'yk-batchBar' },
-              h('span', null, fill(t('cSelected'), { n: confirmIds.length })),
+              h('span', null, fill(t('cSelected'), { n: selected.length })),
               h(
                 'div',
-                { style: { display: 'flex', gap: '8px' } },
+                { className: 'yk-batchActions' },
+                h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setSelected([]) }, t('cancel')),
                 h(
                   'button',
-                  { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setSelected([]) },
-                  t('cancel'),
-                ),
-                h(
-                  'button',
-                  { type: 'button', className: 'yk-btn yk-btn-danger', onClick: () => { setForce(false); setConfirming('bulk') }, disabled: busy !== '' },
+                  { type: 'button', className: 'yk-btn yk-btn-danger', disabled: busy !== '', onClick: () => ask({ ids: [...selected] }) },
                   h(TrashIcon),
-                  fill(t('cDeleteN'), { n: confirmIds.length }),
+                  fill(t('cDeleteN'), { n: selected.length }),
                 ),
               ),
             )
           : null,
 
-        error !== null ? h(Banner, { kind: 'error', text: `${error}`, action: kept !== null ? h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: () => remove(kept.map((item) => item.id), true), disabled: busy !== '' }, t('cForce')) : h('button', { type: 'button', className: 'yk-btn', onClick: load }, t('retry')) }) : null,
+        h(Failure, { t, name: 'chats', error: failure, onRetry: load }),
         notice !== null ? h(Banner, { kind: 'info', text: notice }) : null,
 
-        confirming !== null && deleteIds.length > 0
+        confirming !== null
           ? h(
               'div',
-              { className: 'yk-confirm', role: 'alertdialog', 'aria-label': fill(t('cConfirm'), { n: deleteIds.length }) },
-              h('div', { className: 'yk-confirmTitle' }, fill(t('cConfirm'), { n: deleteIds.length })),
+              { className: 'yk-confirm', role: 'alertdialog', 'aria-label': confirmTitle },
+              h('div', { className: 'yk-confirmTitle' }, confirmTitle),
               h('div', { className: 'yk-confirmHint' }, t('cConfirmHint')),
-              hasLive ? h('label', { className: 'yk-confirmHint', style: { cursor: 'pointer' } }, h('input', { type: 'checkbox', checked: force, onChange: (event) => setForce(event.target.checked) }), ` ${t('cForce')}`) : null,
+              h(
+                'div',
+                { className: 'yk-options' },
+                hasLive ? h(Option, { checked: force, onChange: setForce, label: t('cForce') }) : null,
+                h(Option, {
+                  checked: deleteFiles || deleteDir,
+                  disabled: deleteDir,
+                  onChange: setDeleteFiles,
+                  label: t('cDeleteFiles'),
+                  hint: t('cDeleteFilesHint'),
+                }),
+                confirming.workspace?.path
+                  ? h(Option, {
+                      checked: deleteDir,
+                      onChange: setDeleteDir,
+                      danger: true,
+                      label: t('cDeleteWorkspaceDir'),
+                      hint: fill(t('cDeleteWorkspaceDirHint'), { path: confirming.workspace.path }),
+                    })
+                  : null,
+              ),
               h(
                 'div',
                 { className: 'yk-confirmActions' },
+                h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirming(null), disabled: busy !== '' }, t('cancel')),
                 h(
                   'button',
-                  { type: 'button', className: 'yk-btn yk-btn-danger', onClick: () => remove(deleteIds, force), disabled: busy !== '' || (hasLive && !force) },
+                  { type: 'button', className: 'yk-btn yk-btn-danger', onClick: remove, disabled: busy !== '' || (hasLive && !force) },
                   busy === 'delete' ? h(Spinner) : h(TrashIcon),
-                  t('confirm'),
+                  t('cDelete'),
                 ),
-                h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirming(null), disabled: busy !== '' }, t('cancel')),
               ),
             )
           : null,
 
         data === null && busy === 'load'
-          ? h(Loading, { key: 'loading', text: t('loading') })
+          ? h(Loading, { text: t('loading') })
           : visible.length === 0
-            ? h(Empty, {
-                icon: h(needle !== '' ? SearchIcon : ChatIcon, { width: 22, height: 22 }),
-                title: rows.length === 0 ? t('cNoChats') : t('cNoMatch'),
-                hint: rows.length === 0 ? undefined : t('cNoMatchHint'),
-              })
-            : h(
-                React.Fragment,
-                null,
-                h('div', { className: 'yk-list' },
-                  visible.map((row) => {
-                    const meta = [
-                      row.workspaceTitle ?? null,
-                      relativeTime(row.updatedAt, t),
-                      row.bytes === null ? null : formatBytes(row.bytes),
-                      row.events === null ? null : fill(t('cEvents'), { n: row.events }),
-                    ].filter((item) => item !== null && item !== '')
-                    return h(
-                      'div',
-                      { className: 'yk-item', key: row.id },
-                      h('button', {
-                        type: 'button',
-                        className: 'yk-check',
-                        role: 'checkbox',
-                        'aria-checked': selected.includes(row.id) ? 'true' : 'false',
-                        'aria-label': row.title ?? row.id,
-                        onClick: () => toggle(row.id),
-                      }, selected.includes(row.id) ? h(CheckIcon, { width: 11, height: 11 }) : null),
-                      h(
-                        'div',
-                        { className: 'yk-itemMain' },
-                        h(
-                          'div',
-                          { className: 'yk-itemTitleRow' },
-                          h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => openSession(row.id), title: row.title ?? row.id }, row.title ?? row.id),
-                          row.archived === true ? h(Chip, { kind: undefined }, t('cArchivedTag')) : null,
-                          row.running === true ? h(Chip, { kind: 'warn', dot: true }, t('cRunning')) : null,
-                          row.live === true ? h(Chip, { kind: 'ok', dot: true }, t('cLive')) : null,
-                        ),
-                        h(
-                          'div',
-                          { className: 'yk-itemMeta' },
-                          meta.map((part, index) => h('span', { key: index }, part)),
-                          h('span', { className: 'yk-mono' }, row.id.replace(/^session-/, '').slice(0, 8)),
-                        ),
-                      ),
-                      h(
-                        'div',
-                        { className: 'yk-itemActions' },
-                        h(
-                          'button',
-                          { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => openSession(row.id), title: t('open'), 'aria-label': t('open') },
-                          h(OpenIcon),
-                          h('span', { className: 'yk-btnLabel' }, t('open')),
-                        ),
-                        h(
-                          'button',
-                          {
-                            type: 'button',
-                            className: 'yk-btn yk-btn-ghost',
-                            onClick: () => archive(row),
-                            disabled: busy !== '',
-                            title: row.archived === true ? t('cUnarchive') : t('cArchive'),
-                            'aria-label': row.archived === true ? t('cUnarchive') : t('cArchive'),
-                          },
-                          h(ArchiveIcon),
-                          h('span', { className: 'yk-btnLabel' }, row.archived === true ? t('cUnarchive') : t('cArchive')),
-                        ),
-                        h(
-                          'button',
-                          {
-                            type: 'button',
-                            className: inlineDeleteId === row.id ? 'yk-btn yk-btn-danger yk-btn-sm' : 'yk-btn yk-btn-ghost yk-iconBtn',
-                            title: inlineDeleteId === row.id ? t('cConfirmDeleteOnce') : t('cDelete'),
-                            'aria-label': inlineDeleteId === row.id ? t('cConfirmDeleteOnce') : t('cDelete'),
-                            disabled: busy !== '',
-                            onClick: (e) => {
-                              e.stopPropagation()
-                              if (inlineDeleteId === row.id) {
-                                if (inlineDeleteTimer.current) clearTimeout(inlineDeleteTimer.current)
-                                setInlineDeleteId(null)
-                                remove([row.id], true)
-                              } else {
-                                if (inlineDeleteTimer.current) clearTimeout(inlineDeleteTimer.current)
-                                setInlineDeleteId(row.id)
-                                inlineDeleteTimer.current = setTimeout(() => {
-                                  setInlineDeleteId(null)
-                                }, 3500)
-                              }
-                            },
-                          },
-                          inlineDeleteId === row.id
-                            ? [h(TrashIcon, { key: 'i' }), h('span', { key: 't', className: 'yk-btnLabel' }, t('cConfirmInline'))]
-                            : h(TrashIcon),
-                        ),
-                      ),
-                    )
-                  }),
-                ),
-              ),
+            ? data === null
+              ? null
+              : h(Empty, {
+                  icon: h(needle !== '' ? SearchIcon : ChatIcon, { width: 22, height: 22 }),
+                  title: rows.length === 0 ? t('cNoChats') : t('cNoMatch'),
+                  hint: rows.length === 0 ? undefined : t('cNoMatchHint'),
+                })
+            : groups !== null
+              ? h('div', { className: 'yk-groups' }, groups.map(renderGroup))
+              : h('div', { className: 'yk-list' }, visible.map(renderRow)),
 
-        h(
-          'div',
-          { className: 'yk-foot' },
-          h('span', null, counted(t, 'cTotalOne', 'cTotal', rows.length)),
-          confirmIds.length > 0 ? h('span', { className: 'yk-footDot' }, '·') : null,
-          confirmIds.length > 0 ? h('span', null, fill(t('cSelected'), { n: confirmIds.length })) : null,
-          data !== null ? h('span', { className: 'yk-footDot' }, '·') : null,
-          data !== null ? h('span', { className: 'yk-mono' }, data.root) : null,
-        ),
+        data !== null
+          ? h(
+              'div',
+              { className: 'yk-foot' },
+              h('span', null, counted(t, 'cTotalOne', 'cTotal', rows.length)),
+              h('span', { className: 'yk-footDot' }, '·'),
+              h('span', { className: 'yk-mono' }, data.root),
+            )
+          : null,
       )
     }
 
-    /* -------------------------------------------------------------- runtime */
+    /* ---------------------------------------------------------------- sites */
 
-    function RuntimeTab({ t }) {
-      const [snap, setSnap] = React.useState(null)
-      const [error, setError] = React.useState(null)
+    function SitesTab({ t }) {
+      const [payload, setPayload] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
       const [notice, setNotice] = React.useState(null)
       const [busy, setBusy] = React.useState('')
-      const [version, setVersion] = React.useState('')
-      const [confirm, setConfirm] = React.useState('')
-      const [phase, setPhase] = React.useState('idle')
-      const [attempts, setAttempts] = React.useState(0)
-      const busyRef = React.useRef(false)
+      const [query, setQuery] = React.useState('')
+      const [confirming, setConfirming] = React.useState('')
+      const [prefix, setPrefix] = React.useState('')
+      const [prefixTouched, setPrefixTouched] = React.useState(false)
       const { signal, alive } = useAbortOnUnmount()
 
+      const adopt = (next) => {
+        setPayload(next)
+        setPrefix(next.publicBase ?? '')
+        setPrefixTouched(false)
+      }
+
       const load = React.useCallback(async () => {
+        setBusy('load')
         try {
-          const payload = await getJson(`${API.runtime}/state`, signal)
+          const next = await getJson(`${API.sites}/list`, signal)
           if (!alive.current) return
-          setSnap(payload.state)
-          setError(null)
-        } catch (failure) {
-          if (alive.current && failure?.name !== 'AbortError' && !busyRef.current) setError(messageOf(failure))
+          adopt(next)
+          setFailure(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
         }
       }, [])
 
@@ -2365,63 +2755,636 @@ button.yk-itemTitle:hover {
         load()
       }, [load])
 
-      React.useEffect(() => {
-        if (phase !== 'restarting') return undefined
-        setAttempts(0)
-        let count = 0
-        const timer = setInterval(() => {
-          count += 1
-          setAttempts(count)
-          if (count > 45) {
-            clearInterval(timer)
-            setPhase('failed')
-          }
-        }, 800)
-        return () => clearInterval(timer)
-      }, [phase])
-
-      React.useEffect(() => {
-        if (phase !== 'restarting') return undefined
-        let cancelled = false
-        const tick = async () => {
-          try {
-            const response = await fetch(`${API.runtime}/state`, { headers: { accept: 'application/json' } })
-            if (!response.ok) return
-            const payload = await response.json()
-            if (payload !== null && payload.ok === true && !cancelled) {
-              setPhase('back')
-            }
-          } catch {
-            /* waiting */
-          }
-        }
-        const poller = setInterval(tick, 900)
-        return () => {
-          cancelled = true
-          clearInterval(poller)
-        }
-      }, [phase])
-
-      React.useEffect(() => {
-        if (phase !== 'back') return undefined
-        const timer = setTimeout(() => window.location.reload(), 900)
-        return () => clearTimeout(timer)
-      }, [phase])
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'sites' }))
 
       const run = async (name, operation) => {
         setBusy(name)
-        busyRef.current = true
-        setError(null)
+        setFailure(null)
         setNotice(null)
         try {
-          return await operation()
-        } catch (failure) {
-          setError(messageOf(failure))
-          return null
+          await operation()
+        } catch (error) {
+          setFailure(failureOf(error))
         } finally {
-          busyRef.current = false
           setBusy('')
-          setConfirm('')
+        }
+      }
+
+      const savePrefix = (value) =>
+        run('prefix', async () => {
+          adopt(await postJson(`${API.sites}/settings`, { publicBase: value }))
+          setNotice(t('sPrefixSaved'))
+        })
+
+      const remove = (slug) =>
+        run('delete', async () => {
+          const result = await postJson(`${API.sites}/delete`, { slug })
+          setPayload((current) => ({ ...(current ?? {}), sites: result.sites }))
+          setConfirming('')
+          setNotice(result.deleted ? fill(t('sGone'), { slug }) : fill(t('sKept'), { slug }))
+        })
+
+      const sites = payload?.sites ?? null
+      const needle = query.trim().toLowerCase()
+      const visible = (sites ?? []).filter(
+        (site) => needle === '' || String(site.title).toLowerCase().includes(needle) || String(site.slug).toLowerCase().includes(needle),
+      )
+      const linkOf = (site) => (/^https?:\/\//i.test(site.url) ? site.url : `${window.location.origin}${site.url}`)
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        payload !== null
+          ? h(
+              'div',
+              { className: 'yk-settingRow' },
+              h('span', { className: 'yk-settingLabel' }, h(LinkIcon, { width: 14, height: 14 }), t('sPrefix')),
+              h('input', {
+                className: 'yk-input yk-mono',
+                value: prefix,
+                placeholder: payload.defaultPublicBase,
+                'aria-label': t('sPrefix'),
+                onChange: (event) => {
+                  setPrefix(event.target.value)
+                  setPrefixTouched(true)
+                },
+                onKeyDown: (event) => {
+                  if (event.key === 'Enter' && prefixTouched) savePrefix(prefix)
+                },
+              }),
+              h(
+                'button',
+                { type: 'button', className: 'yk-btn yk-btn-solid', disabled: busy !== '' || !prefixTouched, onClick: () => savePrefix(prefix) },
+                busy === 'prefix' ? h(Spinner) : null,
+                t('save'),
+              ),
+              payload.customPublicBase
+                ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', disabled: busy !== '', onClick: () => savePrefix('') }, t('sPrefixDefault'))
+                : null,
+              h('div', { className: 'yk-settingHint' }, t('sPrefixHint')),
+            )
+          : null,
+
+        h(
+          'div',
+          { className: 'yk-toolbar' },
+          h(SearchBox, { value: query, onChange: setQuery, placeholder: t('sSearch'), t }),
+          h(RefreshButton, { t, onClick: load, spinning: busy === 'load' }),
+        ),
+        h(Failure, { t, name: 'sites', error: failure, onRetry: load }),
+        notice !== null ? h(Banner, { kind: 'info', text: notice }) : null,
+
+        sites === null
+          ? busy === 'load'
+            ? h(Loading, { text: t('loading') })
+            : null
+          : sites.length === 0
+            ? h(Empty, { icon: h(GlobeIcon, { width: 24, height: 24 }), title: t('sEmpty'), hint: t('sEmptyHint') })
+            : visible.length === 0
+              ? h(Empty, { icon: h(SearchIcon, { width: 24, height: 24 }), title: t('sNoMatch') })
+              : h(
+                  'div',
+                  { className: 'yk-list' },
+                  visible.map((site) => {
+                    const href = linkOf(site)
+                    return h(
+                      'div',
+                      { className: 'yk-item', key: site.slug },
+                      h('span', { className: 'yk-itemIcon' }, h(GlobeIcon, { width: 18, height: 18 })),
+                      h(
+                        'div',
+                        { className: 'yk-itemMain' },
+                        h(
+                          'div',
+                          { className: 'yk-itemTitleRow' },
+                          h('a', { className: 'yk-itemTitle', href, target: '_blank', rel: 'noreferrer noopener', title: href }, site.title),
+                          h(Chip, null, fill(t('sVersion'), { version: site.version })),
+                        ),
+                        h(
+                          'div',
+                          { className: 'yk-itemMeta' },
+                          h('span', { className: 'yk-mono yk-link' }, href),
+                          h('span', null, fill(t('sPublished'), { time: relativeTime(site.publishedAt, t) })),
+                          h('span', null, `${fill(t('sFiles'), { n: site.files })} · ${formatBytes(site.bytes)}`),
+                        ),
+                      ),
+                      h(
+                        'div',
+                        { className: 'yk-itemActions' },
+                        h(CopyButton, { text: href, label: t('copy'), t }),
+                        h('a', { className: 'yk-btn yk-btn-ghost yk-iconBtn', href, target: '_blank', rel: 'noreferrer noopener', title: t('open'), 'aria-label': t('open') }, h(OpenIcon)),
+                        confirming === site.slug
+                          ? h(
+                              React.Fragment,
+                              null,
+                              h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: () => remove(site.slug), disabled: busy !== '' }, busy === 'delete' ? h(Spinner) : null, t('confirm')),
+                              h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirming('') }, t('cancel')),
+                            )
+                          : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-dangerHover', onClick: () => setConfirming(site.slug) }, t('sUnpublish')),
+                      ),
+                    )
+                  }),
+                ),
+
+        payload !== null
+          ? h(
+              'div',
+              { className: 'yk-foot' },
+              h('span', null, counted(t, 'sCountOne', 'sCount', (sites ?? []).length)),
+              h('span', { className: 'yk-footDot' }, '·'),
+              h('span', { className: 'yk-mono' }, payload.root),
+            )
+          : null,
+      )
+    }
+
+    /* ---------------------------------------------------------------- proxy */
+
+    function ProxyTab({ t }) {
+      const [state, setState] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const [notice, setNotice] = React.useState(null)
+      const [busy, setBusy] = React.useState('')
+      const [importText, setImportText] = React.useState('')
+      const [removing, setRemoving] = React.useState('')
+      const [confirmReset, setConfirmReset] = React.useState(false)
+      const [showSettings, setShowSettings] = React.useState(false)
+      const [settings, setSettings] = React.useState({ localPort: '', bypass: '' })
+      const { signal, alive } = useAbortOnUnmount()
+
+      const adopt = (next) => {
+        if (next === null || next === undefined) return
+        setState(next)
+        setSettings({ localPort: String(next.localPort ?? ''), bypass: next.bypass ?? '' })
+      }
+
+      const load = React.useCallback(async () => {
+        setBusy('load')
+        try {
+          const payload = await getJson(`${API.proxy}/state`, signal)
+          if (!alive.current) return
+          adopt(payload.state)
+          setFailure(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }, [])
+
+      React.useEffect(() => {
+        load()
+      }, [load])
+
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'proxy' }))
+
+      const run = async (name, operation) => {
+        setBusy(name)
+        setFailure(null)
+        setNotice(null)
+        try {
+          await operation()
+        } catch (error) {
+          if (error?.state !== undefined) adopt(error.state)
+          setFailure(failureOf(error))
+        } finally {
+          setBusy('')
+          setRemoving('')
+          setConfirmReset(false)
+        }
+      }
+
+      const nodes = state?.nodes ?? []
+      const nameOf = (id) => nodes.find((node) => node.id === id)?.name ?? id
+
+      const toggle = () =>
+        run('toggle', async () => {
+          const wasOn = state?.enabled === true
+          const payload = await postJson(`${API.proxy}/${wasOn ? 'disable' : 'enable'}`, {})
+          adopt(payload.state)
+          setNotice(wasOn ? t('pDisabledNotice') : t('pEnabledNotice'))
+        })
+
+      const importNodes = () =>
+        run('import', async () => {
+          const payload = await postJson(`${API.proxy}/import`, { text: importText })
+          adopt(payload.state)
+          setImportText('')
+          let text = fill(t('pImported'), { added: payload.added ?? 0 })
+          if (payload.updated > 0) text += fill(t('pImportedUpdated'), { updated: payload.updated })
+          if (payload.skipped > 0) text += fill(t('pImportedSkipped'), { skipped: payload.skipped })
+          setNotice(text)
+        })
+
+      const select = (id) =>
+        run(`select:${id}`, async () => {
+          const payload = await postJson(`${API.proxy}/select`, { id })
+          adopt(payload.state)
+          setNotice(fill(t('pSelected'), { name: nameOf(id) }))
+        })
+
+      const test = (id) =>
+        run(`test:${id}`, async () => {
+          const payload = await postJson(`${API.proxy}/test`, { id })
+          adopt(payload.state)
+          setNotice(fill(t('pTested'), { name: nameOf(id), ms: payload.test?.ms ?? '?' }))
+        })
+
+      const testAll = () =>
+        run('test-all', async () => {
+          adopt((await postJson(`${API.proxy}/test-all`, {})).state)
+        })
+
+      const removeNode = (id) =>
+        run(`remove:${id}`, async () => {
+          adopt((await postJson(`${API.proxy}/remove`, { id })).state)
+        })
+
+      const reset = () =>
+        run('reset', async () => {
+          adopt((await postJson(`${API.proxy}/reset`, {})).state)
+          setNotice(t('pResetDone'))
+        })
+
+      const saveSettings = () => {
+        const localPort = Number(settings.localPort)
+        if (!Number.isInteger(localPort) || localPort < 1024 || localPort > 65535) {
+          setFailure({ message: t('pInvalidPort'), off: false })
+          return
+        }
+        run('settings', async () => {
+          adopt((await postJson(`${API.proxy}/configure`, { localPort, bypass: settings.bypass.trim() })).state)
+          setNotice(t('pSaved'))
+        })
+      }
+
+      const latency = (node) => {
+        const result = node.lastTest
+        if (result === null || result === undefined) return null
+        if (result.ok === false) return h(Chip, { kind: 'danger' }, result.error ? String(result.error).slice(0, 40) : t('rFail'))
+        const ms = Number(result.ms)
+        return h(Chip, { kind: ms < 400 ? 'ok' : 'warn' }, `${ms}ms`)
+      }
+
+      const stats = state?.stats
+      const statusText = state === null ? '' : state.enabled ? (state.running ? t('pEnabled') : t('pPending')) : t('pDisabled')
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        state !== null
+          ? h(
+              'div',
+              { className: state.enabled ? 'yk-hero yk-hero-on' : 'yk-hero' },
+              h('span', { className: 'yk-heroDot', 'aria-hidden': true }),
+              h(
+                'div',
+                { className: 'yk-heroMain' },
+                h('div', { className: 'yk-heroTitle' }, statusText),
+                h(
+                  'div',
+                  { className: 'yk-heroSub' },
+                  state.node?.server ? `${nodes.find((node) => node.active)?.name ?? state.node.server} · 127.0.0.1:${state.localPort}` : t('pNoNodes'),
+                  stats && state.enabled ? ` · ↑ ${formatBytes(stats.bytesUp)} ↓ ${formatBytes(stats.bytesDown)} · ${stats.active} ${t('pActive')}` : '',
+                ),
+              ),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: state.enabled ? 'yk-btn yk-btn-danger' : 'yk-btn yk-btn-solid',
+                  onClick: toggle,
+                  disabled: busy !== '' || nodes.length === 0,
+                },
+                busy === 'toggle' ? h(Spinner) : h(PowerIcon),
+                state.enabled ? t('pDisable') : t('pEnable'),
+              ),
+            )
+          : null,
+
+        h(Failure, { t, name: 'proxy', error: failure, onRetry: load }),
+        notice !== null ? h(Banner, { kind: 'info', text: notice }) : null,
+        state?.lastError ? h(Banner, { kind: 'warn', text: `${t('pLastError')}：${state.lastError}` }) : null,
+        state === null && busy === 'load' ? h(Loading, { text: t('loading') }) : null,
+
+        state !== null
+          ? h(
+              Card,
+              {
+                title: t('pNodes'),
+                span: true,
+                icon: h(RouteIcon, { width: 16, height: 16 }),
+                note: nodes.length > 0 ? String(nodes.length) : undefined,
+                action: h(
+                  'div',
+                  { className: 'yk-cardTools' },
+                  nodes.length > 1
+                    ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: testAll, disabled: busy !== '' }, busy === 'test-all' ? h(Spinner, { size: 13 }) : null, busy === 'test-all' ? t('pTesting') : t('pTestAll'))
+                    : null,
+                  h(RefreshButton, { t, onClick: load, spinning: busy === 'load' }),
+                ),
+              },
+              nodes.length === 0
+                ? h(Empty, { icon: h(RouteIcon, { width: 22, height: 22 }), title: t('pNoNodes'), hint: t('pNoNodesHint') })
+                : h(
+                    'div',
+                    { className: 'yk-nodeList', role: 'radiogroup', 'aria-label': t('pNodes') },
+                    nodes.map((node) =>
+                      h(
+                        'div',
+                        { key: node.id, className: node.active ? 'yk-node yk-node-active' : 'yk-node' },
+                        h(
+                          'button',
+                          {
+                            type: 'button',
+                            role: 'radio',
+                            className: 'yk-radio',
+                            'aria-checked': node.active ? 'true' : 'false',
+                            'aria-label': `${t('pUse')} ${node.name}`,
+                            disabled: busy !== '' || node.active,
+                            onClick: () => select(node.id),
+                          },
+                          busy === `select:${node.id}` ? h(Spinner, { size: 12 }) : null,
+                        ),
+                        h(
+                          'div',
+                          { className: 'yk-itemMain' },
+                          h(
+                            'div',
+                            { className: 'yk-itemTitleRow' },
+                            h('span', { className: 'yk-nodeName', title: node.name }, node.name),
+                            node.active ? h(Chip, { kind: 'ok', dot: true }, t('pInUse')) : null,
+                            latency(node),
+                          ),
+                          h('div', { className: 'yk-itemMeta' }, h('span', { className: 'yk-mono' }, `${node.server}:${node.port}`), h('span', { className: 'yk-mono' }, node.method)),
+                        ),
+                        h(
+                          'div',
+                          { className: 'yk-itemActions' },
+                          h(
+                            'button',
+                            { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => test(node.id), disabled: busy !== '' },
+                            busy === `test:${node.id}` || (busy === 'test-all') ? h(Spinner, { size: 13 }) : null,
+                            t('pTest'),
+                          ),
+                          node.active
+                            ? null
+                            : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => select(node.id), disabled: busy !== '' }, t('pUse')),
+                          removing === node.id
+                            ? h('button', { type: 'button', className: 'yk-btn yk-btn-danger yk-btn-sm', onClick: () => removeNode(node.id), disabled: busy !== '' }, t('pConfirmRemove'))
+                            : h(
+                                'button',
+                                { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm yk-dangerHover', title: t('pRemove'), 'aria-label': t('pRemove'), onClick: () => setRemoving(node.id), disabled: busy !== '' },
+                                h(TrashIcon, { width: 14, height: 14 }),
+                              ),
+                        ),
+                      ),
+                    ),
+                  ),
+              h(
+                'div',
+                { className: 'yk-importBox' },
+                h('textarea', {
+                  className: 'yk-input yk-textarea',
+                  rows: 3,
+                  value: importText,
+                  placeholder: t('pImportPlaceholder'),
+                  'aria-label': t('pImportTitle'),
+                  spellCheck: false,
+                  onChange: (event) => setImportText(event.target.value),
+                }),
+                h(
+                  'button',
+                  { type: 'button', className: 'yk-btn yk-btn-solid', onClick: importNodes, disabled: busy !== '' || importText.trim() === '' },
+                  busy === 'import' ? h(Spinner) : h(DownloadIcon),
+                  t('pImport'),
+                ),
+              ),
+            )
+          : null,
+
+        state !== null
+          ? h(
+              'div',
+              { className: 'yk-disclosure' },
+              h(
+                'button',
+                { type: 'button', className: 'yk-disclosureBtn', 'aria-expanded': showSettings ? 'true' : 'false', onClick: () => setShowSettings((value) => !value) },
+                h(showSettings ? ChevronDownIcon : ChevronRightIcon, { width: 14, height: 14 }),
+                t('pSettings'),
+              ),
+              showSettings
+                ? h(
+                    'div',
+                    { className: 'yk-disclosureBody' },
+                    h(
+                      'div',
+                      { className: 'yk-form' },
+                      h(
+                        'label',
+                        { className: 'yk-field' },
+                        h('span', { className: 'yk-fieldLabel' }, t('pLocalPort')),
+                        h('input', { className: 'yk-input', value: settings.localPort, inputMode: 'numeric', onChange: (event) => setSettings((s) => ({ ...s, localPort: event.target.value })) }),
+                      ),
+                      h(
+                        'label',
+                        { className: 'yk-field' },
+                        h('span', { className: 'yk-fieldLabel' }, t('pBypass')),
+                        h('input', { className: 'yk-input', value: settings.bypass, placeholder: 'localhost,127.0.0.1,::1', onChange: (event) => setSettings((s) => ({ ...s, bypass: event.target.value })) }),
+                      ),
+                    ),
+                    h(
+                      'div',
+                      { className: 'yk-toolbar' },
+                      h('button', { type: 'button', className: 'yk-btn', onClick: saveSettings, disabled: busy !== '' }, busy === 'settings' ? h(Spinner) : null, t('save')),
+                      h('span', { className: 'yk-grow' }),
+                      confirmReset
+                        ? h(
+                            React.Fragment,
+                            null,
+                            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirmReset(false) }, t('cancel')),
+                            h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: reset, disabled: busy !== '' }, t('pConfirmReset')),
+                          )
+                        : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-dangerHover', onClick: () => setConfirmReset(true), disabled: busy !== '' || nodes.length === 0 }, t('pReset')),
+                    ),
+                    stats
+                      ? h(
+                          'div',
+                          { className: 'yk-rows yk-rows-2col' },
+                          h(Row, { label: t('pActive'), value: String(stats.active ?? 0) }),
+                          h(Row, { label: t('pTotal'), value: String(stats.total ?? 0) }),
+                          h(Row, { label: t('pUp'), value: formatBytes(stats.bytesUp ?? 0), mono: true }),
+                          h(Row, { label: t('pDown'), value: formatBytes(stats.bytesDown ?? 0), mono: true }),
+                          h(Row, { label: t('pFailures'), value: String(stats.failures ?? 0) }),
+                        )
+                      : null,
+                    h('div', { className: 'yk-foot' }, t('pStateFile')),
+                  )
+                : null,
+            )
+          : null,
+      )
+    }
+
+    /* ---------------------------------------------------------------- purge */
+
+    function PurgeTab({ t }) {
+      const [config, setConfig] = React.useState(null)
+      const [prompt, setPrompt] = React.useState('')
+      const [busy, setBusy] = React.useState('')
+      const [notice, setNotice] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const [confirmReset, setConfirmReset] = React.useState(false)
+      const { signal, alive } = useAbortOnUnmount()
+
+      const load = React.useCallback(async () => {
+        setBusy('load')
+        try {
+          const payload = await getJson(`${API.purge}/config`, signal)
+          if (!alive.current) return
+          setConfig(payload)
+          setPrompt(payload.prompt ?? '')
+          setFailure(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }, [])
+
+      React.useEffect(() => {
+        load()
+      }, [load])
+
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'purge' }))
+
+      const run = async (name, operation) => {
+        setBusy(name)
+        setFailure(null)
+        setNotice(null)
+        try {
+          await operation()
+        } catch (error) {
+          setFailure(failureOf(error))
+        } finally {
+          setBusy('')
+          setConfirmReset(false)
+        }
+      }
+
+      const save = () =>
+        run('save', async () => {
+          await postJson(`${API.purge}/config`, { prompt })
+          setConfig((current) => ({ ...current, prompt, isCustom: true }))
+          setNotice(t('gSaved'))
+        })
+
+      const reset = () =>
+        run('reset', async () => {
+          const payload = await postJson(`${API.purge}/reset`, {})
+          setConfig(payload)
+          setPrompt(payload.prompt ?? '')
+          setNotice(t('gResetDone'))
+        })
+
+      const dirty = config !== null && prompt !== (config.prompt ?? '')
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        h(Failure, { t, name: 'purge', error: failure, onRetry: load }),
+        notice !== null ? h(Banner, { kind: 'info', text: notice }) : null,
+        config === null && busy === 'load' ? h(Loading, { text: t('loading') }) : null,
+        config !== null
+          ? h(
+              Card,
+              {
+                title: t('gTitle'),
+                span: true,
+                icon: h(PurgeIcon, { width: 16, height: 16 }),
+                action: h(
+                  'div',
+                  { className: 'yk-cardTools' },
+                  h(Chip, { kind: 'ok', dot: true }, config.presetId ?? 'unrestricted'),
+                  h(Chip, { kind: config.isCustom ? 'warn' : undefined }, config.isCustom ? t('gCustom') : t('gDefault')),
+                ),
+              },
+              h('p', { className: 'yk-cardText' }, t('gDesc')),
+              h(
+                'div',
+                { className: 'yk-editorHead' },
+                h('span', { className: 'yk-fieldLabel' }, t('gPrompt')),
+                h('span', { className: 'yk-cardNote' }, dirty ? t('gUnsaved') : fill(t('gChars'), { n: prompt.length })),
+              ),
+              h('textarea', {
+                className: 'yk-input yk-textarea yk-editor',
+                value: prompt,
+                placeholder: t('gPlaceholder'),
+                spellCheck: false,
+                disabled: busy === 'load',
+                onChange: (event) => setPrompt(event.target.value),
+              }),
+              h(
+                'div',
+                { className: 'yk-toolbar' },
+                h('button', { type: 'button', className: 'yk-btn yk-btn-solid', onClick: save, disabled: busy !== '' || !dirty }, busy === 'save' ? h(Spinner) : h(CheckIcon), t('gSave')),
+                h(CopyButton, { text: prompt, label: t('copy'), t }),
+                h('span', { className: 'yk-grow' }),
+                confirmReset
+                  ? h(
+                      React.Fragment,
+                      null,
+                      h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirmReset(false) }, t('cancel')),
+                      h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: reset, disabled: busy !== '' }, t('gConfirmReset')),
+                    )
+                  : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirmReset(true), disabled: busy !== '' || !config.isCustom }, t('gReset')),
+              ),
+            )
+          : null,
+      )
+    }
+
+    /* --------------------------------------------------------------- runtime */
+
+    function RuntimeTab({ t, onRestart }) {
+      const [snap, setSnap] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const [notice, setNotice] = React.useState(null)
+      const [busy, setBusy] = React.useState('')
+      const [autoRestart, setAutoRestart] = React.useState(true)
+      const [confirmRestart, setConfirmRestart] = React.useState(false)
+      const [picking, setPicking] = React.useState(false)
+      const [version, setVersion] = React.useState('')
+      const { signal, alive } = useAbortOnUnmount()
+
+      const load = React.useCallback(async () => {
+        try {
+          const payload = await getJson(`${API.runtime}/state`, signal)
+          if (!alive.current) return
+          setSnap(payload.state)
+          setFailure(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        }
+      }, [])
+
+      React.useEffect(() => {
+        load()
+      }, [load])
+
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'runtime' }))
+
+      const run = async (name, operation) => {
+        setBusy(name)
+        setFailure(null)
+        setNotice(null)
+        try {
+          await operation()
+        } catch (error) {
+          setFailure(failureOf(error))
+        } finally {
+          setBusy('')
+          setConfirmRestart(false)
         }
       }
 
@@ -2429,127 +3392,79 @@ button.yk-itemTitle:hover {
         run('check', async () => {
           const payload = await postJson(`${API.runtime}/check`, {})
           if (payload.state !== undefined) setSnap(payload.state)
-          const channel = payload.state?.runtime?.channel ?? '—'
-          const target = payload.latest ?? payload.state?.runtime?.version ?? '—'
+          const channel = payload.state?.runtime?.channel ?? ''
           setNotice(
             payload.state?.update?.available === true
-              ? fill(t('rCheckedNew'), { channel, version: target })
-              : fill(t('rCheckedSame'), { channel, version: target }),
+              ? fill(t('rUpdateReady'), { version: payload.latest })
+              : fill(t('rUpToDate'), { channel }),
           )
         })
 
-      const update = (withRestart) =>
+      const update = (target) =>
         run('update', async () => {
-          const payload = await postJson(`${API.runtime}/update`, {
-            version: version.trim() === '' ? undefined : version.trim(),
-            restart: withRestart,
-          })
+          const payload = await postJson(`${API.runtime}/update`, { version: target, restart: autoRestart })
           if (payload.state !== undefined) setSnap(payload.state)
           setNotice(payload.changed ? fill(t('rUpdated'), { version: payload.installed ?? '?' }) : fill(t('rUpdatedSame'), { version: payload.installed ?? '?' }))
-          if (payload.restarted === true) setPhase('restarting')
+          if (payload.restarted === true) onRestart()
         })
 
       const restart = () =>
         run('restart', async () => {
-          const payload = await postJson(`${API.runtime}/restart`, { delayMs: 600 })
-          setNotice(fill(t('rQueued'), { strategy: payload.strategy ?? '' }))
-          setPhase('restarting')
+          await postJson(`${API.runtime}/restart`, { delayMs: 600 })
+          onRestart()
         })
-
-      if (phase === 'restarting' || phase === 'back' || phase === 'failed') {
-        return h(
-          'div',
-          { className: 'yk-body' },
-          phase === 'restarting'
-            ? h(
-                'div',
-                { className: 'yk-overlay' },
-                h(Spinner, { size: 28 }),
-                h('div', { className: 'yk-overlayTitle' }, t('rRestarting')),
-                h('div', { className: 'yk-overlayHint' }, t('rRestartingHint')),
-                h('div', { className: 'yk-statSub' }, fill(t('rRestartWait'), { n: attempts })),
-              )
-            : null,
-          phase === 'back' ? h('div', { className: 'yk-overlay' }, h('div', { className: 'yk-overlayTitle' }, t('rBack'))) : null,
-          phase === 'failed'
-            ? h(
-                'div',
-                { className: 'yk-overlay' },
-                h('div', { className: 'yk-overlayTitle' }, t('rRestarting')),
-                h('div', { className: 'yk-overlayHint' }, t('rRestartSlow')),
-                h(
-                  'button',
-                  {
-                    type: 'button',
-                    className: 'yk-btn',
-                    onClick: () => {
-                      setPhase('idle')
-                      load()
-                    },
-                  },
-                  t('retry'),
-                ),
-              )
-            : null,
-        )
-      }
 
       const runtime = snap?.runtime
       const disk = snap?.disk
       const feed = snap?.update
-      const strategy =
-        snap?.restart?.strategy === 'execve' ? t('rExecve') : snap?.restart?.strategy === 'command' ? t('rCommand') : t('rExit')
+      const strategy = snap?.restart?.strategy === 'execve' ? t('rExecve') : snap?.restart?.strategy === 'command' ? t('rCommand') : t('rExit')
       const disabled = busy !== ''
 
       return h(
         'div',
         { className: 'yk-body' },
-        h(
-          'div',
-          { className: 'yk-toolbar' },
-          h(
-            'button',
-            { type: 'button', className: 'yk-btn', onClick: check, disabled },
-            busy === 'check' ? h(Spinner) : h(RefreshIcon),
-            busy === 'check' ? t('rChecking') : t('rCheck'),
-          ),
-          h('input', {
-            className: 'yk-input',
-            style: { flex: '0 1 240px' },
-            value: version,
-            placeholder: t('rVersionInput'),
-            'aria-label': t('rVersionInput'),
-            disabled,
-            onChange: (event) => setVersion(event.target.value),
-          }),
-          confirm === 'update'
-            ? h(
-                'button',
-                { type: 'button', className: 'yk-btn yk-btn-solid', onClick: () => update(true), disabled },
-                busy === 'update' ? h(Spinner) : h(DownloadIcon),
-                t('rConfirmUpdate'),
-              )
-            : h(
-                'button',
-                { type: 'button', className: 'yk-btn yk-btn-solid', onClick: () => setConfirm('update'), disabled },
-                h(DownloadIcon),
-                t('rUpdate'),
+        snap !== null
+          ? h(
+              'div',
+              { className: 'yk-hero' + (feed?.available ? ' yk-hero-warn' : '') },
+              h('span', { className: 'yk-heroDot', 'aria-hidden': true }),
+              h(
+                'div',
+                { className: 'yk-heroMain' },
+                h('div', { className: 'yk-heroTitle yk-mono' }, `DSH ${runtime?.version ?? '?'}`),
+                h(
+                  'div',
+                  { className: 'yk-heroSub' },
+                  disk?.stale
+                    ? t('rNeedsRestart')
+                    : feed?.available
+                      ? fill(t('rUpdateReady'), { version: feed.latest })
+                      : feed?.checkedAt
+                        ? fill(t('rUpToDate'), { channel: runtime?.channel ?? '' })
+                        : t('rNotChecked'),
+                ),
               ),
-          h('button', { type: 'button', className: 'yk-btn', onClick: () => update(false), disabled }, t('rUpdateOnly')),
-          confirm !== '' ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirm(''), disabled }, t('cancel')) : null,
-          confirm === 'restart'
-            ? h(
-                'button',
-                { type: 'button', className: 'yk-btn yk-btn-danger', onClick: restart, disabled },
-                busy === 'restart' ? h(Spinner) : h(PowerIcon),
-                t('rConfirmRestart'),
-              )
-            : h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: () => setConfirm('restart'), disabled }, h(PowerIcon), t('rRestart')),
-        ),
+              h(
+                'div',
+                { className: 'yk-heroActions' },
+                feed?.available
+                  ? h(
+                      React.Fragment,
+                      null,
+                      h(Option, { checked: autoRestart, onChange: setAutoRestart, label: t('rAutoRestart') }),
+                      h('button', { type: 'button', className: 'yk-btn yk-btn-solid', onClick: () => update(undefined), disabled }, busy === 'update' ? h(Spinner) : h(DownloadIcon), busy === 'update' ? t('rUpdating') : fill(t('rUpdateTo'), { version: feed.latest })),
+                    )
+                  : h('button', { type: 'button', className: 'yk-btn', onClick: check, disabled }, busy === 'check' ? h(Spinner) : h(RefreshIcon), busy === 'check' ? t('rChecking') : t('rCheck')),
+                confirmRestart
+                  ? h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: restart, disabled }, busy === 'restart' ? h(Spinner) : h(PowerIcon), t('rConfirmRestart'))
+                  : h('button', { type: 'button', className: disk?.stale ? 'yk-btn yk-btn-solid' : 'yk-btn yk-btn-ghost', onClick: () => setConfirmRestart(true), disabled }, h(PowerIcon), t('rRestart')),
+              ),
+            )
+          : null,
 
-        error !== null ? h(Banner, { kind: 'error', text: error, action: h('button', { type: 'button', className: 'yk-btn', onClick: load }, t('retry')) }) : null,
+        h(Failure, { t, name: 'runtime', error: failure, onRetry: load }),
         notice !== null ? h(Banner, { kind: 'info', text: notice }) : null,
-        snap === null ? h(Loading, { key: 'loading', text: t('loading') }) : null,
+        snap === null && failure === null ? h(Loading, { text: t('loading') }) : null,
 
         snap !== null
           ? h(
@@ -2560,35 +3475,24 @@ button.yk-itemTitle:hover {
                 {
                   title: t('rCardVersion'),
                   icon: h(DownloadIcon, { width: 16, height: 16 }),
-                  note: feed?.available === true ? t('rUpdateReady') : feed?.checkedAt === null ? t('rNotChecked') : t('rUpToDate'),
+                  action: h('button', { type: 'button', className: 'yk-cardAction', onClick: () => setPicking((value) => !value) }, t('rPickVersion')),
                 },
                 h(
                   'div',
                   { className: 'yk-rows' },
-                  h(Row, {
-                    label: t('rRunning'),
-                    value: runtime?.version ?? t('rUnknown'),
-                    mono: true,
-                    chips: disk?.stale === true ? [{ text: t('rNeedsRestart'), kind: 'warn' }] : [],
-                  }),
-                  h(Row, {
-                    label: t('rOnDisk'),
-                    value: disk?.version ?? t('rUnknown'),
-                    mono: true,
-                    chips: disk?.error ? [{ text: disk.error, kind: 'warn' }] : [],
-                  }),
-                  h(Row, {
-                    label: t('rLatest'),
-                    value: feed?.latest ?? (feed?.error ? feed.error : t('rNotChecked')),
-                    mono: feed?.latest !== null && feed?.latest !== undefined,
-                    chips: feed?.available === true ? [{ text: t('rUpdateReady'), kind: 'warn' }] : [],
-                  }),
-                  h(Row, {
-                    label: t('rCheckedAt'),
-                    value: feed?.checkedAt === null || feed?.checkedAt === undefined ? t('rNotChecked') : formatTime(feed.checkedAt),
-                    mono: true,
-                  }),
+                  h(Row, { label: t('rRunning'), value: runtime?.version ?? '—', mono: true }),
+                  h(Row, { label: t('rOnDisk'), value: disk?.version ?? '—', mono: true, chips: disk?.stale ? [{ text: t('rNeedsRestart'), kind: 'warn' }] : [] }),
+                  h(Row, { label: t('rLatest'), value: feed?.latest ?? (feed?.error || t('rNotChecked')), mono: Boolean(feed?.latest) }),
+                  h(Row, { label: t('rCheckedAt'), value: feed?.checkedAt ? formatTime(feed.checkedAt) : t('never'), mono: true }),
                 ),
+                picking
+                  ? h(
+                      'div',
+                      { className: 'yk-toolbar' },
+                      h('input', { className: 'yk-input yk-mono', style: { flex: '1 1 160px' }, value: version, placeholder: t('rVersionInput'), onChange: (event) => setVersion(event.target.value) }),
+                      h('button', { type: 'button', className: 'yk-btn', onClick: () => update(version.trim()), disabled: disabled || version.trim() === '' }, t('rInstall')),
+                    )
+                  : null,
               ),
               h(
                 Card,
@@ -2596,807 +3500,54 @@ button.yk-itemTitle:hover {
                 h(
                   'div',
                   { className: 'yk-rows' },
-                  h(Row, {
-                    label: t('rContainer'),
-                    value: runtime?.hostname ?? '—',
-                    mono: true,
-                    chips: [{ text: runtime?.docker === true ? t('rDocker') : t('rBare'), kind: runtime?.docker === true ? 'ok' : undefined }],
-                  }),
+                  h(Row, { label: t('rHost'), value: runtime?.hostname ?? '—', mono: true, chips: [{ text: runtime?.docker ? t('rDocker') : t('rBare') }] }),
                   h(Row, { label: t('rPid'), value: String(runtime?.pid ?? '—'), mono: true }),
                   h(Row, { label: t('rNode'), value: runtime?.node ?? '—', mono: true }),
                   h(Row, { label: t('rUptime'), value: runtime?.uptime ?? '—' }),
                   h(Row, { label: t('rChannel'), value: runtime?.channel ?? '—', mono: true }),
-                  h(Row, { label: t('rProfile'), value: runtime?.profile ?? '—', mono: true }),
                 ),
               ),
               h(
                 Card,
-                { title: t('rCardFeed'), icon: h(RefreshIcon, { width: 16, height: 16 }) },
+                { title: t('rCardRestart'), icon: h(RefreshIcon, { width: 16, height: 16 }) },
                 h(
                   'div',
                   { className: 'yk-rows' },
-                  h(Row, { label: t('rRegistry'), value: snap.npm.registry, mono: true, clamp: true }),
-                  h(Row, { label: t('rCache'), value: snap.npm.cacheDir, mono: true, clamp: true }),
-                  h(Row, {
-                    label: t('rStrategy'),
-                    value: strategy,
-                    chips: snap.restart.strategy === 'command' ? [{ text: snap.restart.command ?? '', kind: 'warn' }] : [],
-                  }),
-                  h(Row, {
-                    label: t('rLastRestart'),
-                    value: snap.restart.last === null ? t('never') : `${formatTime(snap.restart.last.at)} · ${snap.restart.last.strategy ?? ''}`,
-                    mono: true,
-                  }),
+                  h(Row, { label: t('rRegistry'), value: snap.npm?.registry ?? '—', mono: true, clamp: true }),
+                  h(Row, { label: t('rStrategy'), value: strategy }),
+                  h(Row, { label: t('rLastRestart'), value: snap.restart?.last ? formatTime(snap.restart.last.at) : t('never'), mono: true }),
                 ),
               ),
               h(
                 Card,
                 { title: t('rCardActivity'), icon: h(OverviewIcon, { width: 16, height: 16 }) },
                 snap.lastAction === null || snap.lastAction === undefined
-                  ? h('div', { className: 'yk-foot' }, t('rNoActivity'))
+                  ? h('div', { className: 'yk-cardText' }, t('rNoActivity'))
                   : h(
                       'div',
                       { className: 'yk-rows' },
-                      h(Row, { label: t('rActionKind'), value: snap.lastAction.kind ?? '—', mono: true }),
-                      h(Row, { label: t('rActionAt'), value: formatTime(snap.lastAction.at), mono: true }),
                       h(Row, {
-                        label: t('rActionResult'),
+                        label: snap.lastAction.kind ?? '—',
                         value: snap.lastAction.detail ?? '—',
-                        chips: [{ text: snap.lastAction.ok ? t('rOkLabel') : t('rFailLabel'), kind: snap.lastAction.ok ? 'ok' : 'danger', dot: true }],
+                        clamp: true,
+                        chips: [{ text: snap.lastAction.ok ? t('rOk') : t('rFail'), kind: snap.lastAction.ok ? 'ok' : 'danger', dot: true }],
                       }),
-                      snap.lastAction.output !== undefined && snap.lastAction.output !== ''
-                        ? h('pre', { key: 'out', className: 'yk-out' }, snap.lastAction.output)
-                        : null,
+                      h(Row, { label: t('rCheckedAt'), value: formatTime(snap.lastAction.at), mono: true }),
+                      snap.lastAction.output ? h('pre', { key: 'out', className: 'yk-out' }, snap.lastAction.output) : null,
                     ),
               ),
             )
           : null,
-
         h('div', { className: 'yk-foot' }, t('rHint')),
-      )
-    }
-
-    /* ---------------------------------------------------------------- sites */
-
-    function SitesTab({ t }) {
-      const [sites, setSites] = React.useState(null)
-      const [root, setRoot] = React.useState('')
-      const [error, setError] = React.useState(null)
-      const [notice, setNotice] = React.useState(null)
-      const [busy, setBusy] = React.useState('')
-      const [query, setQuery] = React.useState('')
-      const [confirming, setConfirming] = React.useState('')
-      const { signal, alive } = useAbortOnUnmount()
-
-      const load = React.useCallback(async () => {
-        setBusy('load')
-        try {
-          const payload = await getJson(`${API.sites}/list`, signal)
-          if (!alive.current) return
-          setSites(payload.sites)
-          setRoot(payload.root ?? '')
-          setError(null)
-        } catch (failure) {
-          if (alive.current && failure?.name !== 'AbortError') setError(messageOf(failure))
-        } finally {
-          if (alive.current) setBusy('')
-        }
-      }, [])
-
-      React.useEffect(() => {
-        load()
-      }, [load])
-
-      const remove = (slug) =>
-        (async () => {
-          setBusy('delete')
-          setError(null)
-          setNotice(null)
-          try {
-            const payload = await postJson(`${API.sites}/delete`, { slug })
-            setSites(payload.sites)
-            setNotice(payload.deleted ? fill(t('sGone'), { slug }) : fill(t('sKept'), { slug }))
-          } catch (failure) {
-            setError(messageOf(failure))
-          } finally {
-            setBusy('')
-            setConfirming('')
-          }
-        })()
-
-      const needle = query.trim().toLowerCase()
-      const visible = (sites ?? []).filter(
-        (site) => needle === '' || String(site.title).toLowerCase().includes(needle) || String(site.slug).toLowerCase().includes(needle),
-      )
-
-      return h(
-        'div',
-        { className: 'yk-body' },
-        h(
-          'div',
-          { className: 'yk-toolbar' },
-          h(
-            'label',
-            { className: 'yk-search' },
-            h(SearchIcon),
-            h('input', {
-              value: query,
-              placeholder: t('sSearch'),
-              'aria-label': t('sSearch'),
-              onChange: (event) => setQuery(event.target.value),
-            }),
-            query !== ''
-              ? h(
-                  'button',
-                  {
-                    type: 'button',
-                    className: 'yk-searchClear',
-                    title: t('clearSearch'),
-                    'aria-label': t('clearSearch'),
-                    onClick: (e) => {
-                      e.preventDefault()
-                      setQuery('')
-                    },
-                  },
-                  h(ClearIcon, { width: 12, height: 12 }),
-                )
-              : null,
-          ),
-          h(
-            'button',
-            { type: 'button', className: 'yk-btn yk-iconBtn yk-btn-ghost', onClick: load, disabled: busy === 'load', title: t('refresh'), 'aria-label': t('refresh') },
-            h(RefreshIcon, { className: busy === 'load' ? 'yk-spin' : undefined }),
-          ),
-        ),
-        error !== null ? h(Banner, { kind: 'error', text: error, action: h('button', { type: 'button', className: 'yk-btn', onClick: load }, t('retry')) }) : null,
-        notice !== null ? h(Banner, { kind: 'info', text: notice }) : null,
-
-        sites === null && busy === 'load'
-          ? h(Loading, { key: 'loading', text: t('loading') })
-          : (sites ?? []).length === 0
-            ? h(Empty, { icon: h(GlobeIcon, { width: 24, height: 24 }), title: t('sEmpty'), hint: t('sEmptyHint') })
-            : visible.length === 0
-              ? h(Empty, { icon: h(SearchIcon, { width: 24, height: 24 }), title: t('sNoMatch') })
-              : h(
-                  'div',
-                  { className: 'yk-list' },
-                  visible.map((site) => {
-                    const targetUrl = site.url.startsWith('http') ? site.url : `${window.location.origin}${site.url}`
-                    return h(
-                      'div',
-                      { className: 'yk-item', key: site.slug },
-                      h(GlobeIcon, { width: 20, height: 20, style: { opacity: .7, flex: 'none' } }),
-                      h(
-                        'div',
-                        { className: 'yk-itemMain' },
-                        h(
-                          'div',
-                          { className: 'yk-itemTitleRow' },
-                          h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => window.open(targetUrl, '_blank', 'noopener'), title: targetUrl }, site.title),
-                          h(Chip, { kind: undefined }, fill(t('sVersion'), { version: site.version })),
-                          h(Chip, { kind: undefined }, fill(t('sFiles'), { n: site.files })),
-                        ),
-                        h(
-                          'div',
-                          { className: 'yk-itemMeta' },
-                          h('span', { className: 'yk-mono' }, `/${site.slug}/`),
-                          h(CopyButton, { text: targetUrl, label: t('copy'), t }),
-                          h('span', null, fill(t('sPublished'), { time: formatTime(site.publishedAt) })),
-                          h('span', null, formatBytes(site.bytes)),
-                        ),
-                      ),
-                      h(
-                        'div',
-                        { className: 'yk-itemActions' },
-                        h(
-                          'a',
-                          { className: 'yk-btn yk-btn-ghost', href: targetUrl, target: '_blank', rel: 'noreferrer noopener', title: t('open'), 'aria-label': t('open') },
-                          h(LinkIcon),
-                          h('span', { className: 'yk-btnLabel' }, t('open')),
-                        ),
-                        confirming === site.slug
-                          ? h(
-                              'span',
-                              { className: 'yk-itemActions' },
-                              h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: () => remove(site.slug), disabled: busy !== '' }, busy === 'delete' ? h(Spinner) : t('confirm')),
-                              h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirming('') }, t('cancel')),
-                            )
-                          : h(
-                              'button',
-                              {
-                                type: 'button',
-                                className: 'yk-btn yk-btn-ghost',
-                                title: fill(t('sConfirm'), { slug: site.slug }),
-                                onClick: () => setConfirming(site.slug),
-                              },
-                              t('sUnpublish'),
-                            ),
-                      ),
-                    )
-                  }),
-                ),
-
-        h(
-          'div',
-          { className: 'yk-foot' },
-          h('span', null, counted(t, 'sCountOne', 'sCount', (sites ?? []).length)),
-          root === '' ? null : h('span', { className: 'yk-footDot' }, '·'),
-          root === '' ? null : h('span', { className: 'yk-mono' }, root),
-        ),
-      )
-    }
-
-    /* ---------------------------------------------------------------- proxy */
-
-    function ProxyTab({ t }) {
-      const [state, setState] = React.useState(null)
-      const [error, setError] = React.useState(null)
-      const [notice, setNotice] = React.useState(null)
-      const [busy, setBusy] = React.useState('')
-      const [form, setForm] = React.useState({ server: '', port: '', method: '', password: '', localPort: '', bypass: '' })
-      const [link, setLink] = React.useState('')
-      const [target, setTarget] = React.useState('')
-      const [showPassword, setShowPassword] = React.useState(false)
-      const [confirmReset, setConfirmReset] = React.useState(false)
-      const { signal, alive } = useAbortOnUnmount()
-      const touchedRef = React.useRef(false)
-      const editForm = (key, value) => {
-        touchedRef.current = true
-        setForm((current) => ({ ...current, [key]: value }))
-      }
-
-      const adopt = (next) => {
-        setState(next)
-        if (!touchedRef.current && next !== null) {
-          setForm((current) => ({
-            server: next.node?.server ?? '',
-            port: String(next.node?.port ?? ''),
-            method: next.node?.method ?? '',
-            password: '',
-            localPort: String(next.localPort ?? ''),
-            bypass: next.bypass ?? '',
-          }))
-        }
-      }
-
-      const load = React.useCallback(async () => {
-        setBusy('load')
-        try {
-          const payload = await getJson(`${API.proxy}/state`, signal)
-          if (!alive.current) return
-          adopt(payload.state)
-          setError(null)
-        } catch (failure) {
-          if (alive.current && failure?.name !== 'AbortError') setError(messageOf(failure))
-        } finally {
-          if (alive.current) setBusy('')
-        }
-      }, [])
-
-      React.useEffect(() => {
-        load()
-      }, [load])
-
-      const run = async (name, operation) => {
-        setBusy(name)
-        setError(null)
-        setNotice(null)
-        try {
-          return await operation()
-        } catch (failure) {
-          if (failure !== null && typeof failure === 'object' && failure.state !== undefined) adopt(failure.state)
-          setError(messageOf(failure))
-          return null
-        } finally {
-          setBusy('')
-          setConfirmReset(false)
-        }
-      }
-
-      React.useEffect(() => {
-        if (!confirmReset) return undefined
-        const onKeyDown = (event) => {
-          if (event.key === 'Escape') setConfirmReset(false)
-        }
-        document.addEventListener('keydown', onKeyDown)
-        return () => document.removeEventListener('keydown', onKeyDown)
-      }, [confirmReset])
-
-      const save = () => {
-        const port = Number(form.port)
-        const localPort = Number(form.localPort)
-        if (!form.server.trim() || !Number.isInteger(port) || port < 1 || port > 65535 || !Number.isInteger(localPort) || localPort < 1024 || localPort > 65535) {
-          setError(t('pInvalid'))
-          return
-        }
-        run('save', async () => {
-          const patch = { server: form.server.trim(), bypass: form.bypass.trim(), port, localPort }
-          if (form.method.trim() !== '') patch.method = form.method.trim()
-          if (form.password !== '') patch.password = form.password
-          const payload = await postJson(`${API.proxy}/configure`, patch)
-          touchedRef.current = false
-          adopt(payload.state)
-          setForm((current) => ({ ...current, password: '' }))
-          setNotice(t('pSaved'))
-        })
-      }
-
-      const toggle = () =>
-        run('toggle', async () => {
-          const payload = state?.enabled === true ? await postJson(`${API.proxy}/disable`, {}) : await postJson(`${API.proxy}/enable`, {})
-          adopt(payload.state)
-          setNotice(state?.enabled === true ? t('pDisabledNotice') : t('pEnabledNotice'))
-        })
-
-      const test = () =>
-        run('test', async () => {
-          const payload = await postJson(`${API.proxy}/test`, { target: target.trim() === '' ? undefined : target.trim() })
-          adopt(payload.state)
-          setNotice(fill(t('pTested'), { ms: payload.test?.ms ?? payload.test?.durationMs ?? '?' }))
-        })
-
-      const importLink = () =>
-        run('import', async () => {
-          const payload = await postJson(`${API.proxy}/import`, { uri: link.trim(), apply: true })
-          adopt(payload.state)
-          touchedRef.current = false
-          setLink('')
-          setNotice(fill(t('pImported'), { node: `${payload.node.server}:${payload.node.port}` }))
-        })
-
-      const reset = () =>
-        run('reset', async () => {
-          const payload = await postJson(`${API.proxy}/reset`, {})
-          touchedRef.current = false
-          adopt(payload.state)
-          setNotice(t('pResetDone'))
-        })
-
-      const node = state?.node
-      const stats = state?.stats
-      const methods = state?.methods ?? []
-      const field = (key, label, extra) =>
-        h(
-          'label',
-          { className: 'yk-field', key },
-          h('span', { className: 'yk-fieldLabel' }, label),
-          extra,
-        )
-
-      return h(
-        'div',
-        { className: 'yk-body' },
-        h(
-          'div',
-          { className: 'yk-toolbar' },
-          h(
-            'button',
-            {
-              type: 'button',
-              className: state?.enabled === true ? 'yk-btn yk-btn-danger' : 'yk-btn yk-btn-solid',
-              onClick: toggle,
-              disabled: busy !== '' || state === null || !state.node?.server,
-            },
-            busy === 'toggle' ? h(Spinner) : h(PowerIcon),
-            state?.enabled === true ? t('pDisable') : t('pEnable'),
-          ),
-          h(
-            'button',
-            {
-              type: 'button',
-              className: 'yk-btn',
-              onClick: test,
-              disabled: busy !== '' || state === null || !state.node?.server,
-            },
-            busy === 'test' ? h(Spinner) : h(RouteIcon),
-            busy === 'test' ? t('pTesting') : t('pTest'),
-          ),
-          h('input', {
-            className: 'yk-input',
-            style: { flex: '1 1 200px' },
-            value: target,
-            placeholder: t('pTestTarget'),
-            'aria-label': t('pTestTarget'),
-            onChange: (event) => setTarget(event.target.value),
-          }),
-          h(
-            'button',
-            { type: 'button', className: 'yk-btn yk-iconBtn yk-btn-ghost', onClick: load, disabled: busy === 'load', title: t('refresh'), 'aria-label': t('refresh') },
-            h(RefreshIcon, { className: busy === 'load' ? 'yk-spin' : undefined }),
-          ),
-        ),
-
-        error !== null ? h(Banner, { kind: 'error', text: error, action: h('button', { type: 'button', className: 'yk-btn', onClick: load }, t('retry')) }) : null,
-        notice !== null ? h(Banner, { kind: 'info', text: notice }) : null,
-        state?.lastError ? h(Banner, { kind: 'warn', text: `${t('pLastError')}: ${state.lastError}` }) : null,
-
-        state === null
-          ? h(Loading, { key: 'loading', text: t('loading') })
-          : h(
-              'div',
-              { className: 'yk-grid' },
-              h(
-                Card,
-                {
-                  title: t('pStatus'),
-                  icon: h(RouteIcon, { width: 16, height: 16 }),
-                  note: state.enabled ? (state.running ? t('pEnabled') : t('pPending')) : t('pDisabled'),
-                },
-                h(
-                  'div',
-                  { className: 'yk-rows' },
-                  h(Row, {
-                    label: t('ovState'),
-                    value: state.enabled ? (state.running ? t('pEnabled') : t('pPending')) : t('pDisabled'),
-                    chips: [
-                      state.running
-                        ? { text: t('pRunning'), kind: 'ok', dot: true }
-                        : state.enabled
-                          ? { text: t('pRetrying'), kind: 'warn', dot: true }
-                          : { text: t('pStopped'), dot: true },
-                    ],
-                  }),
-                  h(Row, {
-                    label: t('pNode'),
-                    value: node === undefined || !node.server ? t('pNoNode') : `${node.server}:${node.port}`,
-                    mono: true,
-                    clamp: true,
-                    action: node !== undefined && node.server ? h(CopyButton, { text: `${node.server}:${node.port}`, label: t('copy'), t }) : null,
-                    chips: node === undefined ? [] : node.hasPassword ? [{ text: t('pStored'), kind: 'ok' }] : [{ text: t('pNoPassword') }],
-                  }),
-                  h(Row, { label: t('pMethod'), value: node?.method ?? '—', mono: true }),
-                  h(Row, { label: t('pLocalPort'), value: String(state.localPort), mono: true }),
-                  h(Row, { label: t('pEgress'), value: state.egress?.proxyUrl ?? '—', mono: true, clamp: true }),
-                ),
-              ),
-              h(
-                Card,
-                { title: t('pCardStats'), icon: h(OverviewIcon, { width: 16, height: 16 }) },
-                h(
-                  'div',
-                  { className: 'yk-rows' },
-                  h(Row, { label: t('pActive'), value: String(stats?.active ?? 0) }),
-                  h(Row, { label: t('pTotal'), value: String(stats?.total ?? 0) }),
-                  h(Row, { label: t('pUp'), value: formatBytes(stats?.bytesUp ?? 0), mono: true }),
-                  h(Row, { label: t('pDown'), value: formatBytes(stats?.bytesDown ?? 0), mono: true }),
-                  h(Row, {
-                    label: t('pFailures'),
-                    value: String(stats?.failures ?? 0),
-                    chips: (stats?.failures ?? 0) > 0 ? [{ text: t('pFailuresTag'), kind: 'warn' }] : [],
-                  }),
-                  h(Row, {
-                    label: t('pLastTest'),
-                    value:
-                      state.lastTest === null || state.lastTest === undefined
-                        ? t('never')
-                        : `${state.lastTest.ok === false ? t('pFail') : t('pOk')} · ${state.lastTest.target ?? ''}`,
-                    chips: state.lastTest === null || state.lastTest === undefined ? [] : [{ text: state.lastTest.ok === false ? t('pFail') : t('pOk'), kind: state.lastTest.ok === false ? 'danger' : 'ok', dot: true }],
-                  }),
-                ),
-              ),
-              h(
-                Card,
-                {
-                  title: t('pNode'),
-                  span: true,
-                  icon: h(RouteIcon, { width: 16, height: 16 }),
-                  note: touchedRef.current ? t('pUnsaved') : undefined,
-                  action: h(
-                    'button',
-                    { type: 'button', className: 'yk-btn yk-btn-solid', onClick: save, disabled: busy !== '' || !touchedRef.current },
-                    busy === 'save' ? h(Spinner) : null,
-                    t('pSave'),
-                  ),
-                },
-                h(
-                  'div',
-                  { className: 'yk-form' },
-                  field('server', t('pServer'), h('input', {
-                    className: 'yk-input',
-                    value: form.server,
-                    placeholder: '203.0.113.10',
-                    onChange: (event) => editForm('server', event.target.value),
-                  })),
-                  field('port', t('pPort'), h('input', {
-                    className: 'yk-input',
-                    value: form.port,
-                    placeholder: '8388',
-                    inputMode: 'numeric',
-                    onChange: (event) => editForm('port', event.target.value),
-                  })),
-                  field('method', t('pMethod'), h(
-                    'select',
-                    {
-                      className: 'yk-input',
-                      value: form.method,
-                      onChange: (event) => editForm('method', event.target.value),
-                    },
-                    methods.length === 0 ? h('option', { value: form.method }, form.method || '—') : null,
-                    methods.map((name) => h('option', { key: name, value: name }, name)),
-                  )),
-                  field('password', t('pPassword'), h(
-                    'div',
-                    { className: 'yk-pwWrap' },
-                    h('input', {
-                      className: 'yk-input',
-                      type: showPassword ? 'text' : 'password',
-                      autoComplete: 'new-password',
-                      value: form.password,
-                      placeholder: t('pPasswordKeep'),
-                      onChange: (event) => editForm('password', event.target.value),
-                    }),
-                    h(
-                      'button',
-                      {
-                        type: 'button',
-                        className: 'yk-pwToggle',
-                        title: showPassword ? t('hidePassword') : t('showPassword'),
-                        'aria-label': showPassword ? t('hidePassword') : t('showPassword'),
-                        onClick: () => setShowPassword((v) => !v),
-                      },
-                      h(showPassword ? EyeOffIcon : EyeIcon, { width: 14, height: 14 }),
-                    ),
-                  )),
-                  field('localPort', t('pLocalPort'), h('input', {
-                    className: 'yk-input',
-                    value: form.localPort,
-                    placeholder: '17890',
-                    inputMode: 'numeric',
-                    onChange: (event) => editForm('localPort', event.target.value),
-                  })),
-                  field('bypass', t('pBypass'), h('input', {
-                    className: 'yk-input',
-                    value: form.bypass,
-                    placeholder: 'localhost,127.0.0.1,::1',
-                    onChange: (event) => editForm('bypass', event.target.value),
-                  })),
-                ),
-                h(
-                  'div',
-                  { className: 'yk-toolbar', style: { marginTop: '8px' } },
-                  h('input', {
-                    className: 'yk-input',
-                    style: { flex: '1 1 240px' },
-                    value: link,
-                    placeholder: t('pImportPlaceholder'),
-                    'aria-label': t('pImport'),
-                    onChange: (event) => setLink(event.target.value),
-                  }),
-                  h('button', { type: 'button', className: 'yk-btn', onClick: importLink, disabled: busy !== '' || link.trim() === '' }, busy === 'import' ? h(Spinner) : null, t('pImport')),
-                  h('span', { style: { marginLeft: 'auto' } },
-                    confirmReset
-                      ? h(
-                          React.Fragment,
-                          null,
-                          h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: reset, disabled: busy !== '' }, t('pConfirmReset')),
-                          h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirmReset(false) }, t('cancel')),
-                        )
-                      : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirmReset(true), disabled: busy !== '' }, t('pReset')),
-                  ),
-                ),
-                h('div', { className: 'yk-foot' }, h('span', null, t('pPasswordLocal')), h('span', { className: 'yk-footDot' }, '·'), h('span', { className: 'yk-mono' }, state.stateFile ?? '')),
-              ),
-            ),
-      )
-    }
-
-    function PurgeTab({ t }) {
-      const [config, setConfig] = React.useState(null)
-      const [prompt, setPrompt] = React.useState('')
-      const [busy, setBusy] = React.useState('')
-      const [notice, setNotice] = React.useState(null)
-      const [error, setError] = React.useState(null)
-      const [confirmReset, setConfirmReset] = React.useState(false)
-      const [copied, setCopied] = React.useState(false)
-      const { signal, alive } = useAbortOnUnmount()
-
-      const load = React.useCallback(async () => {
-        setBusy('load')
-        try {
-          const payload = await getJson(`${API.purge}/config`, signal)
-          if (!alive.current) return
-          setConfig(payload)
-          setPrompt(payload.prompt ?? '')
-          setError(null)
-        } catch (err) {
-          if (alive.current && err?.name !== 'AbortError') setError(messageOf(err))
-        } finally {
-          if (alive.current) setBusy('')
-        }
-      }, [])
-
-      React.useEffect(() => {
-        load()
-      }, [load])
-
-      const save = async () => {
-        setBusy('save')
-        setError(null)
-        setNotice(null)
-        try {
-          await postJson(`${API.purge}/config`, { prompt }, signal)
-          if (!alive.current) return
-          setConfig((prev) => ({ ...prev, prompt, isCustom: true }))
-          setNotice('破甲系统提示词已保存并实时生效！')
-        } catch (err) {
-          if (alive.current) setError(messageOf(err))
-        } finally {
-          if (alive.current) setBusy('')
-        }
-      }
-
-      const reset = async () => {
-        setBusy('reset')
-        setError(null)
-        setNotice(null)
-        try {
-          const payload = await postJson(`${API.purge}/reset`, {}, signal)
-          if (!alive.current) return
-          setConfig(payload)
-          setPrompt(payload.prompt ?? '')
-          setConfirmReset(false)
-          setNotice('已恢复为内置默认破甲提示词！')
-        } catch (err) {
-          if (alive.current) setError(messageOf(err))
-        } finally {
-          if (alive.current) setBusy('')
-        }
-      }
-
-      const copyPrompt = async () => {
-        try {
-          await navigator.clipboard.writeText(prompt)
-          setCopied(true)
-          setTimeout(() => setCopied(false), 2000)
-        } catch {}
-      }
-
-      return h(
-        'div',
-        { className: 'yk-body' },
-        error !== null ? h(Banner, { kind: 'error', text: error }) : null,
-        notice !== null ? h(Banner, { kind: 'info', text: notice }) : null,
-
-        /* Status & Isolation Explanation Card */
-        h(
-          Card,
-          {
-            title: '无限制模式 (Unrestricted Mode)',
-            icon: h(PurgeIcon, { width: 16, height: 16 }),
-            span: true,
-            action: h(
-              'div',
-              { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
-              h(Chip, { kind: 'ok', dot: true }, '预设就绪'),
-              config?.isCustom
-                ? h(Chip, { kind: 'warn' }, '自定义提示词')
-                : h(Chip, { kind: undefined }, '内置默认提示词'),
-            ),
-          },
-          h(
-            'div',
-            { style: { marginBottom: '16px' } },
-            h(
-              Banner,
-              {
-                kind: 'info',
-                text: '💡 模式完全隔离：本插件已向 DSH 注册独立的「无限制模式」。请在 DSH 对话输入框下方的模式选择下拉中切换为「无限制模式」以享受破甲体验。当选择内置的「标准模式」或其他模式时，保持原生官方体验，完全不干扰。',
-              },
-            ),
-          ),
-          h(
-            'div',
-            { className: 'yk-rows' },
-            h(Row, { label: '模式名称', value: config?.presetName ?? '无限制模式', mono: true }),
-            h(Row, { label: '预设 ID', value: config?.presetId ?? 'unrestricted', mono: true }),
-            h(Row, { label: '提示词字符', value: `${prompt.length} 字符`, mono: true }),
-            h(Row, { label: '运行机制', value: '纯插件上下文装配清洗 (Zero-Host-Patch)' }),
-          ),
-        ),
-
-        /* Prompt Editor Card */
-        h(
-          Card,
-          {
-            title: '破甲系统提示词配置',
-            icon: h(PurgeIcon, { width: 16, height: 16 }),
-            span: true,
-            note: '仅在会话处于「无限制模式」时置顶注入，标准模式下不加载',
-          },
-          h(
-            'div',
-            { style: { width: '100%', marginBottom: '12px' } },
-            h('textarea', {
-              className: 'yk-input',
-              style: {
-                minHeight: '340px',
-                fontFamily: 'monospace',
-                fontSize: '12px',
-                lineHeight: '1.6',
-                resize: 'vertical',
-                width: '100%',
-                boxSizing: 'border-box',
-                padding: '12px',
-                borderRadius: '8px',
-              },
-              value: prompt,
-              placeholder: '输入破甲系统提示词...',
-              onChange: (e) => setPrompt(e.target.value),
-              disabled: busy !== '',
-            }),
-          ),
-          h(
-            'div',
-            { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
-            h(
-              'button',
-              {
-                type: 'button',
-                className: 'yk-btn yk-btn-primary',
-                onClick: save,
-                disabled: busy !== '',
-              },
-              busy === 'save' ? h(Spinner) : null,
-              '保存修改并生效',
-            ),
-            h(
-              'button',
-              {
-                type: 'button',
-                className: 'yk-btn',
-                onClick: copyPrompt,
-                disabled: busy !== '' || !prompt,
-              },
-              copied ? '已复制！' : '复制提示词',
-            ),
-            h(
-              'span',
-              { style: { marginLeft: 'auto' } },
-              confirmReset
-                ? h(
-                    React.Fragment,
-                    null,
-                    h(
-                      'button',
-                      {
-                        type: 'button',
-                        className: 'yk-btn yk-btn-danger',
-                        onClick: reset,
-                        disabled: busy !== '',
-                        style: { marginRight: '8px' },
-                      },
-                      '确认恢复默认',
-                    ),
-                    h(
-                      'button',
-                      {
-                        type: 'button',
-                        className: 'yk-btn yk-btn-ghost',
-                        onClick: () => setConfirmReset(false),
-                      },
-                      t('cancel'),
-                    ),
-                  )
-                : h(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'yk-btn yk-btn-ghost',
-                      onClick: () => setConfirmReset(true),
-                      disabled: busy !== '',
-                    },
-                    '恢复默认提示词',
-                  ),
-            ),
-          ),
-        ),
       )
     }
 
     /* ----------------------------------------------------------------- shell */
 
-    const TABS = ['overview', 'chats', 'runtime', 'sites', 'proxy', 'purge']
+    const TABS = ['overview', 'chats', 'sites', 'proxy', 'purge', 'runtime']
     const TAB_STORAGE_KEY = 'yukari-dsh-plugin:tab'
+    const TAB_LABEL = { overview: 'tabOverview', chats: 'tabChats', sites: 'tabSites', proxy: 'tabProxy', purge: 'tabPurge', runtime: 'tabRuntime' }
+    const TAB_ICON = { overview: OverviewIcon, chats: ChatIcon, sites: GlobeIcon, proxy: RouteIcon, purge: PurgeIcon, runtime: PowerIcon }
 
     function readStoredTab() {
       try {
@@ -3407,55 +3558,110 @@ button.yk-itemTitle:hover {
       }
     }
 
-    function YukariPanel({ t, ui }) {
-      const [tab, setTab] = React.useState(readStoredTab)
-      const [version, setVersion] = React.useState(null)
-      const [updating, setUpdating] = React.useState(false)
-      const [updateModal, setUpdateModal] = React.useState(null)
-      const [restartingAfterUpdate, setRestartingAfterUpdate] = React.useState(false)
-      const tabsRef = React.useRef(null)
-
-      const onUpdatePlugin = async () => {
-        if (updating) return
-        setUpdating(true)
-        try {
-          const res = await postJson(API.update, {})
-          if (res && res.ok) {
-            setUpdateModal(res)
-          } else {
-            alert(fill(t('updateFailed'), { error: res?.error || res?.message || 'Unknown error' }))
-          }
-        } catch (err) {
-          alert(fill(t('updateFailed'), { error: err.message }))
-        } finally {
-          setUpdating(false)
-        }
-      }
-
-      const onConfirmRestartAfterUpdate = async () => {
-        setRestartingAfterUpdate(true)
-        try {
-          await postJson(`${API.runtime}/restart`, {})
-          setTimeout(() => {
-            window.location.reload()
-          }, 3000)
-        } catch {
-          setTimeout(() => {
-            window.location.reload()
-          }, 3500)
-        }
-      }
+    /** Header update control: check first, then offer the update, then the restart. */
+    function UpdateControl({ t, components, onRestart }) {
+      const [phase, setPhase] = React.useState('idle')
+      const [info, setInfo] = React.useState(null)
+      const [message, setMessage] = React.useState('')
 
       React.useEffect(() => {
-        const controller = new AbortController()
-        getJson(`${API.runtime}/state`, controller.signal)
-          .then((payload) => {
-            const running = payload.state?.runtime?.version
-            if (typeof running === 'string' && running !== '') setVersion(running)
-          })
-          .catch(() => {})
-        return () => controller.abort()
+        if (phase !== 'latest') return undefined
+        const timer = setTimeout(() => setPhase('idle'), 4000)
+        return () => clearTimeout(timer)
+      }, [phase])
+
+      const check = async () => {
+        setPhase('checking')
+        try {
+          const payload = await getJson(API.update)
+          setInfo(payload.update)
+          setPhase(payload.update.pendingRestart ? 'pending' : payload.update.available ? (payload.update.updatable ? 'available' : 'manual') : 'latest')
+        } catch (error) {
+          setMessage(fill(t('upFailed'), { error: messageOf(error) }))
+          setPhase('error')
+        }
+      }
+
+      const update = async () => {
+        setPhase('updating')
+        try {
+          const payload = await postJson(API.update, {})
+          setInfo(payload.update)
+          setPhase(payload.updated ? 'done' : 'latest')
+        } catch (error) {
+          setMessage(fill(t('upUpdateFailed'), { error: messageOf(error) }))
+          setPhase('error')
+        }
+      }
+
+      const restart = async () => {
+        try {
+          await requestRestart(components)
+          onRestart()
+        } catch (error) {
+          setMessage(fill(t('upUpdateFailed'), { error: messageOf(error) }))
+          setPhase('error')
+        }
+      }
+
+      const status =
+        phase === 'checking' ? { kind: 'busy', text: t('upChecking') }
+          : phase === 'updating' ? { kind: 'busy', text: t('upUpdating') }
+            : phase === 'latest' ? { kind: 'ok', text: t('upLatest') }
+              : phase === 'available' ? { kind: 'warn', text: fill(t('upAvailable'), { version: `v${info?.latest ?? ''}${info?.latestCommit ? ` (${info.latestCommit})` : ''}` }), action: h('button', { type: 'button', className: 'yk-btn yk-btn-solid yk-btn-sm', onClick: update }, t('upNow')) }
+                : phase === 'manual' ? { kind: 'warn', text: t('upManual') }
+                  : phase === 'done' || phase === 'pending' ? { kind: 'ok', text: phase === 'done' ? t('upDone') : t('upPending'), action: h('button', { type: 'button', className: 'yk-btn yk-btn-solid yk-btn-sm', onClick: restart }, h(PowerIcon, { width: 13, height: 13 }), t('upRestart')) }
+                    : phase === 'error' ? { kind: 'error', text: message }
+                      : null
+
+      return h(
+        'div',
+        { className: 'yk-update' },
+        status !== null
+          ? h(
+              'div',
+              { className: `yk-updateStatus yk-updateStatus-${status.kind}`, role: 'status' },
+              status.kind === 'busy' ? h(Spinner, { size: 13 }) : status.kind === 'ok' ? h(CheckIcon, { width: 13, height: 13 }) : null,
+              h('span', null, status.text),
+              status.action ?? null,
+              phase === 'error' || phase === 'manual'
+                ? h('button', { type: 'button', className: 'yk-updateDismiss', 'aria-label': t('close'), onClick: () => setPhase('idle') }, h(ClearIcon, { width: 11, height: 11 }))
+                : null,
+            )
+          : null,
+        status === null || phase === 'latest' || phase === 'error'
+          ? h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: check, title: t('upCheck') },
+              h(RefreshIcon, { width: 13, height: 13 }),
+              h('span', { className: 'yk-btnLabel' }, t('upCheck')),
+            )
+          : null,
+      )
+    }
+
+    function YukariPanel({ t, ui }) {
+      const [tab, setTab] = React.useState(readStoredTab)
+      const [overview, setOverview] = React.useState(null)
+      const [restarting, setRestarting] = React.useState(false)
+      const tabsRef = React.useRef(null)
+
+      const loadOverview = React.useCallback(async () => {
+        try {
+          const payload = await getJson(API.overview)
+          setOverview(payload.overview)
+        } catch {
+          setOverview(null)
+        }
       }, [])
+
+      React.useEffect(() => {
+        loadOverview()
+      }, [loadOverview])
+
+      const components = overview?.components ?? null
+      const tabs = TABS.filter((key) => key === 'overview' || components === null || Boolean(components[key]))
+      const current = tabs.includes(tab) ? tab : 'overview'
 
       const select = React.useCallback((next) => {
         setTab(next)
@@ -3467,100 +3673,41 @@ button.yk-itemTitle:hover {
       }, [])
 
       const onTabKeyDown = (event) => {
-        const index = TABS.indexOf(tab)
+        const index = tabs.indexOf(current)
         const next =
-          event.key === 'ArrowRight' ? (index + 1) % TABS.length
-            : event.key === 'ArrowLeft' ? (index - 1 + TABS.length) % TABS.length
+          event.key === 'ArrowRight' ? (index + 1) % tabs.length
+            : event.key === 'ArrowLeft' ? (index - 1 + tabs.length) % tabs.length
               : event.key === 'Home' ? 0
-                : event.key === 'End' ? TABS.length - 1
+                : event.key === 'End' ? tabs.length - 1
                   : null
         if (next === null) return
         event.preventDefault()
-        select(TABS[next])
-        const buttons = tabsRef.current?.querySelectorAll('[role="tab"]')
-        buttons?.[next]?.focus()
+        select(tabs[next])
+        tabsRef.current?.querySelectorAll('[role="tab"]')?.[next]?.focus()
       }
 
-      const tabIcon = (key) =>
-        key === 'overview'
-          ? h(OverviewIcon, { width: 14, height: 14 })
-          : key === 'chats'
-            ? h(ChatIcon, { width: 14, height: 14 })
-            : key === 'runtime'
-              ? h(PowerIcon, { width: 14, height: 14 })
-              : key === 'sites'
-                ? h(GlobeIcon, { width: 14, height: 14 })
-                : key === 'proxy'
-                  ? h(RouteIcon, { width: 14, height: 14 })
-                  : h(PurgeIcon, { width: 14, height: 14 })
-
-      const label = (key) =>
-        key === 'overview'
-          ? t('tabOverview')
-          : key === 'chats'
-            ? t('tabChats')
-            : key === 'runtime'
-              ? t('tabRuntime')
-              : key === 'sites'
-                ? t('tabSites')
-                : key === 'proxy'
-                  ? t('tabProxy')
-                  : t('tabPurge')
+      const onRestart = () => setRestarting(true)
 
       return h(
         'div',
         { className: 'yk-page', 'data-yukari-panel': PANEL_ID },
         h('style', { key: 'styles' }, styles),
-
-        /* Top Brand Header */
         h(
           'header',
           { className: 'yk-head' },
           h(
             'div',
             { className: 'yk-headBrand' },
-            h(
-              'div',
-              { className: 'yk-headLogo' },
-              h(PanelIcon, { size: 38, active: true }),
-            ),
-            h(
-              'div',
-              { className: 'yk-headInfo' },
-              h(
-                'div',
-                { className: 'yk-titleRow' },
-                h('h1', { className: 'yk-title' }, t('title')),
-              ),
-              h('span', { className: 'yk-subtitle' }, t('subtitle')),
-            ),
+            h('div', { className: 'yk-headLogo' }, h(PanelIcon, { size: 40, active: true })),
+            h('h1', { className: 'yk-title' }, t('title')),
+            overview !== null ? h(Chip, { kind: 'purple' }, `v${overview.version}`) : null,
           ),
-          h(
-            'div',
-            { className: 'yk-headBadges' },
-            h(Chip, { kind: 'purple', dot: true }, 'Yukari v1.4.0'),
-            version === null ? null : h(Chip, { kind: 'brand', dot: true }, `dsh ${version}`),
-            h(
-              'button',
-              {
-                type: 'button',
-                className: 'yk-btn yk-btn-primary yk-btn-sm',
-                disabled: updating,
-                onClick: onUpdatePlugin,
-                title: t('updatePlugin'),
-                style: { borderRadius: '999px', fontSize: '12px', padding: '4px 12px', gap: '6px' },
-              },
-              updating ? h(Spinner) : h(DownloadIcon, { width: 13, height: 13 }),
-              h('span', null, updating ? t('updatingPlugin') : t('updatePlugin')),
-            ),
-          ),
+          h(UpdateControl, { t, components, onRestart }),
         ),
-
-        /* Navigation Rail */
         h(
           'div',
           { className: 'yk-navBar', role: 'tablist', 'aria-label': t('title'), ref: tabsRef, onKeyDown: onTabKeyDown },
-          TABS.map((key) =>
+          tabs.map((key) =>
             h(
               'button',
               {
@@ -3569,100 +3716,62 @@ button.yk-itemTitle:hover {
                 role: 'tab',
                 className: 'yk-navTab',
                 id: `yukari-tab-${key}`,
-                'aria-selected': key === tab ? 'true' : 'false',
+                'aria-selected': key === current ? 'true' : 'false',
                 'aria-controls': `yukari-panel-${key}`,
-                tabIndex: key === tab ? 0 : -1,
+                tabIndex: key === current ? 0 : -1,
                 onClick: () => select(key),
               },
-              tabIcon(key),
-              h('span', { className: 'yk-navTabLabel' }, label(key)),
+              h(TAB_ICON[key], { width: 14, height: 14 }),
+              h('span', { className: 'yk-navTabLabel' }, t(TAB_LABEL[key])),
             ),
           ),
         ),
-
-        /* Active Tab Panel */
         h(
           'div',
-          { className: 'yk-tabPanel', role: 'tabpanel', id: `yukari-panel-${tab}`, 'aria-labelledby': `yukari-tab-${tab}` },
-          tab === 'overview'
-            ? h(OverviewTab, { key: 'overview', t, onGo: select })
-            : tab === 'chats'
-              ? h(ChatsTab, { key: 'chats', t, ui })
-              : tab === 'runtime'
-                ? h(RuntimeTab, { key: 'runtime', t })
-                : tab === 'sites'
+          { className: 'yk-tabPanel', role: 'tabpanel', id: `yukari-panel-${current}`, 'aria-labelledby': `yukari-tab-${current}` },
+          restarting
+            ? h(RestartWatch, { t })
+            : current === 'overview'
+              ? h(OverviewTab, { key: 'overview', t, components, onGo: select })
+              : current === 'chats'
+                ? h(ChatsTab, { key: 'chats', t, ui })
+                : current === 'sites'
                   ? h(SitesTab, { key: 'sites', t })
-                  : tab === 'proxy'
+                  : current === 'proxy'
                     ? h(ProxyTab, { key: 'proxy', t })
-                    : h(PurgeTab, { key: 'purge', t }),
+                    : current === 'purge'
+                      ? h(PurgeTab, { key: 'purge', t })
+                      : h(RuntimeTab, { key: 'runtime', t, onRestart }),
         ),
-
-        /* Secondary Confirmation Modal for Restart After Update */
-        updateModal !== null
-          ? h(
-              'div',
-              { className: 'yk-modalBackdrop', role: 'presentation' },
-              h(
-                'div',
-                { className: 'yk-modalCard', role: 'alertdialog', 'aria-modal': 'true' },
-                h(
-                  'div',
-                  { className: 'yk-modalTitle' },
-                  h(CheckIcon, { width: 20, height: 20, style: { color: 'var(--dsw-alias-color-success, #22c55e)' } }),
-                  t('updateSuccess'),
-                ),
-                h('p', { className: 'yk-modalDesc' }, t('updateRestartConfirm')),
-                updateModal.message ? h('div', { className: 'yk-mono', style: { fontSize: '11px', opacity: 0.7, padding: '6px 10px', background: 'var(--dsw-alias-bg-layer-1, #111)', borderRadius: '6px', whiteSpace: 'pre-wrap' } }, updateModal.message) : null,
-                h(
-                  'div',
-                  { className: 'yk-modalActions' },
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'yk-btn yk-btn-ghost',
-                      disabled: restartingAfterUpdate,
-                      onClick: () => setUpdateModal(null),
-                    },
-                    t('updateRestartLater'),
-                  ),
-                  h(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'yk-btn yk-btn-primary',
-                      disabled: restartingAfterUpdate,
-                      onClick: onConfirmRestartAfterUpdate,
-                    },
-                    restartingAfterUpdate ? h(Spinner) : h(PowerIcon, { width: 14, height: 14 }),
-                    h('span', null, restartingAfterUpdate ? t('rRestarting') : t('updateRestartNow')),
-                  ),
-                ),
-              ),
-            )
-          : null,
       )
     }
 
-    const AVATAR_URL = 'https://s2.loli.net/2025/02/11/BPbRw7eNFh6AMuW.webp'
-
-    /** Sidebar rail and brand avatar: webp image. */
+    /** Sidebar rail and header logo. */
     function PanelIcon({ size, active }) {
       const edge = size ?? 20
+      const [failed, setFailed] = React.useState(false)
+      if (failed) {
+        return h(
+          'span',
+          { className: 'yk-logoFallback', style: { width: `${edge}px`, height: `${edge}px`, fontSize: `${Math.round(edge * 0.5)}px` }, 'aria-hidden': true },
+          'Y',
+        )
+      }
       return h('img', {
-        src: AVATAR_URL,
-        alt: 'Yukari',
+        src: API.icon,
+        alt: '',
         width: edge,
         height: edge,
         'aria-hidden': true,
+        draggable: false,
+        onError: () => setFailed(true),
         style: {
           width: `${edge}px`,
           height: `${edge}px`,
-          borderRadius: edge > 24 ? 'var(--dsw-radius-md, 10px)' : '5px',
-          objectFit: 'cover',
+          objectFit: 'contain',
           display: 'block',
-          opacity: active === false ? 0.78 : 1,
-          transition: 'opacity 0.15s ease',
+          opacity: active === false ? 0.8 : 1,
+          transition: 'opacity .15s ease',
         },
       })
     }
@@ -3684,17 +3793,12 @@ button.yk-itemTitle:hover {
         }
         ctx.effect(() =>
           ctx.slots.inject('main', () =>
-            ctx.slots.register({ name: 'main', key: PANEL_ID, locale: NS }, (props) =>
-              h(YukariPanel, { ...props, t, ui }),
-            ),
+            ctx.slots.register({ name: 'main', key: PANEL_ID, locale: NS }, (props) => h(YukariPanel, { ...props, t, ui })),
           ),
         )
         ctx.effect(() =>
           ctx.slots.inject('sidebar.panellist', () =>
-            ctx.slots.register(
-              { name: 'sidebar.panellist', id: PANEL_ID, order: 20, locale: NS, label: () => t('title') },
-              PanelIcon,
-            ),
+            ctx.slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: 20, locale: NS, label: () => t('title') }, PanelIcon),
           ),
         )
       },

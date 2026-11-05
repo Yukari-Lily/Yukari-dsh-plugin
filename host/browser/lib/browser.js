@@ -54,7 +54,7 @@ function keySpec(name) {
 }
 
 /** Resolve the browser executable and the environment it needs. */
-function resolveRuntime(config) {
+export function resolveRuntime(config) {
   const libraryPaths = []
   const env = {}
   const runtimeLibs = [

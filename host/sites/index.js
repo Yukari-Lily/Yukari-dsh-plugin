@@ -5,6 +5,7 @@
  * `publish_site` / `delete_site` / `list_sites` tools.
  * @module @local/publish-sites
  */
+import { markMounted } from '../shared/mounted.js'
 import { SiteStore } from './lib/sites.js'
 
 /** JSON API prefix the Web panel calls. */
@@ -77,7 +78,7 @@ const mb = (bytes) => `${(Number(bytes) / 1048576).toFixed(1)} MB`
  * @param config - plugin row config: root, stateRoot, publicBase, maxMb, keep.
  */
 export function apply(ctx, config = {}) {
-  if (ctx.root) ctx.root['yukari.sites'] = true
+  markMounted(ctx, 'sites')
   const store = new SiteStore(config)
 
   ctx.effect(async () => {
@@ -243,7 +244,14 @@ export function apply(ctx, config = {}) {
                 sendJson(res, 405, { ok: false, error: 'use GET' })
                 return
               }
-              sendJson(res, 200, { ok: true, sites: await store.list(), root: store.root })
+              sendJson(res, 200, {
+                ok: true,
+                sites: await store.list(),
+                root: store.root,
+                publicBase: store.publicBase,
+                defaultPublicBase: store.defaultPublicBase,
+                customPublicBase: store.customPublicBase !== null,
+              })
               return
             }
             if (req.method !== 'POST') {
@@ -251,6 +259,18 @@ export function apply(ctx, config = {}) {
               return
             }
             const body = await readJsonBody(req)
+            if (action === 'settings') {
+              await store.setPublicBase(body.publicBase)
+              sendJson(res, 200, {
+                ok: true,
+                sites: await store.list(),
+                root: store.root,
+                publicBase: store.publicBase,
+                defaultPublicBase: store.defaultPublicBase,
+                customPublicBase: store.customPublicBase !== null,
+              })
+              return
+            }
             if (action === 'delete') {
               const result = await store.remove(String(body.slug ?? ''))
               sendJson(res, 200, { ok: true, ...result, sites: await store.list() })

@@ -1,50 +1,50 @@
 /**
- * Yukari — one bundle for the whole Harness control surface.
+ * Yukari 插件合集 — 主行。
  *
- * Five capabilities that used to ship as five separate bundles now mount from
- * a single loader row and a single sidebar panel:
+ * 各组件由 `cordis.patch.yml` 里各自独立的行挂载（`yukari-dsh-plugin/<name>`），
+ * 在插件管理里可以单独开关。主行只负责面板需要的公共接口：
  *
- * - `host/chats`    stored-chat inventory, archive flag, permanent delete;
- * - `host/runtime`  version check, npm upgrade, in-place restart;
- * - `host/sites`    published static sites served under the web path;
- * - `host/proxy`    Shadowsocks egress for the whole process;
- * - `host/browser`  the headless Chromium the agent drives.
+ * - `GET  /yukari/api/overview`      版本与各组件的启用状态；
+ * - `GET  /yukari/api/update`        检查插件是否有新版本；
+ * - `POST /yukari/api/update`        有新版本时更新插件；
+ * - `POST /yukari/api/restart`       运行时组件关闭时的重启兜底；
+ * - `GET  /yukari/api/icon`          面板与侧边栏图标。
  *
- * Each host half keeps its own JSON API (`/chat-manager/api`, `/dshctl/api`,
- * `/publish/api`, `/ssproxy/api`) and its own agent tools, so the merged bundle
- * changes packaging and presentation only. This module mounts them and adds one
- * small read-only endpoint that the panel's overview tab uses.
+ * 主行不再代为挂载子组件：子组件只由自己的行挂载，避免同一路由被注册两次。
  * @module yukari-dsh-plugin
  */
 import { execFile } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { hostname } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
-import { apply as applyBrowser } from './host/browser/index.js'
-import { apply as applyChats } from './host/chats/index.js'
-import { apply as applyProxy } from './host/proxy/index.js'
-import { apply as applyPurge } from './host/purge/index.js'
-import { apply as applyRuntime } from './host/runtime/index.js'
-import { apply as applySites } from './host/sites/index.js'
+import { planRestart, scheduleRestart } from './host/runtime/lib/restart.js'
+import { compare } from './host/runtime/lib/versions.js'
+import { mountedComponents } from './host/shared/mounted.js'
 
 const execFileAsync = promisify(execFile)
 const PLUGIN_DIR = path.dirname(fileURLToPath(import.meta.url))
+const PACKAGE_NAME = 'yukari-dsh-plugin'
+const DEFAULT_REPO = { owner: 'Yukari-Lily', repo: 'Yukari-dsh-plugin', ref: '' }
 
-let suiteVersion = '1.4.0'
-try {
-  const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
-  if (pkg.version) suiteVersion = String(pkg.version)
-} catch {
-  // fallback to default
-}
-
-/** Read-only endpoint the overview tab calls. */
+/** Read-only endpoint prefix the panel calls. */
 export const API_PATH = '/yukari/api'
 
-/** Services the merged bundle needs: the union of its host halves. */
-export const inject = ['tools', 'webServer', 'connection', 'sessionPersistence', 'sessionQuery', 'sessions', 'systemPrompt']
+/** Services the main row needs. */
+export const inject = ['webServer', 'connection']
+
+/** Version of the code loaded in this process. */
+function packageVersion(dir = PLUGIN_DIR) {
+  try {
+    const pkg = JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8'))
+    return typeof pkg.version === 'string' ? pkg.version : '0.0.0'
+  } catch {
+    return '0.0.0'
+  }
+}
+
+const RUNNING_VERSION = packageVersion()
 
 /** Serialize one JSON response. */
 function sendJson(res, status, value) {
@@ -54,129 +54,215 @@ function sendJson(res, status, value) {
   res.end(JSON.stringify(value))
 }
 
-/** Detect whether a usable Chromium binary exists on the system. */
-function detectChromium(configuredPath) {
-  if (typeof configuredPath === 'string' && configuredPath.trim() !== '') {
-    return { path: configuredPath.trim(), ready: existsSync(configuredPath.trim()) }
-  }
-  for (const name of ['DSH_BROWSER_EXECUTABLE', 'CHROME_PATH', 'CHROMIUM_PATH']) {
-    const val = process.env[name]
-    if (val && existsSync(val)) return { path: val, ready: true }
-  }
-  const standardPaths = [
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-    '/snap/bin/chromium',
-    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-    'C:/Program Files/Google/Chrome/Application/chrome.exe',
-    'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-  ]
-  for (const p of standardPaths) {
-    if (existsSync(p)) return { path: p, ready: true }
-  }
-  return { path: '未检测到 (需安装 chromium)', ready: false }
+const messageOf = (error) => (error instanceof Error ? error.message : String(error))
+
+/* ------------------------------------------------------------- install info */
+
+/** Parse a pnpm/npm git spec into GitHub coordinates, or null. */
+export function parseRepoSpec(spec) {
+  const text = String(spec ?? '').trim()
+  if (text === '') return null
+  const hash = text.indexOf('#')
+  const ref = hash === -1 ? '' : text.slice(hash + 1).replace(/^semver:.*/, '')
+  const body = hash === -1 ? text : text.slice(0, hash)
+  const match =
+    /^(?:github:)?([\w.-]+)\/([\w.-]+?)(?:\.git)?$/.exec(body) ??
+    /github\.com[/:]([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/.exec(body)
+  if (match === null) return null
+  return { owner: match[1], repo: match[2], ref }
 }
 
-/** Section config with its defaults filled in, so the panel can show real values. */
-function sections(config) {
-  const browser = config.browser ?? {}
-  const chats = config.chats ?? {}
-  const runtime = config.runtime ?? {}
-  const sites = config.sites ?? {}
-  const proxy = config.proxy ?? {}
-  const purge = config.purge ?? {}
-  const browserDetected = detectChromium(browser.executablePath)
-  return {
-    purge: {
-      enabled: purge.enabled !== false,
-      preset: 'unrestricted',
-    },
-    browser: {
-      viewportWidth: Number(browser.viewportWidth) > 0 ? Number(browser.viewportWidth) : 1280,
-      viewportHeight: Number(browser.viewportHeight) > 0 ? Number(browser.viewportHeight) : 900,
-      settleMs: Number.isFinite(Number(browser.settleMs)) ? Number(browser.settleMs) : 300,
-      headless: true,
-      executable: browserDetected.path,
-      ready: browserDetected.ready,
-    },
-    chats: {
-      sessionsRoot: typeof chats.sessionsRoot === 'string' && chats.sessionsRoot !== '' ? chats.sessionsRoot : 'DSH_HOME/sessions',
-    },
-    runtime: {
-      channel: typeof runtime.channel === 'string' && runtime.channel !== '' ? runtime.channel : process.env.DSH_CHANNEL ?? 'rc',
-      restartMode: typeof runtime.restartMode === 'string' && runtime.restartMode !== '' ? runtime.restartMode : 'auto',
-    },
-    sites: {
-      root: typeof sites.root === 'string' && sites.root !== '' ? sites.root : '/workspace/publish',
-      publicBase: typeof sites.publicBase === 'string' && sites.publicBase !== '' ? sites.publicBase : 'http://127.0.0.1:3080/p',
-      maxMb: Number(sites.maxMb) > 0 ? Number(sites.maxMb) : 200,
-    },
-    proxy: {
-      localPort: Number(proxy.localPort) >= 1024 ? Number(proxy.localPort) : 17890,
-      bypass: typeof proxy.bypass === 'string' && proxy.bypass !== '' ? proxy.bypass : 'localhost,127.0.0.1,::1',
-    },
+/** Where this copy came from and how it can be updated. */
+function locateInstall() {
+  if (existsSync(path.join(PLUGIN_DIR, '.git'))) return { kind: 'git', dir: PLUGIN_DIR, repo: DEFAULT_REPO }
+  let real = PLUGIN_DIR
+  try {
+    real = realpathSync(PLUGIN_DIR)
+  } catch {
+    real = PLUGIN_DIR
   }
-}
-
-/** Update the plugin from Git repository or package manager. */
-async function runPluginUpdate() {
-  // Method 1: If PLUGIN_DIR has a .git repository
-  if (existsSync(path.join(PLUGIN_DIR, '.git'))) {
+  const parts = real.split(path.sep)
+  const index = parts.indexOf('node_modules')
+  if (index > 0) {
+    const profileDir = parts.slice(0, index).join(path.sep) || path.sep
     try {
-      const { stdout } = await execFileAsync('git', ['pull', 'origin', 'main'], {
-        cwd: PLUGIN_DIR,
-        timeout: 30000,
-      })
-      return { ok: true, restartRequired: true, message: stdout.trim() || 'Git pull 成功' }
-    } catch (err) {
-      // Fall through to other methods
+      const manifest = JSON.parse(readFileSync(path.join(profileDir, 'package.json'), 'utf8'))
+      const spec = manifest.dependencies?.[PACKAGE_NAME]
+      if (typeof spec === 'string' && spec !== '') {
+        return { kind: 'profile', profileDir, spec, repo: parseRepoSpec(spec) ?? DEFAULT_REPO, real }
+      }
+    } catch {
+      // not a profile directory
     }
   }
+  return { kind: 'unknown', repo: DEFAULT_REPO, real }
+}
 
-  // Method 2: Try DSH CLI
-  try {
-    const { stdout } = await execFileAsync('dsh', ['plugin', 'add', 'git+https://github.com/Yukari-Lily/Yukari-dsh-plugin.git'], {
-      timeout: 60000,
-    })
-    return { ok: true, restartRequired: true, message: stdout.trim() || 'DSH 插件更新成功' }
-  } catch {
-    // Fall through
+/** Commit of the installed copy: from the lockfile, else from the pnpm store path. */
+function installedCommit(install) {
+  if (install.kind === 'profile') {
+    try {
+      const lock = readFileSync(path.join(install.profileDir, 'pnpm-lock.yaml'), 'utf8')
+      const pattern = new RegExp(`${install.repo.repo}[^\\n]*?([0-9a-f]{40})`, 'i')
+      const found = pattern.exec(lock)
+      if (found !== null) return found[1].toLowerCase()
+    } catch {
+      // no lockfile
+    }
   }
+  const fromPath = /([0-9a-f]{40})/i.exec(install.real ?? '')
+  return fromPath === null ? null : fromPath[1].toLowerCase()
+}
 
-  // Method 3: Try pnpm in DSH profile directory
+/** Commit the running copy was loaded from (never changes until a restart). */
+const RUNNING_COMMIT = (() => {
   try {
-    const dshHome = process.env.DSH_HOME ?? path.join(process.env.HOME ?? '', '.dsh')
-    const profileDir = path.join(dshHome, 'profiles', 'default')
-    const cwd = existsSync(profileDir) ? profileDir : process.cwd()
-    const { stdout } = await execFileAsync('pnpm', ['add', 'git+https://github.com/Yukari-Lily/Yukari-dsh-plugin.git'], {
-      cwd,
-      timeout: 60000,
-    })
-    return { ok: true, restartRequired: true, message: stdout.trim() || 'Pnpm 更新完成' }
-  } catch (pnpmErr) {
-    return { ok: false, restartRequired: false, error: pnpmErr.message }
+    return installedCommit(locateInstall())
+  } catch {
+    return null
+  }
+})()
+
+/** Fetch one URL with a timeout. */
+async function fetchWithTimeout(url, ms, init = {}) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ms)
+  try {
+    return await fetch(url, { ...init, signal: controller.signal })
+  } finally {
+    clearTimeout(timer)
   }
 }
 
-/**
- * Register the merged bundle.
- * @param ctx - plugin context.
- * @param config - `browser`, `chats`, `runtime`, `sites`, `proxy` sections.
- */
-export function apply(ctx, config = {}) {
-  const parts = sections(config ?? {})
-  const root = ctx.root ?? ctx
+/** Newest commit of the tracked branch. */
+async function remoteCommit(repo) {
+  const ref = repo.ref === '' ? 'HEAD' : repo.ref
+  try {
+    const { stdout } = await execFileAsync('git', ['ls-remote', `https://github.com/${repo.owner}/${repo.repo}.git`, ref], {
+      timeout: 15000,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    })
+    const match = /^([0-9a-f]{40})/im.exec(stdout)
+    if (match !== null) return match[1].toLowerCase()
+  } catch {
+    // fall back to the API
+  }
+  try {
+    const response = await fetchWithTimeout(`https://api.github.com/repos/${repo.owner}/${repo.repo}/commits/${encodeURIComponent(ref)}`, 10000, {
+      headers: { accept: 'application/vnd.github+json', 'user-agent': PACKAGE_NAME },
+    })
+    if (response.ok) {
+      const body = await response.json()
+      if (typeof body?.sha === 'string') return body.sha.toLowerCase()
+    }
+  } catch {
+    // unreachable
+  }
+  return null
+}
 
-  // Backward compatibility: If running under legacy single-row configuration where
-  // sub-plugins were not mounted individually in cordis.patch.yml:
-  if (!root['yukari.browser']) applyBrowser(ctx, config?.browser ?? {})
-  if (!root['yukari.chats']) applyChats(ctx, config?.chats ?? {})
-  if (!root['yukari.runtime']) applyRuntime(ctx, config?.runtime ?? {})
-  if (!root['yukari.sites']) applySites(ctx, config?.sites ?? {})
-  if (!root['yukari.proxy']) applyProxy(ctx, config?.proxy ?? {})
-  if (!root['yukari.purge']) applyPurge(ctx, config?.purge ?? {})
+/** `version` of package.json at one commit or ref. */
+async function remoteVersion(repo, at) {
+  const ref = at ?? (repo.ref === '' ? 'HEAD' : repo.ref)
+  const urls = [
+    `https://raw.githubusercontent.com/${repo.owner}/${repo.repo}/${ref}/package.json`,
+    `https://cdn.jsdelivr.net/gh/${repo.owner}/${repo.repo}@${ref}/package.json`,
+  ]
+  for (const url of urls) {
+    try {
+      const response = await fetchWithTimeout(url, 10000, { headers: { 'user-agent': PACKAGE_NAME } })
+      if (!response.ok) continue
+      const body = await response.json()
+      if (typeof body?.version === 'string') return body.version
+    } catch {
+      // try the next mirror
+    }
+  }
+  return null
+}
+
+/** Compare the running copy with the newest commit of its branch. */
+async function checkUpdate() {
+  const install = locateInstall()
+  const installed = installedCommit(install)
+  const latestCommit = await remoteCommit(install.repo)
+  const latestVersion = await remoteVersion(install.repo, latestCommit ?? undefined)
+  if (latestCommit === null && latestVersion === null) {
+    throw new Error('连不上 GitHub，无法检查更新（检查网络或在「代理」里启用节点）')
+  }
+  const newerVersion = latestVersion !== null && compare(latestVersion, RUNNING_VERSION) > 0
+  const newerCommit = latestCommit !== null && installed !== null && latestCommit !== installed
+  // Installed on disk but not loaded yet: the copy changed since this process started.
+  const pendingRestart = installed !== null && RUNNING_COMMIT !== null && installed !== RUNNING_COMMIT
+  return {
+    current: RUNNING_VERSION,
+    latest: latestVersion ?? RUNNING_VERSION,
+    currentCommit: (RUNNING_COMMIT ?? installed)?.slice(0, 7) ?? null,
+    latestCommit: latestCommit?.slice(0, 7) ?? null,
+    available: (newerVersion || newerCommit) && !(pendingRestart && latestCommit === installed),
+    pendingRestart,
+    updatable: install.kind !== 'unknown',
+    source: install.kind === 'profile' ? install.spec : `${install.repo.owner}/${install.repo.repo}`,
+    checkedAt: new Date().toISOString(),
+  }
+}
+
+/** Run the package manager the profile uses. */
+async function runPnpm(args, cwd) {
+  const attempts = [['pnpm', args], ['corepack', ['pnpm', ...args]]]
+  let lastError = null
+  for (const [command, argv] of attempts) {
+    try {
+      return await execFileAsync(command, argv, {
+        cwd,
+        timeout: 180000,
+        maxBuffer: 4 * 1024 * 1024,
+        env: { ...process.env, CI: 'true' },
+      })
+    } catch (error) {
+      lastError = error
+      if (error?.code !== 'ENOENT') break
+    }
+  }
+  const detail = String(lastError?.stderr || lastError?.stdout || messageOf(lastError)).trim()
+  throw new Error(detail.split('\n').slice(-6).join('\n'))
+}
+
+/** Pull the newest copy into the profile. */
+async function applyUpdate() {
+  const install = locateInstall()
+  if (install.kind === 'git') {
+    const { stdout } = await execFileAsync('git', ['pull', '--ff-only'], { cwd: install.dir, timeout: 60000 })
+    return { updated: true, detail: stdout.trim() }
+  }
+  if (install.kind !== 'profile') throw new Error('找不到安装位置，请在「插件」页重新安装')
+  await runPnpm(['add', install.spec], install.profileDir)
+  return { updated: true, detail: `已从 ${install.spec} 拉取最新版本` }
+}
+
+/* --------------------------------------------------------------------- icon */
+
+let iconCache = null
+function iconBytes() {
+  if (iconCache === null) {
+    try {
+      iconCache = readFileSync(path.join(PLUGIN_DIR, 'icon.png'))
+    } catch {
+      iconCache = Buffer.alloc(0)
+    }
+  }
+  return iconCache
+}
+
+/* -------------------------------------------------------------------- apply */
+
+/**
+ * Register the main row.
+ * @param ctx - plugin context.
+ */
+export function apply(ctx) {
+  let updating = false
+  let restartQueued = false
 
   ctx.effect(
     () =>
@@ -184,6 +270,18 @@ export function apply(ctx, config = {}) {
         kind: 'prefix',
         path: API_PATH,
         handler: async (req, res) => {
+          const url = new URL(String(req.url), 'http://localhost')
+          const action = url.pathname.slice(API_PATH.length).replace(/^\/+|\/+$/g, '')
+
+          if (action === 'icon' && req.method === 'GET') {
+            const bytes = iconBytes()
+            res.statusCode = bytes.length === 0 ? 404 : 200
+            res.setHeader('content-type', 'image/png')
+            res.setHeader('cache-control', 'public, max-age=86400')
+            res.end(bytes)
+            return
+          }
+
           const rejection = ctx.connection.requestRejection(req)
           if (rejection !== undefined && rejection !== null) {
             res.statusCode = rejection
@@ -191,54 +289,51 @@ export function apply(ctx, config = {}) {
             return
           }
 
-          const url = new URL(String(req.url), 'http://localhost')
-          const action = url.pathname.slice(API_PATH.length).replace(/^\/+|\/+$/g, '')
-
-          if (action === 'update' && req.method === 'POST') {
-            const result = await runPluginUpdate()
-            sendJson(res, result.ok ? 200 : 500, result)
-            return
-          }
-
-          if (req.method !== 'GET') {
-            sendJson(res, 405, { ok: false, error: 'use GET or POST /update' })
-            return
-          }
           try {
-            sendJson(res, 200, {
-              ok: true,
-              overview: {
-                version: suiteVersion,
-                pid: process.pid,
-                hostname: hostname(),
-                at: new Date().toISOString(),
-                parts,
-                tools: [
-                  'chat_inventory',
-                  'chat_delete',
-                  'dsh_runtime_status',
-                  'dsh_check_update',
-                  'dsh_update',
-                  'dsh_restart',
-                  'list_sites',
-                  'publish_site',
-                  'delete_site',
-                  'ss_proxy',
-                  'browser_open',
-                  'browser_snapshot',
-                  'browser_click',
-                  'browser_type',
-                  'browser_press',
-                  'browser_scroll',
-                  'browser_screenshot',
-                  'browser_eval',
-                  'browser_tabs',
-                  'browser_close',
-                ],
-              },
-            })
+            if ((action === '' || action === 'overview') && req.method === 'GET') {
+              sendJson(res, 200, {
+                ok: true,
+                overview: {
+                  version: RUNNING_VERSION,
+                  pid: process.pid,
+                  hostname: hostname(),
+                  at: new Date().toISOString(),
+                  components: mountedComponents(ctx),
+                },
+              })
+              return
+            }
+            if (action === 'update' && req.method === 'GET') {
+              sendJson(res, 200, { ok: true, update: await checkUpdate() })
+              return
+            }
+            if (action === 'update' && req.method === 'POST') {
+              if (updating) throw new Error('更新正在进行中')
+              updating = true
+              try {
+                const before = await checkUpdate()
+                if (!before.available) {
+                  sendJson(res, 200, { ok: true, updated: false, update: before })
+                  return
+                }
+                const result = await applyUpdate()
+                sendJson(res, 200, { ok: true, ...result, update: { ...before, available: false, pendingRestart: true } })
+              } finally {
+                updating = false
+              }
+              return
+            }
+            if (action === 'restart' && req.method === 'POST') {
+              if (restartQueued) throw new Error('重启已经在队列里')
+              const plan = planRestart({ mode: 'auto' })
+              const ack = scheduleRestart(plan, { delayMs: 800, reason: 'yukari panel' })
+              restartQueued = true
+              sendJson(res, 202, { ok: true, ...ack })
+              return
+            }
+            sendJson(res, 404, { ok: false, error: `unknown action "${action}"` })
           } catch (error) {
-            sendJson(res, 500, { ok: false, error: error instanceof Error ? error.message : String(error) })
+            sendJson(res, 400, { ok: false, error: messageOf(error) })
           }
         },
       }),

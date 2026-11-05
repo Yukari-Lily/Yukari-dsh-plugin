@@ -42,15 +42,24 @@ export function getPresetDefinition() {
       { id: 'command-goal', name: '@deepseek-ai/dsh-command-goal' },
       { id: 'tool-goal', name: '@deepseek-ai/dsh-tool-goal' },
       { id: 'tool-ask-user', name: '@deepseek-ai/dsh-tool-ask-user' },
-      { id: 'tool-todo', name: '@deepseek-ai/dsh-tool-todo' },
+      // tool-todo has no default for this field: a row without it fails the whole preset.
+      { id: 'tool-todo', name: '@deepseek-ai/dsh-tool-todo', config: { allowParallelInProgress: true } },
       { id: 'present', name: '@deepseek-ai/dsh-tool-present' },
-      { id: 'tool-web', name: '@deepseek-ai/dsh-tool-web' },
+      { id: 'tool-web', name: '@deepseek-ai/dsh-tool-web', config: { fetch: false, searchTimeoutMs: 60000 } },
     ],
   }
 }
 
+/** First-line marker of a preset file the plugin still owns and may refresh. */
+const MANAGED_MARKER = /^#\s*managed-by:/
+
 /**
- * Ensure preset files are installed in $DSH_HOME/.agent-presets/unrestricted/
+ * Ensure preset files are installed in $DSH_HOME/.agent-presets/unrestricted/.
+ *
+ * A missing file is copied; a file whose first line still carries the
+ * `managed-by` marker is refreshed when the bundled copy changed, so a fix in
+ * the bundled preset reaches installs made by an older version. A file the
+ * user edited and stripped of the marker is never touched.
  */
 export function ensurePresetFiles(dshHome) {
   if (!dshHome || !fs.existsSync(BUNDLED_PRESET_DIR)) return
@@ -61,8 +70,15 @@ export function ensurePresetFiles(dshHome) {
     for (const file of files) {
       const src = path.join(BUNDLED_PRESET_DIR, file)
       const dst = path.join(targetDir, file)
-      if (fs.existsSync(src) && !fs.existsSync(dst)) {
+      if (!fs.existsSync(src)) continue
+      if (!fs.existsSync(dst)) {
         fs.copyFileSync(src, dst)
+        continue
+      }
+      const current = fs.readFileSync(dst, 'utf8')
+      const bundled = fs.readFileSync(src, 'utf8')
+      if (current !== bundled && MANAGED_MARKER.test(current.split('\n', 1)[0] ?? '')) {
+        fs.writeFileSync(dst, bundled, 'utf8')
       }
     }
   } catch {

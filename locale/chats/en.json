@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Chat Manager",
-    "description": "Session lookup, log archival, and bulk cleanup tools."
+    "title": "Chats",
+    "description": "Browse chats by workspace, archive them, and bulk-delete them along with the files they created."
   }
 }

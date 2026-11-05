@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Unrestricted mode",
+    "description": "An extra chat mode that injects your own system prompt; the standard mode stays untouched."
+  }
+}

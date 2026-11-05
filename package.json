@@ -1,8 +1,8 @@
 {
   "name": "yukari-dsh-plugin",
-  "version": "1.4.0",
-  "description": "自用插件合集。",
-  "icon": "./icon.webp",
+  "version": "1.5.0",
+  "description": "自用插件合集：会话管理、站点发布、出站代理、无限制模式、无头浏览器与运行时控制。",
+  "icon": "./icon.png",
   "author": "YG",
   "license": "MIT",
   "type": "module",
@@ -20,16 +20,24 @@
     "./runtime/locale/*.json": "./locale/runtime/*.json",
     "./sites/locale/*.json": "./locale/sites/*.json",
     "./proxy/locale/*.json": "./locale/proxy/*.json",
+    "./purge/locale/*.json": "./locale/purge/*.json",
     "./locale/*.json": "./locale/*.json",
-    "./icon": "./icon.webp"
+    "./icon": "./icon.png",
+    "./browser/icon": "./icon.png",
+    "./chats/icon": "./icon.png",
+    "./runtime/icon": "./icon.png",
+    "./sites/icon": "./icon.png",
+    "./proxy/icon": "./icon.png",
+    "./purge/icon": "./icon.png"
   },
   "files": [
     "index.js",
     "client.js",
     "host/**/*.js",
+    "host/purge/presets/**",
     "cordis.patch.yml",
     "locale/**/*.json",
-    "icon.webp",
+    "icon.png",
     "LICENSE"
   ],
   "keywords": [
@@ -42,7 +50,6 @@
     "shadowsocks",
     "static-site",
     "headless-browser",
-    "purge",
     "unrestricted"
   ],
   "engines": {

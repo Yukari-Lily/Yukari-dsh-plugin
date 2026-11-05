@@ -67,6 +67,26 @@ function stamp() {
   return `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`
 }
 
+/**
+ * Validate one public URL prefix. A bare host gets `https://`; a trailing
+ * slash, query or fragment is dropped.
+ * @param value - user input.
+ * @returns the normalized prefix without a trailing slash.
+ */
+export function normalizePublicBase(value) {
+  let text = String(value ?? '').trim()
+  if (text === '') throw new Error('访问前缀不能为空')
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) text = `https://${text}`
+  let url
+  try {
+    url = new URL(text)
+  } catch {
+    throw new Error(`不是有效的网址：${value}`)
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('访问前缀只支持 http:// 或 https://')
+  return `${url.origin}${url.pathname}`.replace(/\/+$/, '')
+}
+
 export class SiteStore {
   /**
    * @param config - root, stateRoot, publicBase, maxMb, keep.
@@ -75,12 +95,24 @@ export class SiteStore {
     const root = path.resolve(String(config.root ?? path.join(os.homedir(), 'publish')))
     this.root = root
     this.stateRoot = path.resolve(String(config.stateRoot ?? path.join(path.dirname(root), '.publish-state')))
-    this.publicBase = typeof config.publicBase === 'string' && config.publicBase.trim() !== ''
+    this.defaultPublicBase = typeof config.publicBase === 'string' && config.publicBase.trim() !== ''
       ? config.publicBase.trim().replace(/\/+$/, '')
       : 'http://127.0.0.1:3080/p'
+    /** Prefix saved from the panel; overrides the row config when set. */
+    this.customPublicBase = null
     this.maxMb = positive(config.maxMb, 200)
     this.keep = positive(config.keep, 5)
     this.ready = null
+  }
+
+  /** URL prefix every site link starts with. */
+  get publicBase() {
+    return this.customPublicBase ?? this.defaultPublicBase
+  }
+
+  /** Panel settings, kept out of the public root. */
+  get settingsFile() {
+    return path.join(this.stateRoot, 'settings.json')
   }
 
   /** Manifests of published sites, kept out of the public root. */
@@ -98,7 +130,7 @@ export class SiteStore {
     return path.join(this.stateRoot, 'trash')
   }
 
-  /** Create every directory once. */
+  /** Create every directory once and load the saved prefix. */
   async init() {
     if (this.ready === null) {
       this.ready = (async () => {
@@ -106,9 +138,30 @@ export class SiteStore {
         await mkdir(this.sitesDir, { recursive: true })
         await mkdir(this.stagingDir, { recursive: true })
         await mkdir(this.trashDir, { recursive: true })
+        try {
+          const saved = JSON.parse(await readFile(this.settingsFile, 'utf8'))
+          if (typeof saved?.publicBase === 'string' && saved.publicBase !== '') {
+            this.customPublicBase = normalizePublicBase(saved.publicBase)
+          }
+        } catch {
+          // No saved prefix yet, or an unreadable one: keep the row config.
+        }
       })()
     }
     return await this.ready
+  }
+
+  /**
+   * Save the URL prefix site links use; an empty value restores the row config.
+   * @param value - e.g. `https://pages.example.com` or `https://dsh.example.com/p`.
+   * @returns the prefix now in effect.
+   */
+  async setPublicBase(value) {
+    await this.init()
+    const text = String(value ?? '').trim()
+    this.customPublicBase = text === '' ? null : normalizePublicBase(text)
+    await writeFile(this.settingsFile, `${JSON.stringify({ publicBase: this.customPublicBase ?? '' }, null, 2)}\n`)
+    return this.publicBase
   }
 
   /** Public URL of one site. */

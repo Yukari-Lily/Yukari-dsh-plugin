@@ -12,6 +12,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { markMounted } from '../shared/mounted.js'
 import { DEFAULT_PURGE_PROMPT } from './lib/default-prompt.js'
 import { ensurePresetFiles, registerPresetService, UNRESTRICTED_PRESET_ID } from './lib/preset.js'
 import { rewritePromptAssembly } from './lib/rewriter.js'
@@ -98,6 +99,7 @@ function installAssembleGuard(promptHost, rewriteFn) {
 }
 
 export function apply(ctx, config = {}) {
+  markMounted(ctx, 'purge')
   const dshHome = resolveDshHome()
   const customFile = promptFilePath(dshHome)
 

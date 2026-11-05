@@ -14,6 +14,7 @@
  */
 import nodeFs from 'node:fs/promises'
 import path from 'node:path'
+import { removeCreatedFiles, removeWorkspaceDirectory } from './cleanup.js'
 import { artifactDirectory, isArtifactDirectoryOf, isInside } from './paths.js'
 
 /** HTTP prefix the panel and the tools share. */
@@ -230,6 +231,10 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
     const pinned = pinnedSet()
     const workspaces = workspaceList()
     const byPath = new Map(workspaces.map((workspace) => [workspace.path, workspace]))
+    const byMember = new Map()
+    for (const workspace of workspaces) {
+      for (const sessionId of workspace.sessionIds) byMember.set(sessionId, workspace)
+    }
 
     const rows = []
     const pendingTitles = []
@@ -243,7 +248,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
         : false
       const title = liveTitle(session) ?? cachedTitle(header)
       if (title === null) pendingTitles.push(id)
-      const workspace = header.cwd === undefined ? undefined : byPath.get(header.cwd)
+      const workspace = byMember.get(id) ?? (header.cwd === undefined ? undefined : byPath.get(header.cwd))
       const directory = directoryOf(header)
       const item = durable.get(id)
       rows.push({
@@ -353,15 +358,38 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
         .map((id) => id.trim())
         .filter((id) => id !== ''),
     )].slice(0, MAX_DELETE_IDS)
-    if (ids.length === 0) throw new Error('没有指定要删除的会话')
     const force = request.force === true
+    const deleteFiles = request.deleteFiles === true
+    const deleteWorkspaceDir = request.deleteWorkspaceDir === true
+    const workspaceId = typeof request.workspaceId === 'string' ? request.workspaceId.trim() : ''
+    const workspacePath = typeof request.workspacePath === 'string' ? request.workspacePath.trim() : ''
+    if (ids.length === 0 && !deleteWorkspaceDir) throw new Error('没有指定要删除的会话')
 
     const records = await query.listSessions()
     const headers = new Map(records.map((record) => [String(record.header.id), record.header]))
     const sessionRoot = root()
+    const workspaces = workspaceList()
+
+    // The directory a workspace delete may remove: a registered workspace, or
+    // the working directory of a chat in this very request. Never a client path alone.
+    let workspaceDir = null
+    let registered = null
+    if (deleteWorkspaceDir) {
+      registered = workspaces.find((workspace) => workspace.id === workspaceId) ?? null
+      if (registered !== null && registered.path !== '') {
+        workspaceDir = registered.path
+      } else if (workspacePath !== '' && ids.some((id) => headers.get(id)?.cwd === workspacePath)) {
+        workspaceDir = workspacePath
+      } else {
+        throw new Error('找不到要删除的工作区目录')
+      }
+    }
 
     const deleted = []
     const failed = []
+    const notes = []
+    let filesDeleted = 0
+
     for (const id of ids) {
       const header = headers.get(id)
       const session = store !== undefined && typeof store.get === 'function' ? store.get(id) : undefined
@@ -384,6 +412,18 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
         failed.push({ id, reason: 'unsafe-path' })
         continue
       }
+      // The workspace directory goes as a whole below; file-by-file is only for the rest.
+      if (deleteFiles && !(workspaceDir !== null && header.cwd !== undefined && path.resolve(header.cwd) === path.resolve(workspaceDir))) {
+        const cleaned = await removeCreatedFiles({
+          persistence,
+          header,
+          directory,
+          roots: workspaces.map((workspace) => workspace.path),
+          fs,
+        })
+        filesDeleted += cleaned.removed
+        notes.push(...cleaned.notes)
+      }
       try {
         await fs.rm(directory, { recursive: true, force: true, maxRetries: 2 })
       } catch (error) {
@@ -393,13 +433,33 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
       deleted.push(id)
     }
 
-    const notes = []
     for (const id of deleted) await forget(id, notes)
+
+    let workspaceDirDeleted = false
+    if (workspaceDir !== null) {
+      if (failed.length > 0) {
+        notes.push(`有 ${failed.length} 个会话没删掉，工作区目录已保留：${workspaceDir}`)
+      } else {
+        const outcome = await removeWorkspaceDirectory(workspaceDir, [sessionRoot], fs)
+        workspaceDirDeleted = outcome.removed
+        notes.push(outcome.note)
+        if (outcome.removed && registered !== null && registry !== undefined && typeof registry.delete === 'function') {
+          try {
+            await registry.delete(registered.id)
+          } catch (error) {
+            notes.push(`工作区登记未移除（${messageOf(error)}）`)
+          }
+        }
+      }
+    }
+
     const state = await snapshot()
     return {
       deleted: deleted.length,
       ids: deleted,
       failed,
+      filesDeleted,
+      workspaceDirDeleted,
       notes,
       state,
     }

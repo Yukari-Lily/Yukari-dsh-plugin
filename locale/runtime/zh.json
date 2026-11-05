@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "运行时与重启",
-    "description": "DSH 版本检测、安全重启与版本切换控制。"
+    "title": "状态",
+    "description": "DSH 版本检查、更新与重启。"
   }
 }
