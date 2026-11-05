@@ -46,6 +46,24 @@ function packageVersion(dir = PLUGIN_DIR) {
 
 const RUNNING_VERSION = packageVersion()
 
+/** Read a bounded JSON body; an empty body is an empty object. */
+async function readJsonBody(req) {
+  const chunks = []
+  let size = 0
+  for await (const chunk of req) {
+    size += chunk.length
+    if (size > 16 * 1024) throw new Error('request body is too large')
+    chunks.push(chunk)
+  }
+  if (size === 0) return {}
+  try {
+    const value = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    return value !== null && typeof value === 'object' ? value : {}
+  } catch {
+    throw new Error('request body is not valid JSON')
+  }
+}
+
 /** Serialize one JSON response. */
 function sendJson(res, status, value) {
   res.statusCode = status
@@ -332,6 +350,7 @@ export function apply(ctx) {
             }
             if (action === 'update' && req.method === 'POST') {
               if (updating) throw new Error('更新正在进行中')
+              const body = await readJsonBody(req).catch(() => ({}))
               updating = true
               try {
                 const before = await checkUpdate()
@@ -340,7 +359,14 @@ export function apply(ctx) {
                   return
                 }
                 const result = await applyUpdate(before)
-                sendJson(res, 200, { ok: true, ...result, update: { ...before, available: false, pendingRestart: true } })
+                // The client may be reloaded by HMR while the files change, so a
+                // requested restart is scheduled here, not in the browser.
+                let restarted = false
+                if (body.restart === true) {
+                  scheduleRestart(planRestart({ mode: 'auto' }), { delayMs: 900, reason: 'yukari plugin update' })
+                  restarted = true
+                }
+                sendJson(res, 200, { ok: true, ...result, restarted, update: { ...before, available: false, pendingRestart: true } })
               } finally {
                 updating = false
               }

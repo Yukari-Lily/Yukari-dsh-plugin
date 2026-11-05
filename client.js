@@ -23,6 +23,40 @@ window.__ModuleLoader__.load({
       browser: '/browser/api',
     }
 
+    /**
+     * A panel that the host unmounts while its own code is replaced (HMR on a
+     * plugin update) loses the sidebar's active-panel selection. This flag asks
+     * the next mount to come back to the same panel instead of the main view.
+     */
+    const RETURN_KEY = 'yukari-dsh-plugin:return'
+    const RETURN_WINDOW_MS = 5 * 60 * 1000
+
+    function markReturn() {
+      try {
+        window.sessionStorage.setItem(RETURN_KEY, String(Date.now()))
+      } catch { /* private mode: reopening is best effort */ }
+    }
+
+    function clearReturn() {
+      try {
+        window.sessionStorage.removeItem(RETURN_KEY)
+      } catch { /* ignore */ }
+    }
+
+    /**
+     * Whether a recent update or restart asked to come back here. The flag is
+     * only peeked: a reload that follows within seconds (HMR, then the restart)
+     * has to see it too, and `clearReturn` retires it once this panel is stable.
+     */
+    function shouldReturn() {
+      try {
+        const at = Number(window.sessionStorage.getItem(RETURN_KEY) ?? '0')
+        return Number.isFinite(at) && at > 0 && Date.now() - at < RETURN_WINDOW_MS
+      } catch {
+        return false
+      }
+    }
+
     /* ------------------------------------------------------------------ i18n */
 
     const zh = {
@@ -53,6 +87,7 @@ window.__ModuleLoader__.load({
       upFailed: '检查更新失败：{error}',
       upUpdateFailed: '更新失败：{error}',
       upManual: '这份安装无法自动更新，请在「插件」页重新安装',
+      upAutoRestart: '装好自动重启',
 
       refresh: '刷新',
       retry: '重试',
@@ -326,6 +361,7 @@ window.__ModuleLoader__.load({
       upFailed: 'Update check failed: {error}',
       upUpdateFailed: 'Update failed: {error}',
       upManual: 'This install cannot update itself; reinstall it from the Plugins page',
+      upAutoRestart: 'Restart when installed',
 
       refresh: 'Refresh',
       retry: 'Retry',
@@ -748,6 +784,8 @@ window.__ModuleLoader__.load({
 .yk-updatePill-click { cursor: pointer; }
 .yk-updatePill-click:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
 .yk-updateText { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px; }
+.yk-update .yk-option { font-size: 12px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+.yk-update .yk-option input { accent-color: var(--yk-accent); }
 .yk-updateStatus-ok { color: var(--dsw-alias-state-success-primary, #34a77b); }
 .yk-updateStatus-warn, .yk-updateStatus-error { color: var(--dsw-alias-state-warning-primary, #c58a2b); }
 .yk-flash, .yk-flashNote { display: inline-flex; align-items: center; gap: 5px; color: var(--dsw-alias-state-success-primary, #34a77b); }
@@ -1263,6 +1301,8 @@ window.__ModuleLoader__.load({
     function RestartWatch({ t }) {
       const [phase, setPhase] = React.useState('waiting')
       React.useEffect(() => {
+        // The reload that follows has to land back in this panel.
+        markReturn()
         let count = 0
         let stopped = false
         // Give the old process time to go away before the first probe.
@@ -1299,8 +1339,9 @@ window.__ModuleLoader__.load({
       )
     }
 
-    /** Ask whichever restart endpoint is available. */
+    /** Ask whichever restart endpoint is available; return to this panel after. */
     async function requestRestart(components) {
+      markReturn()
       if (components?.runtime) {
         await postJson(`${API.runtime}/restart`, { delayMs: 600 })
       } else {
@@ -2624,6 +2665,7 @@ window.__ModuleLoader__.load({
 
       const restart = () =>
         run('restart', async () => {
+          markReturn()
           await postJson(`${API.runtime}/restart`, { delayMs: 600 })
           onRestart()
         })
@@ -2726,6 +2768,7 @@ window.__ModuleLoader__.load({
       const [phase, setPhase] = React.useState('idle')
       const [info, setInfo] = React.useState(null)
       const [message, setMessage] = React.useState('')
+      const [autoRestart, setAutoRestart] = React.useState(true)
 
       React.useEffect(() => {
         if (phase !== 'latest') return undefined
@@ -2747,11 +2790,18 @@ window.__ModuleLoader__.load({
 
       const update = async () => {
         setPhase('updating')
+        markReturn()
         try {
-          const payload = await postJson(API.update, {})
+          const payload = await postJson(API.update, { restart: autoRestart })
           setInfo({ ...payload.update, installed: payload.installed ?? payload.update?.installed })
+          if (payload.restarted === true) {
+            onRestart()
+            return
+          }
           setPhase(payload.updated ? 'done' : 'latest')
+          if (!payload.updated) clearReturn()
         } catch (error) {
+          clearReturn()
           setMessage(fill(t('upUpdateFailed'), { error: messageOf(error) }))
           setPhase('error')
         }
@@ -2762,6 +2812,7 @@ window.__ModuleLoader__.load({
           await requestRestart(components)
           onRestart()
         } catch (error) {
+          clearReturn()
           setMessage(fill(t('upUpdateFailed'), { error: messageOf(error) }))
           setPhase('error')
         }
@@ -2783,6 +2834,9 @@ window.__ModuleLoader__.load({
       return h(
         'div',
         { className: 'yk-update', role: 'status', 'aria-live': 'polite' },
+        phase === 'available' || phase === 'updating'
+          ? h(Option, { checked: autoRestart, onChange: setAutoRestart, label: t('upAutoRestart') })
+          : null,
         h(
           clickable ? 'button' : 'div',
           {
@@ -2823,6 +2877,12 @@ window.__ModuleLoader__.load({
       React.useEffect(() => {
         loadOverview()
       }, [loadOverview])
+
+      // Stable again: stop re-opening this panel on the next unrelated reload.
+      React.useEffect(() => {
+        const timer = setTimeout(() => clearReturn(), 45000)
+        return () => clearTimeout(timer)
+      }, [])
 
       const components = overview?.components ?? null
       const tabs = TABS.filter((key) => key === 'overview' || components === null || Boolean(components[key]))
@@ -2946,6 +3006,21 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots', 'locale', 'uiWorkspace'],
       apply(ctx) {
+        // A plugin update or restart replaces this module; the host clears the
+        // sidebar's active panel on that unmount, so come straight back here.
+        if (shouldReturn()) {
+          const restore = (attempt = 0) => {
+            try {
+              const layout = (typeof ctx.get === 'function' ? ctx.get('layout') : undefined) ?? ctx.layout
+              if (layout !== undefined && layout !== null && typeof layout.selectPanel === 'function') {
+                layout.selectPanel(PANEL_ID)
+                return
+              }
+            } catch { /* layout not ready yet */ }
+            if (attempt < 15) setTimeout(() => restore(attempt + 1), 120)
+          }
+          setTimeout(() => restore(), 60)
+        }
         ctx.effect(() => ctx.locale.register(NS, 'en', en))
         ctx.effect(() => ctx.locale.register(NS, 'zh-CN', zh))
         ctx.effect(() => ctx.locale.register(NS, 'zh', zh))
