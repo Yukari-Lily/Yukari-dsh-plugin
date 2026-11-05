@@ -38,6 +38,9 @@
         # 不填 executablePath 时自动下载官方 Chrome for Testing 到 DSH_HOME
         # sandbox: auto 普通主机保持沙箱，root/容器内自动加 --no-sandbox
         sandbox: auto
+        # 缺少系统运行库时自动从 Debian 索引下载 .deb 解压到 DSH_HOME（无需 root）
+        autoLibraries: true
+        cjkFonts: true
         allowLocalUrls: false
         allowAnyScreenshotPath: false
 

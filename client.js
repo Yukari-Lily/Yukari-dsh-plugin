@@ -155,7 +155,8 @@ window.__ModuleLoader__.load({
       cConfirm: '永久删除 {n} 个会话？',
       cConfirmWorkspace: '删除工作区「{name}」及其 {n} 个会话？',
       cConfirmHint: '会话记录、归档和置顶标记一并移除，无法恢复。',
-      cForce: '包括已加载的会话',
+      cLiveBlocked: '有 {n} 个会话正在使用中，切换到其他会话后再删除',
+      cLiveBlockedOne: '这个会话正在使用中，切换到其他会话后再删除',
       cDeleteFiles: '同时删除这些会话新建的文件',
       cDeleteFilesHint: '只删由 write / str_replace_editor 新建、且仍在工作区内的文件；命令行生成的文件和会话前已存在的文件不会动。',
       cDeleteWorkspaceDir: '同时删除工作区文件夹',
@@ -320,6 +321,7 @@ window.__ModuleLoader__.load({
 
       bDesc: '首次使用时自动准备官方 Chrome for Testing，无需手动配置。浏览器仅供智能体工具调用。',
       bLaunchOk: '启动正常',
+      bLibraries: '已自动补齐 {n} 个运行库包（解压到 DSH_HOME，无需 root）',
       bMissingLibs: '缺少 {n} 个系统库',
       bFixHint: '在容器内以 root 执行一次（只需一次，重启容器后仍在镜像里才持久）：',
       bLaunchFail: '无法启动',
@@ -431,7 +433,8 @@ window.__ModuleLoader__.load({
       cConfirm: 'Permanently delete {n} chats?',
       cConfirmWorkspace: 'Delete workspace “{name}” and its {n} chats?',
       cConfirmHint: 'Chat history, archive and pin marks are removed. This cannot be undone.',
-      cForce: 'Include chats already loaded',
+      cLiveBlocked: '{n} of these chats are in use; switch away from them first',
+      cLiveBlockedOne: 'This chat is in use; switch away from it first',
       cDeleteFiles: 'Also delete files these chats created',
       cDeleteFilesHint: 'Only files created by write / str_replace_editor that are still inside the workspace. Files made by shell commands or that existed before the chat are kept.',
       cDeleteWorkspaceDir: 'Also delete the workspace folder',
@@ -596,6 +599,7 @@ window.__ModuleLoader__.load({
 
       bDesc: 'Official Chrome for Testing is prepared automatically on first use. The browser is available to agent tools; no manual setup is needed.',
       bLaunchOk: 'Launch OK',
+      bLibraries: '{n} runtime packages unpacked into DSH_HOME (no root needed)',
       bMissingLibs: '{n} system libraries missing',
       bFixHint: 'Run once as root inside the container (persists only if baked into the image):',
       bLaunchFail: 'Cannot launch',
@@ -1454,6 +1458,9 @@ window.__ModuleLoader__.load({
           state === null ? h(Loading, { text: t('loading') }) : h(React.Fragment, null,
             h('div', { className: 'yk-heroTitle' }, busy ? t('bInstalling') : status === 'ready' ? t('ovReady') : t('bInstall')),
             state?.version ? h('div', { className: 'yk-cardHint' }, `Chrome for Testing ${state.version}`) : null,
+            state?.libraries
+              ? h('div', { className: 'yk-cardHint' }, fill(t('bLibraries'), { n: state.libraries.packages }))
+              : null,
             status === 'ready' && state?.launch
               ? state.launch.ok
                 ? h(Chip, { kind: 'ok', dot: true }, t('bLaunchOk'))
@@ -1736,12 +1743,10 @@ window.__ModuleLoader__.load({
           { className: 'yk-confirm yk-confirmInline', role: 'alertdialog', 'aria-label': confirmTitle },
           h('div', { className: 'yk-confirmTitle' }, confirmTitle),
           h('div', { className: 'yk-confirmHint' }, t('cDeleteOneHint')),
+          row.live ? h('div', { className: 'yk-confirmHint' }, t('cLiveBlockedOne')) : null,
           h(
             'div',
             { className: 'yk-options' },
-            row.live
-              ? h(Option, { checked: pending.force === true, onChange: (value) => setRowConfirm({ ...pending, force: value }), label: t('cForceOne') })
-              : null,
             h(Option, {
               checked: pending.deleteFiles === true,
               onChange: (value) => setRowConfirm({ ...pending, deleteFiles: value }),
@@ -1758,8 +1763,8 @@ window.__ModuleLoader__.load({
               {
                 type: 'button',
                 className: 'yk-btn yk-btn-danger yk-btn-sm',
-                disabled: busy !== '' || (row.live && pending.force !== true),
-                onClick: () => performDelete({ ids: [row.id, ...family], force: pending.force === true, deleteFiles: pending.deleteFiles === true }),
+                disabled: busy !== '' || row.live,
+                onClick: () => performDelete({ ids: [row.id, ...family], deleteFiles: pending.deleteFiles === true }),
               },
               busy === 'delete' ? h(Spinner, { size: 13 }) : h(TrashIcon, { width: 13, height: 13 }),
               t('cDelete'),
@@ -1971,7 +1976,7 @@ window.__ModuleLoader__.load({
               h(
                 'div',
                 { className: 'yk-options' },
-                hasLive ? h(Option, { checked: force, onChange: setForce, label: t('cForce') }) : null,
+                hasLive ? h('div', { className: 'yk-confirmHint' }, fill(t('cLiveBlocked'), { n: confirmRows.filter((row) => row.live).length })) : null,
                 h(Option, {
                   checked: deleteFiles || deleteDir,
                   disabled: deleteDir,
@@ -1995,7 +2000,7 @@ window.__ModuleLoader__.load({
                 h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirming(null), disabled: busy !== '' }, t('cancel')),
                 h(
                   'button',
-                  { type: 'button', className: 'yk-btn yk-btn-danger', onClick: remove, disabled: busy !== '' || (hasLive && !force) },
+                  { type: 'button', className: 'yk-btn yk-btn-danger', onClick: remove, disabled: busy !== '' || hasLive },
                   busy === 'delete' ? h(Spinner) : h(TrashIcon),
                   t('cDelete'),
                 ),

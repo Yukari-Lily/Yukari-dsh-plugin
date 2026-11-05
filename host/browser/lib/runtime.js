@@ -12,6 +12,11 @@ import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import { extractZipArchive } from './zip.js'
+import {
+  installCommand, installRuntimeLibraries, libraryEnvironment, missingLibraries, packagesFor,
+} from './libraries.js'
+
+export { installCommand, libraryEnvironment, missingLibraries, packagesFor }
 
 export const METADATA_URL = 'https://googlechromelabs.github.io/chrome-for-testing/known-good-versions-with-downloads.json'
 const MAX_METADATA_BYTES = 8 * 1024 * 1024
@@ -87,82 +92,6 @@ export async function verifyExecutable(executablePath) {
   }
 }
 
-/** Shared-library soname → Debian package that provides it. */
-const SONAME_PACKAGES = {
-  'libglib-2.0.so.0': 'libglib2.0-0',
-  'libgobject-2.0.so.0': 'libglib2.0-0',
-  'libgio-2.0.so.0': 'libglib2.0-0',
-  'libnspr4.so': 'libnspr4',
-  'libnss3.so': 'libnss3',
-  'libnssutil3.so': 'libnss3',
-  'libsmime3.so': 'libnss3',
-  'libatk-1.0.so.0': 'libatk1.0-0',
-  'libatk-bridge-2.0.so.0': 'libatk-bridge2.0-0',
-  'libatspi.so.0': 'libatspi2.0-0',
-  'libdbus-1.so.3': 'libdbus-1-3',
-  'libcups.so.2': 'libcups2',
-  'libxcb.so.1': 'libxcb1',
-  'libxkbcommon.so.0': 'libxkbcommon0',
-  'libasound.so.2': 'libasound2',
-  'libgbm.so.1': 'libgbm1',
-  'libdrm.so.2': 'libdrm2',
-  'libxshmfence.so.1': 'libxshmfence1',
-  'libexpat.so.1': 'libexpat1',
-  'libfreetype.so.6': 'libfreetype6',
-  'libfontconfig.so.1': 'libfontconfig1',
-  'libharfbuzz.so.0': 'libharfbuzz0b',
-  'libpng16.so.16': 'libpng16-16',
-  'libEGL.so.1': 'libegl1',
-  'libGL.so.1': 'libgl1',
-  'libX11.so.6': 'libx11-6',
-  'libXext.so.6': 'libxext6',
-  'libXcomposite.so.1': 'libxcomposite1',
-  'libXdamage.so.1': 'libxdamage1',
-  'libXfixes.so.3': 'libxfixes3',
-  'libXrandr.so.2': 'libxrandr2',
-  'libcairo.so.2': 'libcairo2',
-  'libpango-1.0.so.0': 'libpango-1.0-0',
-}
-
-/** Packages a headless browser needs even when no soname complained yet. */
-const EXTRA_PACKAGES = ['fonts-liberation', 'ca-certificates']
-
-/**
- * Collect missing shared-library names from loader or `ldd` output.
- * @param text - stderr, or `ldd` stdout.
- * @returns unique sonames, in first-seen order.
- */
-export function missingLibraries(text) {
-  const found = []
-  for (const line of String(text ?? '').split('\n')) {
-    const notFound = /^\s*(\S+)\s*=>\s*not found/m.exec(line)
-    const loader = /error while loading shared libraries:\s*([^:\s]+)/.exec(line)
-    const name = notFound?.[1] ?? loader?.[1]
-    if (name !== undefined && !found.includes(name)) found.push(name)
-  }
-  return found
-}
-
-/**
- * Turn missing sonames into the packages that provide them.
- * @param sonames - names from the loader.
- * @returns sorted Debian package names.
- */
-export function packagesFor(sonames) {
-  const packages = new Set(EXTRA_PACKAGES)
-  for (const soname of sonames) {
-    const known = SONAME_PACKAGES[soname]
-    if (known !== undefined) packages.add(known)
-  }
-  return [...packages].sort()
-}
-
-/** Shell command that installs those packages on a Debian/Ubuntu image. */
-export function installCommand(packages) {
-  if (!Array.isArray(packages) || packages.length === 0) return ''
-  return `apt-get update && apt-get install -y --no-install-recommends ${packages.join(' ')}`
-}
-
 /**
  * Check that the installed browser actually starts.
  *
@@ -175,8 +104,9 @@ export function installCommand(packages) {
  */
 export async function probeLaunch(executablePath, options = {}) {
   const execute = options.execFile ?? execFileAsync
+  const env = { ...process.env, ...(options.env ?? {}) }
   try {
-    const { stdout, stderr } = await execute(executablePath, ['--version'], { timeout: options.timeoutMs ?? 15000, windowsHide: true })
+    const { stdout, stderr } = await execute(executablePath, ['--version'], { timeout: options.timeoutMs ?? 15000, windowsHide: true, env })
     const line = String(stdout || stderr).trim().split('\n').pop() ?? ''
     return { ok: true, detail: line }
   } catch (error) {
@@ -185,7 +115,7 @@ export async function probeLaunch(executablePath, options = {}) {
     // The loader stops at the first missing library; `ldd` lists them all.
     if (process.platform === 'linux') {
       try {
-        const { stdout } = await execute('ldd', [executablePath], { timeout: options.timeoutMs ?? 15000 })
+        const { stdout } = await execute('ldd', [executablePath], { timeout: options.timeoutMs ?? 15000, env })
         const listed = missingLibraries(stdout)
         if (listed.length > 0) missing = listed
       } catch { /* no ldd: keep the loader's single answer */ }
@@ -264,9 +194,56 @@ export class BrowserRuntime {
     return { ...this.#state, ...(this.#state.progress ? { progress: { ...this.#state.progress } } : {}) }
   }
 
+  /** Environment additions from the side-by-side runtime, if installed. */
+  async environment() {
+    if (this.#state.environment !== undefined) return this.#state.environment
+    const home = this.#home()
+    const env = await libraryEnvironment(home, this.#arch())
+    this.#state = { ...this.#state, environment: env }
+    return env
+  }
+
+  #home() {
+    return this.#deps.home ?? process.env.DSH_HOME ?? path.join(homedir(), '.dsh')
+  }
+
+  #arch() {
+    return this.#deps.arch ?? process.arch
+  }
+
   /** Run the launch probe through the injectable seam. */
-  #probe(executable) {
-    return (this.#deps.probe ?? probeLaunch)(executable)
+  async #probe(executable) {
+    return (this.#deps.probe ?? probeLaunch)(executable, { env: await this.environment() })
+  }
+
+  /**
+   * A downloaded browser still needs the libraries the image lacks. When that
+   * is the only problem, fetch them into DSH_HOME (no root required) and probe
+   * again, so the browser becomes usable without operator action.
+   */
+  async #ensureLibraries(executable, probe) {
+    if (probe?.ok !== false || this.#config.autoLibraries === false) return probe
+    if (!Array.isArray(probe.missing) || probe.missing.length === 0) return probe
+    if (this.#arch() !== 'arm64' && this.#arch() !== 'x64') return probe
+    if (this.#deps.platform !== undefined && this.#deps.platform !== 'linux') return probe
+    try {
+      const result = await installRuntimeLibraries({
+        home: this.#home(),
+        arch: this.#arch(),
+        missing: probe.missing,
+        cjkFonts: this.#config.cjkFonts !== false,
+        fetch: this.#deps.fetch,
+        execFile: this.#deps.execFile,
+        suite: this.#config.debianSuite,
+        log: this.#deps.log,
+      })
+      this.#state = { ...this.#state, environment: result.environment, libraries: { packages: result.packages } }
+      return await this.#probe(executable)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.#deps.log?.(`runtime libraries could not be installed: ${message}`)
+      return { ...probe, librariesError: message }
+    }
   }
 
   /** Re-use the one in-flight installation; callers all await this promise. */
@@ -280,8 +257,10 @@ export class BrowserRuntime {
   /** Re-run the launch probe for an already installed browser. */
   async recheck() {
     if (this.#state.status !== 'ready' || !this.#state.executablePath) return this.retry()
-    const probe = await (this.#deps.probe ?? probeLaunch)(this.#state.executablePath)
-    this.#state = { ...this.#state, launch: probe }
+    this.#state = { ...this.#state, environment: undefined }
+    const probe = await this.#probe(this.#state.executablePath)
+    const checked = await this.#ensureLibraries(this.#state.executablePath, probe)
+    this.#state = { ...this.#state, launch: checked }
     return this.#state.executablePath
   }
 
@@ -314,7 +293,9 @@ export class BrowserRuntime {
         const executable = executableIn(destination, this.#deps.platform ?? process.platform, this.#deps.arch ?? process.arch)
         try {
           await verifyExecutable(executable)
-          this.#state = { status: 'ready', executablePath: executable, version: build.version, source: 'cache', launch: await this.#probe(executable) }
+          this.#state = { status: 'ready', executablePath: executable, version: build.version, source: 'cache' }
+          const cachedLaunch = await this.#ensureLibraries(executable, await this.#probe(executable))
+          this.#state = { ...this.#state, launch: cachedLaunch }
           return executable
         } catch { /* install this version below */ }
         const staging = await mkdtemp(path.join(root, '.staging-'))
@@ -338,7 +319,9 @@ export class BrowserRuntime {
           }
           if (this.#deps.platform !== 'win32') await chmod(executable, 0o755).catch(() => {})
           await verifyExecutable(executable)
-          this.#state = { status: 'ready', executablePath: executable, version: build.version, source: 'download', launch: await this.#probe(executable) }
+          this.#state = { status: 'ready', executablePath: executable, version: build.version, source: 'download' }
+          const freshLaunch = await this.#ensureLibraries(executable, await this.#probe(executable))
+          this.#state = { ...this.#state, launch: freshLaunch }
           return executable
         } finally {
           await rm(staging, { recursive: true, force: true })

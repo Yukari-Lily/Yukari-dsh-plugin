@@ -60,9 +60,11 @@ const positive = (value, fallback) => (Number.isFinite(value) && value > 0 ? val
 /** Normalize the plugin row config into manager options. */
 function normalizeConfig(config = {}) {
   const string = (value) => (typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined)
+  const dshHome = process.env.DSH_HOME ?? path.join(process.env.HOME ?? '', '.dsh')
   return {
     executablePath: string(config.executablePath),
     userDataDir: string(config.userDataDir),
+    homeDir: string(config.homeDir) ?? path.join(dshHome, 'browser-runtime', 'home'),
     screenshotDir: string(config.screenshotDir) ? path.resolve(string(config.screenshotDir)) : path.join(tmpdir(), 'dsh-browser-shots'),
     viewportWidth: positive(config.viewportWidth, 1280),
     viewportHeight: positive(config.viewportHeight, 900),
@@ -72,6 +74,9 @@ function normalizeConfig(config = {}) {
     sandbox: config.sandbox === true ? true : config.sandbox === false ? false : 'auto',
     allowLocalUrls: config.allowLocalUrls === true,
     allowAnyScreenshotPath: config.allowAnyScreenshotPath === true,
+    autoLibraries: config.autoLibraries !== false,
+    cjkFonts: config.cjkFonts !== false,
+    debianSuite: string(config.debianSuite),
     downloadTimeoutMs: positive(config.downloadTimeoutMs, 300000),
     extractTimeoutMs: positive(config.extractTimeoutMs, 120000),
     libraryPath: config.libraryPath,

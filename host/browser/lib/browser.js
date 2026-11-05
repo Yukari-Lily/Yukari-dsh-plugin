@@ -212,6 +212,18 @@ export class BrowserManager {
       runtime = resolveRuntime({ ...config, executablePath, runtimeReady: true })
     }
     const { executablePath, env } = runtime
+    // Libraries and fonts unpacked into DSH_HOME take precedence over the
+    // bundled sysroot, and never replace a value the host already set.
+    let runtimeEnv = {}
+    try {
+      runtimeEnv = (await this.#runtime?.environment?.()) ?? {}
+    } catch { /* fall back to the host's own libraries */ }
+    if (typeof runtimeEnv.LD_LIBRARY_PATH === 'string') {
+      env.LD_LIBRARY_PATH = [runtimeEnv.LD_LIBRARY_PATH, env.LD_LIBRARY_PATH].filter(Boolean).join(':')
+    }
+    if (typeof runtimeEnv.FONTCONFIG_FILE === 'string' && env.FONTCONFIG_FILE === undefined) {
+      env.FONTCONFIG_FILE = runtimeEnv.FONTCONFIG_FILE
+    }
     if (config.env && typeof config.env === 'object') {
       for (const [key, value] of Object.entries(config.env)) {
         if (typeof value === 'string') env[key] = value
@@ -219,11 +231,24 @@ export class BrowserManager {
     }
     const userDataDir = config.userDataDir ?? path.join(tmpdir(), `dsh-browser-profile-${process.pid}`)
     try { mkdirSync(userDataDir, { recursive: true }) } catch { /* the browser reports a real failure */ }
+    // Chrome's crash handler needs a writable HOME of its own; inheriting the
+    // operator's home is both fragile and unnecessary.
+    if (typeof config.homeDir === 'string' && config.homeDir.length > 0) {
+      try {
+        mkdirSync(config.homeDir, { recursive: true })
+        env.HOME = config.homeDir
+        env.XDG_CONFIG_HOME = path.join(config.homeDir, '.config')
+        env.XDG_CACHE_HOME = path.join(config.homeDir, '.cache')
+      } catch { /* keep the inherited HOME */ }
+    }
     if (process.getuid?.() === 0 && config.sandbox === true) {
       throw new CdpError('Chromium sandbox cannot start as root; run as an unprivileged user or set browser sandbox false to accept the risk')
     }
     const sandbox = sandboxDecision(config)
     const args = [
+      // Chrome for Testing is a full browser: without a display server it has
+      // to be told to run headless before it reaches the crash reporter.
+      '--headless=new',
       sandbox.flag,
       '--disable-gpu',
       '--disable-dev-shm-usage',

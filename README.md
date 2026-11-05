@@ -35,9 +35,10 @@ git+https://github.com/Yukari-Lily/Yukari-dsh-plugin.git
 
 - 插件挂载后会在后台解析官方 [Chrome for Testing](https://googlechromelabs.github.io/chrome-for-testing/) 元数据，取**最新稳定版**中对应平台的归档，下载并解压到 `DSH_HOME/browser-runtime/`。
 - 解压使用 Node 内置 `zlib` 实现，不依赖系统的 `unzip` / PowerShell，因此在精简容器里同样可用。
+- 启动后若发现缺少系统运行库（精简镜像常见），会自动从 Debian 索引解析依赖、下载对应的 `.deb` 并解压到 `DSH_HOME/browser-runtime/sysroot`，通过 `LD_LIBRARY_PATH` 生效——**不需要 root**，也不改动宿主机文件。中文页面需要的 Noto CJK 字体会一并装上，否则截图里的中文是方框。
 - 下载有 512 MB 与超时上限，先解压到临时目录、校验可执行文件后再原子改名，失败不会留下半个浏览器。
 - 所有 `browser_*` 工具与面板「浏览器」页共用同一个安装 Promise：并发调用只会下载一次，失败后可在面板里重试。
-- 装好会再做一次 `--version` 启动自检；若宿主缺少运行库（精简镜像常见 `libglib-2.0`、`libnss3` 等），面板会列出**全部**缺失的库，并给出一条可直接粘贴的 `apt-get install` 命令（在容器内以 root 执行一次）。已经装过库、只想用系统里的库时，把目录填进 `libraryPath` 即可。
+- 装好会做一次 `--version` 启动自检。自动补齐失败时，面板会列出**全部**缺失的库，并给出一条可直接粘贴的 `apt-get install` 命令作为兜底（在容器内以 root 执行一次）。已经装过库、只想用系统里的库时，把目录填进 `libraryPath` 并设 `autoLibraries: false` 即可。
 - 想用系统自己的浏览器：设置行配置 `executablePath`，或导出 `DSH_BROWSER_EXECUTABLE`。
 
 安全默认值：
