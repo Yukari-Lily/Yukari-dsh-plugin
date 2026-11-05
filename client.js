@@ -155,7 +155,7 @@ window.__ModuleLoader__.load({
       cConfirm: '永久删除 {n} 个会话？',
       cConfirmWorkspace: '删除工作区「{name}」及其 {n} 个会话？',
       cConfirmHint: '会话记录、归档和置顶标记一并移除，无法恢复。',
-      cForce: '包括正在打开的会话',
+      cForce: '包括已加载的会话',
       cDeleteFiles: '同时删除这些会话新建的文件',
       cDeleteFilesHint: '只删由 write / str_replace_editor 新建、且仍在工作区内的文件；命令行生成的文件和会话前已存在的文件不会动。',
       cDeleteWorkspaceDir: '同时删除工作区文件夹',
@@ -172,16 +172,18 @@ window.__ModuleLoader__.load({
       cFilesDeleted: '清理了 {n} 个文件',
       cDirDeleted: '工作区及目录已删除',
       cWorkspaceRemoved: '工作区已移除（目录保留）',
-      cLive: '打开中',
+      cLive: '已加载',
       cRunning: '运行中',
       cDeleteOne: '永久删除这个会话？',
       cDeleteOneHint: '会话记录、归档和置顶标记会一并移除，无法恢复。',
-      cForceOne: '包括正在打开的会话',
+      cDeleteOneSub: '永久删除这个会话及其 {n} 个子会话？',
+      cForceOne: '包括已加载的会话',
       cSubagentTag: '子会话',
       cSubSessions: '{n} 个子会话',
+      cLockedByParent: '随主会话一起选中，不能单独取消',
       cArchivedTag: '已归档',
       cEvents: '{n} 条事件',
-      cReason_live: '正在打开，需勾选「包括正在打开的会话」',
+      cReason_live: '已加载在内存中，需勾选「包括已加载的会话」',
       cReason_unknown: '找不到这个会话',
       'cReason_no-artifact': '没有落盘记录',
       'cReason_in-memory': '只存在于内存中',
@@ -429,7 +431,7 @@ window.__ModuleLoader__.load({
       cConfirm: 'Permanently delete {n} chats?',
       cConfirmWorkspace: 'Delete workspace “{name}” and its {n} chats?',
       cConfirmHint: 'Chat history, archive and pin marks are removed. This cannot be undone.',
-      cForce: 'Include chats that are open',
+      cForce: 'Include chats already loaded',
       cDeleteFiles: 'Also delete files these chats created',
       cDeleteFilesHint: 'Only files created by write / str_replace_editor that are still inside the workspace. Files made by shell commands or that existed before the chat are kept.',
       cDeleteWorkspaceDir: 'Also delete the workspace folder',
@@ -446,16 +448,18 @@ window.__ModuleLoader__.load({
       cFilesDeleted: 'removed {n} files',
       cDirDeleted: 'workspace and its directory deleted',
       cWorkspaceRemoved: 'workspace removed (directory kept)',
-      cLive: 'Open',
+      cLive: 'Loaded',
       cRunning: 'Running',
       cDeleteOne: 'Permanently delete this chat?',
       cDeleteOneHint: 'History, archive and pin marks are removed together. This cannot be undone.',
-      cForceOne: 'Include this open chat',
+      cDeleteOneSub: 'Permanently delete this chat and its {n} subagent chats?',
+      cForceOne: 'Include this loaded chat',
       cSubagentTag: 'Subagent',
       cSubSessions: '{n} subagent chats',
+      cLockedByParent: 'Selected with its parent chat and cannot be unticked alone',
       cArchivedTag: 'Archived',
       cEvents: '{n} events',
-      cReason_live: 'open — tick “Include chats that are open”',
+      cReason_live: 'loaded in memory — tick “Include chats already loaded”',
       cReason_unknown: 'not found',
       'cReason_no-artifact': 'nothing stored on disk',
       'cReason_in-memory': 'exists only in memory',
@@ -711,8 +715,16 @@ window.__ModuleLoader__.load({
 .yk-iconBtnOn { color: var(--dsw-alias-state-error-primary); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); }
 .yk-itemWrap { display: flex; flex-direction: column; min-width: 0; }
 .yk-children { display: flex; flex-direction: column; gap: 2px; margin: 0 0 4px 22px; padding-left: 12px; border-left: 1px solid var(--yk-line); }
-.yk-childWrap .yk-item { padding-block: 7px; }
-.yk-childWrap .yk-itemTitle { font-size: 12.5px; }
+.yk-childWrap .yk-item { padding: 5px 8px; gap: 8px; border-radius: var(--dsw-radius-sm); }
+.yk-childWrap .yk-itemTitle { font-size: 12px; }
+.yk-childWrap .yk-itemMeta { font-size: 10.5px; gap: 4px 7px; }
+.yk-childWrap .yk-check { width: 13px; height: 13px; }
+.yk-childWrap .yk-chip { font-size: 10px; min-height: 18px; padding: 0 5px; }
+.yk-childWrap .yk-btn.yk-iconBtn { width: 26px; min-height: 26px; }
+.yk-childWrap .yk-itemActions { opacity: .6; transition: opacity .15s; }
+.yk-childWrap .yk-item:hover .yk-itemActions, .yk-childWrap .yk-itemActions:focus-within { opacity: 1; }
+.yk-check-locked { opacity: .45; cursor: default; }
+.yk-check-locked::after { content: ''; }
 .yk-subToggle { appearance: none; border: 0; background: transparent; color: var(--yk-muted); font: inherit; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 3px; padding: 1px 4px; border-radius: var(--dsw-radius-sm); flex: none; }
 .yk-subToggle:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
 .yk-confirmInline { margin: 2px 0 8px 26px; padding: 10px 12px; background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 5%, transparent); }
@@ -1498,7 +1510,7 @@ window.__ModuleLoader__.load({
       const [selected, setSelected] = React.useState([])
       const [confirming, setConfirming] = React.useState(null)
       const [rowConfirm, setRowConfirm] = React.useState(null)
-      const [collapsedKids, setCollapsedKids] = React.useState([])
+      const [expandedKids, setExpandedKids] = React.useState([])
       const [force, setForce] = React.useState(false)
       const [deleteFiles, setDeleteFiles] = React.useState(false)
       const [deleteDir, setDeleteDir] = React.useState(false)
@@ -1580,7 +1592,6 @@ window.__ModuleLoader__.load({
         return list
       })()
 
-      const toggle = (id) => setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
 
       const ask = (target) => {
         setRowConfirm(null)
@@ -1678,15 +1689,37 @@ window.__ModuleLoader__.load({
       /** Children of one chat inside the current (already filtered) group. */
       const childrenOf = (group, id) => group.rows.filter((row) => row.parentSession === id)
 
+      /** Every descendant id of one chat, depth first. */
+      const descendantsOf = (group, id) => {
+        const found = []
+        for (const child of childrenOf(group, id)) {
+          found.push(child.id, ...descendantsOf(group, child.id))
+        }
+        return found
+      }
+
+      /**
+       * Selecting a chat selects its subagent chats too and deselecting clears
+       * them: deleting a parent must never leave its children behind, so a
+       * child cannot be unticked while an ancestor is selected.
+       */
+      const toggleRow = (row, group) => {
+        const family = descendantsOf(group, row.id)
+        setSelected((current) => {
+          if (current.includes(row.id)) return current.filter((id) => id !== row.id && !family.includes(id))
+          return [...new Set([...current, row.id, ...family])]
+        })
+      }
+
       /**
        * One chat row. A single delete confirms in place, under that row; only
        * batch and whole-workspace deletes use the panel at the top.
        */
-      const renderRow = (row, group, depth = 0) => {
+      const renderRow = (row, group, depth = 0, locked = false) => {
         const checked = selected.includes(row.id)
         const pending = rowConfirm !== null && rowConfirm.id === row.id ? rowConfirm : null
         const kids = depth < 3 ? childrenOf(group, row.id) : []
-        const kidsOpen = !collapsedKids.includes(row.id)
+        const kidsOpen = depth === 0 ? expandedKids.includes(row.id) : true
         const meta = [
           groupBy === 'flat' ? row.workspaceTitle ?? null : null,
           relativeTime(row.updatedAt, t),
@@ -1694,10 +1727,14 @@ window.__ModuleLoader__.load({
           row.events === null ? null : fill(t('cEvents'), { n: row.events }),
         ].filter((item) => item !== null && item !== '')
 
+        // Deleting a parent takes its subagent chats with it; otherwise they
+        // would be left behind as orphans.
+        const family = descendantsOf(group, row.id)
+        const confirmTitle = family.length > 0 ? fill(t('cDeleteOneSub'), { n: family.length }) : t('cDeleteOne')
         const confirmStrip = pending === null ? null : h(
           'div',
-          { className: 'yk-confirm yk-confirmInline', role: 'alertdialog', 'aria-label': t('cDeleteOne') },
-          h('div', { className: 'yk-confirmTitle' }, t('cDeleteOne')),
+          { className: 'yk-confirm yk-confirmInline', role: 'alertdialog', 'aria-label': confirmTitle },
+          h('div', { className: 'yk-confirmTitle' }, confirmTitle),
           h('div', { className: 'yk-confirmHint' }, t('cDeleteOneHint')),
           h(
             'div',
@@ -1722,7 +1759,7 @@ window.__ModuleLoader__.load({
                 type: 'button',
                 className: 'yk-btn yk-btn-danger yk-btn-sm',
                 disabled: busy !== '' || (row.live && pending.force !== true),
-                onClick: () => performDelete({ ids: [row.id], force: pending.force === true, deleteFiles: pending.deleteFiles === true }),
+                onClick: () => performDelete({ ids: [row.id, ...family], force: pending.force === true, deleteFiles: pending.deleteFiles === true }),
               },
               busy === 'delete' ? h(Spinner, { size: 13 }) : h(TrashIcon, { width: 13, height: 13 }),
               t('cDelete'),
@@ -1738,7 +1775,17 @@ window.__ModuleLoader__.load({
             { className: checked ? 'yk-item yk-item-selected' : 'yk-item' },
             h(
               'button',
-              { type: 'button', className: 'yk-check', role: 'checkbox', 'aria-checked': checked ? 'true' : 'false', 'aria-label': row.title ?? row.id, onClick: () => toggle(row.id) },
+              {
+                type: 'button',
+                className: locked ? 'yk-check yk-check-locked' : 'yk-check',
+                role: 'checkbox',
+                'aria-checked': checked ? 'true' : 'false',
+                'aria-disabled': locked ? 'true' : undefined,
+                title: locked ? t('cLockedByParent') : undefined,
+                'aria-label': row.title ?? row.id,
+                disabled: locked,
+                onClick: () => toggleRow(row, group),
+              },
               checked ? h(CheckIcon, { width: 11, height: 11 }) : null,
             ),
             h(
@@ -1759,7 +1806,7 @@ window.__ModuleLoader__.load({
                         className: 'yk-subToggle',
                         'aria-expanded': kidsOpen ? 'true' : 'false',
                         title: kidsOpen ? t('collapse') : t('expand'),
-                        onClick: () => setCollapsedKids((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id]),
+                        onClick: () => setExpandedKids((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id]),
                       },
                       h(kidsOpen ? ChevronDownIcon : ChevronRightIcon, { width: 12, height: 12 }),
                       fill(t('cSubSessions'), { n: kids.length }),
@@ -1800,7 +1847,9 @@ window.__ModuleLoader__.load({
             ),
           ),
           confirmStrip,
-          kids.length > 0 && kidsOpen ? h('div', { className: 'yk-children' }, kids.map((kid) => renderRow(kid, group, depth + 1))) : null,
+          kids.length > 0 && kidsOpen
+            ? h('div', { className: 'yk-children' }, kids.map((kid) => renderRow(kid, group, depth + 1, locked || checked)))
+            : null,
         )
       }
 
