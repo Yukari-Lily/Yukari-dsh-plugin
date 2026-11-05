@@ -1,6 +1,6 @@
 {
   "name": "yukari-dsh-plugin",
-  "version": "1.6.6",
+  "version": "1.6.7",
   "description": "自用插件合集：会话管理、站点发布、出站代理、无限制模式、自动就绪的无头浏览器与运行时控制。",
   "icon": "./icon.png",
   "author": "YG",

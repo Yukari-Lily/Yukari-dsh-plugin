@@ -435,9 +435,10 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
         continue
       }
       deleted.push(id)
+      // Forget the id immediately: a crash between removing the artifact and
+      // dropping its references would otherwise leave an invisible leftover.
+      await forget(id, notes)
     }
-
-    for (const id of deleted) await forget(id, notes)
 
     let workspaceDirDeleted = false
     let workspaceRemoved = false
@@ -488,67 +489,5 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
     return { id, archived, state }
   }
 
-  /**
-   * Drop archive, pin and workspace references to chats that no longer exist.
-   *
-   * A session deleted before this plugin refused loaded chats (or by hand) can
-   * leave its id behind in the registry. The list never shows those ids, but
-   * the stored sets keep them forever, so a boot-time pass makes the state
-   * match the disk again.
-   * @returns how many references were dropped.
-   */
-  async function prune() {
-    const counts = { archived: 0, pinned: 0, detached: 0 }
-    if (registry === undefined) return counts
-    let records = []
-    try {
-      records = await query.listSessions()
-    } catch {
-      return counts
-    }
-    // An empty listing is far more likely to be a transient failure than a
-    // genuinely empty store; pruning then would erase real archive marks.
-    if (records.length === 0) return counts
-    const alive = new Set(records.map((record) => String(record.header.id)))
-    for (const id of archivedSet()) {
-      if (alive.has(id)) continue
-      try {
-        await registry.unarchiveSession(id)
-        counts.archived += 1
-      } catch { /* an id the registry cannot act on is already gone */ }
-    }
-    for (const id of pinnedSet()) {
-      if (alive.has(id)) continue
-      try {
-        await registry.unpinSession(id)
-        counts.pinned += 1
-      } catch { /* ignore */ }
-    }
-    if (typeof registry.list === 'function') {
-      let entities = []
-      try {
-        entities = registry.list()
-      } catch {
-        entities = []
-      }
-      for (const workspace of entities) {
-        let members = []
-        try {
-          members = Array.isArray(workspace.sessionIds) ? workspace.sessionIds : []
-        } catch {
-          members = []
-        }
-        for (const id of members) {
-          if (alive.has(id) || typeof workspace.detachSession !== 'function') continue
-          try {
-            await workspace.detachSession(id)
-            counts.detached += 1
-          } catch { /* ignore */ }
-        }
-      }
-    }
-    return counts
-  }
-
-  return { root, snapshot, remove, setArchived, prune }
+  return { root, snapshot, remove, setArchived }
 }

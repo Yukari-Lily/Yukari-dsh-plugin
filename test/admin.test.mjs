@@ -68,47 +68,6 @@ async function fixture() {
   return { tmp, ws, artifact, admin, registry, created, createdRelative, updated, outside, events }
 }
 
-test('prune drops archive, pin and workspace references to vanished chats', async () => {
-  const calls = []
-  const detached = []
-  const ctx = {
-    sessionQuery: { listSessions: async () => [{ header: { id: 'session-alive' }, live: false }] },
-    sessionPersistence: { root: '/tmp' },
-    sessions: { get: () => undefined },
-    workspaceRegistry: {
-      archivedSessionIds: ['session-alive', 'session-gone'],
-      pinnedSessionIds: ['session-gone'],
-      unarchiveSession: async (id) => calls.push(['unarchive', id]),
-      unpinSession: async (id) => calls.push(['unpin', id]),
-      list: () => [{ id: 'ws', sessionIds: ['session-alive', 'session-gone'], detachSession: async (id) => detached.push(id) }],
-      delete: async () => true,
-    },
-  }
-  const admin = createAdmin({ ctx })
-  const counts = await admin.prune()
-  assert.deepEqual(counts, { archived: 1, pinned: 1, detached: 1 })
-  assert.deepEqual(calls, [['unarchive', 'session-gone'], ['unpin', 'session-gone']])
-  assert.deepEqual(detached, ['session-gone'])
-})
-
-test('prune refuses to act on an empty listing, which is usually a transient failure', async () => {
-  const calls = []
-  const ctx = {
-    sessionQuery: { listSessions: async () => { throw new Error('index offline') } },
-    sessionPersistence: { root: '/tmp' },
-    sessions: { get: () => undefined },
-    workspaceRegistry: {
-      archivedSessionIds: ['session-a'],
-      pinnedSessionIds: [],
-      unarchiveSession: async (id) => calls.push(id),
-      unpinSession: async () => {},
-      list: () => [],
-    },
-  }
-  assert.deepEqual(await createAdmin({ ctx }).prune(), { archived: 0, pinned: 0, detached: 0 })
-  assert.deepEqual(calls, [])
-})
-
 test('a chat loaded in this process is refused, even when files are gone', async () => {
   const f = await fixture()
   const loaded = { ...f.admin }
