@@ -21,6 +21,14 @@ git+https://github.com/Yukari-Lily/Yukari-dsh-plugin.git
 
 之后在面板右上角「检查更新」即可更新插件本身，更新后点「立即重启」生效。
 
+> v1.5.0 及更早版本的面板更新在 pnpm 10 以上会「假成功」（文件没变，重启后仍是旧版）。从这些版本升级请执行一次：
+>
+> ```
+> docker exec -u 1000 dsh dsh plugin --profile web update yukari-dsh-plugin
+> ```
+>
+> 然后重启 dsh。之后的版本会自己校验，不会再出现这种情况。
+
 ## 说明
 
 - 「删除会话新建的文件」只删除由 `write` / `str_replace_editor` 新建、仍在工作区内、且在会话开始后才出现的文件；命令行生成的文件不会被追踪。

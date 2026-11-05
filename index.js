@@ -190,12 +190,16 @@ async function checkUpdate() {
   if (latestCommit === null && latestVersion === null) {
     throw new Error('连不上 GitHub，无法检查更新（检查网络或在「代理」里启用节点）')
   }
-  const newerVersion = latestVersion !== null && compare(latestVersion, RUNNING_VERSION) > 0
+  const onDisk = packageVersion()
+  const newerVersion = latestVersion !== null && compare(latestVersion, onDisk) > 0
   const newerCommit = latestCommit !== null && installed !== null && latestCommit !== installed
   // Installed on disk but not loaded yet: the copy changed since this process started.
-  const pendingRestart = installed !== null && RUNNING_COMMIT !== null && installed !== RUNNING_COMMIT
+  const pendingRestart =
+    onDisk !== RUNNING_VERSION || (installed !== null && RUNNING_COMMIT !== null && installed !== RUNNING_COMMIT)
   return {
     current: RUNNING_VERSION,
+    installed: onDisk,
+    installDir: install.kind === 'profile' ? install.profileDir : PLUGIN_DIR,
     latest: latestVersion ?? RUNNING_VERSION,
     currentCommit: (RUNNING_COMMIT ?? installed)?.slice(0, 7) ?? null,
     latestCommit: latestCommit?.slice(0, 7) ?? null,
@@ -229,24 +233,34 @@ async function runPnpm(args, cwd) {
   throw new Error(detail.split('\n').slice(-6).join('\n'))
 }
 
-/** Pull the newest copy into the profile and make sure the lockfile moved. */
-async function applyUpdate(target) {
+/**
+ * Pull the newest copy into the profile this process was loaded from, then
+ * check the files the next start will load: the lockfile commit and the
+ * package.json version next to this module. A run that changed neither is a
+ * failure, never a "restart to apply".
+ * @param before - the {@link checkUpdate} result the update was started from.
+ */
+async function applyUpdate(before) {
   const install = locateInstall()
   if (install.kind === 'git') {
     const { stdout } = await execFileAsync('git', ['pull', '--ff-only'], { cwd: install.dir, timeout: 60000 })
-    return { updated: true, detail: stdout.trim() }
+    return { updated: true, installed: packageVersion(), detail: stdout.trim() }
   }
   if (install.kind !== 'profile') throw new Error('找不到安装位置，请在「插件」页重新安装')
-  const moved = () => {
-    if (target === null) return true
-    const now = installedCommit(install)
-    return now === null || now === target
+  const target = before.latestSha
+  const landed = () => {
+    const commit = installedCommit(install)
+    if (target !== null && commit !== null) return commit === target
+    // No commit to compare: the version on disk has to reach the published one.
+    return compare(packageVersion(), before.latest) >= 0 && packageVersion() !== RUNNING_VERSION
   }
   await runPnpm(['add', install.spec], install.profileDir)
   // `pnpm add` can keep a git dependency at its locked commit; `update` re-resolves it.
-  if (!moved()) await runPnpm(['update', PACKAGE_NAME], install.profileDir)
-  if (!moved()) throw new Error(`pnpm 没有拉到最新提交 ${target.slice(0, 7)}，请在「插件」页重新安装`)
-  return { updated: true, detail: `已从 ${install.spec} 拉取最新版本` }
+  if (!landed()) await runPnpm(['update', PACKAGE_NAME], install.profileDir)
+  if (!landed()) {
+    throw new Error(`pnpm 在 ${install.profileDir} 里没有装上新版本（磁盘上仍是 v${packageVersion()}），请在「插件」页重新安装`)
+  }
+  return { updated: true, installed: packageVersion(), detail: `已更新到 v${packageVersion()}，重启后生效` }
 }
 
 /* --------------------------------------------------------------------- icon */
@@ -325,7 +339,7 @@ export function apply(ctx) {
                   sendJson(res, 200, { ok: true, updated: false, update: before })
                   return
                 }
-                const result = await applyUpdate(before.latestSha)
+                const result = await applyUpdate(before)
                 sendJson(res, 200, { ok: true, ...result, update: { ...before, available: false, pendingRestart: true } })
               } finally {
                 updating = false

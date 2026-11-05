@@ -46,8 +46,8 @@ window.__ModuleLoader__.load({
       upAvailable: '发现新版本 {version}',
       upNow: '立即更新',
       upUpdating: '正在更新…',
-      upDone: '已更新到最新版本，重启后生效',
-      upPending: '新版本已安装，重启后生效',
+      upDone: '已装好 {version}，重启后生效',
+      upPending: '已装好 {version}，重启后生效',
       upRestart: '立即重启',
       upFailed: '检查更新失败：{error}',
       upUpdateFailed: '更新失败：{error}',
@@ -303,8 +303,8 @@ window.__ModuleLoader__.load({
       upAvailable: 'Version {version} is available',
       upNow: 'Update now',
       upUpdating: 'Updating…',
-      upDone: 'Updated — restart to load it',
-      upPending: 'A new version is installed — restart to load it',
+      upDone: '{version} installed — restart to load it',
+      upPending: '{version} installed — restart to load it',
       upRestart: 'Restart now',
       upFailed: 'Update check failed: {error}',
       upUpdateFailed: 'Update failed: {error}',
@@ -3663,7 +3663,7 @@ button.yk-itemTitle:hover {
         setPhase('updating')
         try {
           const payload = await postJson(API.update, {})
-          setInfo(payload.update)
+          setInfo({ ...payload.update, installed: payload.installed ?? payload.update?.installed })
           setPhase(payload.updated ? 'done' : 'latest')
         } catch (error) {
           setMessage(fill(t('upUpdateFailed'), { error: messageOf(error) }))
@@ -3687,7 +3687,7 @@ button.yk-itemTitle:hover {
             : phase === 'latest' ? { kind: 'ok', text: t('upLatest') }
               : phase === 'available' ? { kind: 'warn', text: fill(t('upAvailable'), { version: `v${info?.latest ?? ''}${info?.latestCommit ? ` (${info.latestCommit})` : ''}` }), action: h('button', { type: 'button', className: 'yk-btn yk-btn-solid yk-btn-sm', onClick: update }, t('upNow')) }
                 : phase === 'manual' ? { kind: 'warn', text: t('upManual') }
-                  : phase === 'done' || phase === 'pending' ? { kind: 'ok', text: phase === 'done' ? t('upDone') : t('upPending'), action: h('button', { type: 'button', className: 'yk-btn yk-btn-solid yk-btn-sm', onClick: restart }, h(PowerIcon, { width: 13, height: 13 }), t('upRestart')) }
+                  : phase === 'done' || phase === 'pending' ? { kind: 'ok', text: fill(phase === 'done' ? t('upDone') : t('upPending'), { version: `v${info?.installed ?? info?.latest ?? ''}` }), action: h('button', { type: 'button', className: 'yk-btn yk-btn-solid yk-btn-sm', onClick: restart }, h(PowerIcon, { width: 13, height: 13 }), t('upRestart')) }
                     : phase === 'error' ? { kind: 'error', text: message }
                       : null
 
