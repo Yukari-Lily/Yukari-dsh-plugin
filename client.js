@@ -20,6 +20,7 @@ window.__ModuleLoader__.load({
       sites: '/publish/api',
       proxy: '/ssproxy/api',
       purge: '/purge/api',
+      browser: '/browser/api',
     }
 
     /* ------------------------------------------------------------------ i18n */
@@ -274,6 +275,15 @@ window.__ModuleLoader__.load({
       rRestartSlow: '一直没有响应。可用 docker compose logs -f dsh 查看日志。',
       rBack: '已恢复，正在刷新…',
       rHint: '重启时页面会断开几秒，会话不受影响。',
+
+      bDesc: '首次使用时自动准备官方 Chrome for Testing，无需手动配置。浏览器仅供智能体工具调用。',
+      bLaunchOk: '启动正常',
+      bLaunchFail: '无法启动',
+      bLaunchFailHint: '浏览器已下载，但当前系统缺少运行库，使用时才会失败。按提示安装依赖或设置 browser libraryPath。',
+      bAutomatic: '自动准备',
+      bInstalling: '正在准备浏览器…',
+      bInstall: '安装或重试',
+      bVerify: '检查安装',
 
       relativeJustNow: '刚刚',
       relativeMinutes: ' 分钟前',
@@ -532,6 +542,15 @@ window.__ModuleLoader__.load({
       rBack: 'Back online — reloading…',
       rHint: 'A restart drops this page for a few seconds; chats are not affected.',
 
+      bDesc: 'Official Chrome for Testing is prepared automatically on first use. The browser is available to agent tools; no manual setup is needed.',
+      bLaunchOk: 'Launch OK',
+      bLaunchFail: 'Cannot launch',
+      bLaunchFailHint: 'The browser downloaded but this host lacks its runtime libraries; it will fail on first use. Install them or set browser libraryPath.',
+      bAutomatic: 'Automatic setup',
+      bInstalling: 'Preparing browser…',
+      bInstall: 'Install or retry',
+      bVerify: 'Verify installation',
+
       relativeJustNow: 'just now',
       relativeMinutes: 'm ago',
       relativeHours: 'h ago',
@@ -542,1088 +561,180 @@ window.__ModuleLoader__.load({
 
     const styles = `
 .yk-page {
+  --yk-line: var(--dsw-alias-border-l2);
+  --yk-soft: var(--dsw-alias-bg-layer-2);
+  --yk-muted: var(--dsw-alias-label-tertiary);
+  --yk-accent: var(--dsw-alias-brand-primary-new-colorprimary-new-color, var(--dsw-alias-state-business-primary));
   box-sizing: border-box;
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 24px;
-  padding: 0 clamp(20px, 3.5vw, 44px) 48px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-bg-base);
-  font-size: 14px;
-  line-height: 1.5;
-  scrollbar-gutter: stable;
+  width: 100%; height: 100%; min-height: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 20px;
+  padding: 0 clamp(16px, 3vw, 36px) 40px;
+  overflow-y: auto; overflow-x: hidden;
+  color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-base);
+  font-size: 14px; line-height: 1.5; scrollbar-gutter: stable;
   -webkit-font-smoothing: antialiased;
 }
-.yk-page * { box-sizing: border-box; }
-.yk-page > * { width: 100%; max-width: 960px; flex: none; }
+.yk-page *, .yk-page *::before, .yk-page *::after { box-sizing: border-box; }
+.yk-page > * { width: 100%; max-width: 980px; flex: none; }
 .yk-page > style { display: none; }
-
-/* Header Brand Area */
-.yk-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding-top: 24px;
-  border-bottom: .5px solid var(--dsw-alias-border-l2);
-  padding-bottom: 18px;
-}
-.yk-headBrand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-.yk-headLogo {
-  width: 38px;
-  height: 38px;
-  border-radius: var(--dsw-radius-md, 10px);
-  overflow: hidden;
-  flex: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
-}
-.yk-headInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.yk-titleRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.yk-title {
-  margin: 0;
-  font-size: 19px;
-  font-weight: 600;
-  line-height: 26px;
-  letter-spacing: -0.01em;
-  color: var(--dsw-alias-label-primary);
-}
-.yk-subtitle {
-  font-size: 12.5px;
-  color: var(--dsw-alias-label-tertiary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.yk-headBadges {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: none;
-  flex-wrap: wrap;
-}
-
-/* Capsule Segmented Tabs */
-.yk-navBar {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  max-width: 960px;
-  background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base));
-  border: .5px solid var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
-  border-radius: 999px;
-  padding: 3px;
-  gap: 2px;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
+.yk-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px 0 2px; }
+.yk-headBrand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.yk-headLogo { width: 32px; height: 32px; flex: none; display: grid; place-items: center; }
+.yk-title { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+.yk-logoFallback { display: grid; place-items: center; border-radius: var(--dsw-radius-md); font-weight: 650; background: var(--yk-soft); color: var(--yk-accent); }
+.yk-navBar { display: flex; align-items: center; gap: 2px; padding: 3px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--yk-line); }
 .yk-navBar::-webkit-scrollbar { display: none; }
-.yk-navTab {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 500;
-  height: 32px;
-  padding: 0 14px;
-  border-radius: 999px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  white-space: nowrap;
-  flex: 1 1 0;
-  min-width: 80px;
-  transition: all .16s ease;
-}
-.yk-navTab:hover:not([aria-selected="true"]) {
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-interactive-bg-hover, rgba(255, 255, 255, 0.05));
-}
-.yk-navTab[aria-selected="true"] {
-  color: var(--dsw-alias-label-primary-inverted, #fff);
-  background: var(--dsw-alias-state-business-primary, var(--dsw-alias-brand-primary, #6366f1));
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16);
-}
-.yk-navTab:focus-visible {
-  outline: 2px solid var(--dsw-alias-state-business-primary, #6366f1);
-  outline-offset: 1px;
-}
-
-/* Tab Panels */
-.yk-tabPanel {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  width: 100%;
-  min-width: 0;
-}
-.yk-body {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  min-width: 0;
-}
-
-/* Metric Stats Hero Strip */
-.yk-statsGrid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-  width: 100%;
-}
-.yk-statCard {
-  appearance: none;
-  background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base));
-  border: .5px solid var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
-  border-radius: var(--dsw-radius-lg, 12px);
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color .15s ease, background .15s ease, transform .12s ease;
-}
-.yk-statCard:hover {
-  border-color: var(--dsw-alias-state-business-primary, #6366f1);
-  background: var(--dsw-alias-bg-layer-3, var(--dsw-alias-bg-base));
-  transform: translateY(-1px);
-}
-.yk-statHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-  line-height: 16px;
-}
-.yk-statValue {
-  font-size: 19px;
-  font-weight: 600;
-  line-height: 24px;
-  color: var(--dsw-alias-label-primary);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-.yk-statSub {
-  font-size: 11.5px;
-  color: var(--dsw-alias-label-secondary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Modern Card / Groups */
-.yk-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-.yk-card {
-  background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base));
-  border: .5px solid var(--dsw-alias-border-l2);
-  border-radius: var(--dsw-radius-lg, 12px);
-  padding: 16px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
-  transition: border-color .15s;
-}
-.yk-card:hover {
-  border-color: var(--dsw-alias-border-l3, var(--dsw-alias-border-l1));
-}
-.yk-card-wide {
-  grid-column: 1 / -1;
-}
-.yk-cardHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  min-width: 0;
-}
-.yk-cardTitleWrap {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  flex: 1;
-}
-.yk-cardTitle {
-  margin: 0;
-  font-size: 14.5px;
-  font-weight: 600;
-  color: var(--dsw-alias-label-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.yk-cardNote {
-  font-size: 12px;
-  color: var(--dsw-alias-label-tertiary);
-  white-space: nowrap;
-}
-.yk-cardAction {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--dsw-alias-state-business-primary, var(--dsw-alias-brand-primary));
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 500;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 2px 6px;
-  border-radius: 6px;
-  transition: background .12s;
-}
-.yk-cardAction:hover {
-  background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,0.06));
-}
-
-/* Rows List inside Card */
-.yk-rows {
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.yk-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 9px 0;
-  border-bottom: .5px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.05));
-  min-width: 0;
-  font-size: 13px;
-}
-.yk-row:last-child {
-  border-bottom: 0;
-  padding-bottom: 2px;
-}
-.yk-key {
-  flex: 0 0 auto;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12.5px;
-}
-.yk-val {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  flex-wrap: wrap;
-  color: var(--dsw-alias-label-primary);
-  text-align: right;
-  overflow-wrap: anywhere;
-}
-.yk-val-clamp {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.yk-rows-2col {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0 24px;
-}
-.yk-rows-2col .yk-row {
-  justify-content: space-between;
-}
-
-/* Toolbar & Filter Bar */
-.yk-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  width: 100%;
-}
-.yk-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 1 1 260px;
-  height: 36px;
-  padding: 0 12px;
-  border-radius: var(--dsw-radius-md, 10px);
-  border: .5px solid var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
-  background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base));
-  color: var(--dsw-alias-label-tertiary);
-  transition: border-color .15s, box-shadow .15s;
-}
-.yk-search:focus-within {
-  border-color: var(--dsw-alias-state-business-primary, var(--dsw-alias-brand-primary));
-  box-shadow: 0 0 0 1px var(--dsw-alias-state-business-primary, var(--dsw-alias-brand-primary));
-}
-.yk-search input {
-  flex: 1 1 auto;
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  font: inherit;
-  font-size: 13px;
-  outline: none;
-}
-.yk-searchClear {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  color: var(--dsw-alias-label-tertiary);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  transition: color .15s, background .15s;
-}
-.yk-searchClear:hover {
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,0.1));
-}
-
-/* Segmented Pill Group */
-.yk-seg {
-  display: inline-flex;
-  align-items: center;
-  background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base));
-  border: .5px solid var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
-  border-radius: 999px;
-  padding: 2px;
-  gap: 2px;
-}
-.yk-segItem {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  font: inherit;
-  font-size: 12.5px;
-  font-weight: 500;
-  height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  white-space: nowrap;
-  transition: background .12s, color .12s;
-}
-.yk-segItem:hover:not([aria-selected="true"]) {
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,0.06));
-}
-.yk-segItem[aria-selected="true"] {
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-interactive-bg-active, rgba(255, 255, 255, 0.12));
-}
-.yk-segBadge {
-  font-size: 11px;
-  opacity: .75;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Buttons */
-.yk-btn {
-  appearance: none;
-  height: 34px;
-  padding: 0 13px;
-  border-radius: var(--dsw-radius-md, 10px);
-  border: .5px solid var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
-  background: var(--dsw-alias-bg-layer-2, transparent);
-  color: var(--dsw-alias-label-primary);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 20px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  white-space: nowrap;
-  text-decoration: none;
-  transition: all .15s ease;
-}
-.yk-btn:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,0.08));
-  border-color: var(--dsw-alias-border-l4, var(--dsw-alias-border-l1));
-}
-.yk-btn:disabled {
-  opacity: .45;
-  cursor: default;
-}
-.yk-btn-solid {
-  background: var(--dsw-alias-button-primary-fill, #fff);
-  border-color: transparent;
-  color: var(--dsw-alias-label-primary-inverted, #000);
-  font-weight: 600;
-}
-.yk-btn-solid:hover:not(:disabled) {
-  background: var(--dsw-alias-button-primary-hover, rgba(255,255,255,0.9));
-  border-color: transparent;
-  color: var(--dsw-alias-label-primary-inverted, #000);
-}
-.yk-btn-danger {
-  color: var(--dsw-alias-state-error-primary, #ef4444);
-  border-color: rgba(239, 68, 68, 0.35);
-  background: rgba(239, 68, 68, 0.08);
-}
-.yk-btn-danger:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.16);
-  border-color: var(--dsw-alias-state-error-primary, #ef4444);
-}
-.yk-btn-ghost {
-  border-color: transparent;
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-}
-.yk-btn-ghost:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,0.08));
-  color: var(--dsw-alias-label-primary);
-}
-.yk-iconBtn {
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  flex: none;
-}
-
-/* Badges / Chips */
-.yk-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 22px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  font-size: 11.5px;
-  font-weight: 500;
-  line-height: 18px;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--dsw-alias-label-secondary);
-  white-space: nowrap;
-}
-.yk-chip-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-  flex: none;
-}
-.yk-chip-ok {
-  color: #10b981;
-  background: rgba(16, 185, 129, 0.12);
-  border: .5px solid rgba(16, 185, 129, 0.25);
-}
-.yk-chip-warn {
-  color: #f59e0b;
-  background: rgba(245, 158, 11, 0.12);
-  border: .5px solid rgba(245, 158, 11, 0.25);
-}
-.yk-chip-danger {
-  color: #ef4444;
-  background: rgba(239, 68, 68, 0.12);
-  border: .5px solid rgba(239, 68, 68, 0.25);
-}
-.yk-chip-purple {
-  color: #c084fc;
-  background: rgba(168, 85, 247, 0.14);
-  border: .5px solid rgba(168, 85, 247, 0.3);
-}
-.yk-chip-brand {
-  color: var(--dsw-alias-label-secondary);
-  background: rgba(255, 255, 255, 0.08);
-}
-
-/* Workspace Grouping */
-.yk-wsGroup {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-  margin-bottom: 8px;
-}
-.yk-wsHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  background: var(--dsw-alias-bg-layer-2, rgba(255, 255, 255, 0.04));
-  border: .5px solid var(--dsw-alias-border-l1, rgba(255, 255, 255, 0.08));
-  border-radius: var(--dsw-radius-md, 10px);
-  gap: 10px;
-}
-.yk-wsInfo {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-.yk-wsToggleBtn {
-  appearance: none;
-  background: transparent;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  flex: 1 1 auto;
-  cursor: pointer;
-  text-align: left;
-  color: inherit;
-}
-.yk-wsTitle {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--dsw-alias-label-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.yk-wsPath {
-  font-size: 11px;
-  color: var(--dsw-alias-label-tertiary);
-  font-family: var(--dsw-font-mono, monospace);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 180px;
-}
-.yk-wsActions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-shrink: 0;
-}
-
-/* Modern List Items (Chats / Sites) */
-.yk-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 100%;
-}
-.yk-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 11px 14px;
-  background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base));
-  border: .5px solid var(--dsw-alias-border-l1, transparent);
-  border-radius: var(--dsw-radius-md, 10px);
-  transition: all .15s ease;
-}
-.yk-item:hover {
-  background: var(--dsw-alias-bg-layer-3, rgba(255,255,255,0.04));
-  border-color: var(--dsw-alias-border-l2);
-}
-.yk-itemMain {
-  flex: 1 1 auto;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.yk-itemTitleRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-.yk-itemTitle {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  padding: 0;
-  margin: 0;
-  text-align: left;
-  font: inherit;
-  font-size: 13.5px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  min-width: 0;
-  cursor: pointer;
-}
-button.yk-itemTitle:hover {
-  color: var(--dsw-alias-state-business-primary, #8b5cf6);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.yk-itemMeta {
-  display: flex;
-  align-items: center;
-  gap: 6px 10px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--dsw-alias-label-tertiary);
-}
-.yk-itemMeta span + span::before {
-  content: '·';
-  margin-right: 10px;
-  opacity: .5;
-}
-.yk-itemActions {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex: none;
-}
-
-/* Checkbox */
-.yk-check {
-  flex: none;
-  width: 17px;
-  height: 17px;
-  border-radius: 4px;
-  border: 1px solid var(--dsw-alias-border-l3, rgba(255,255,255,0.25));
-  background: transparent;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  padding: 0;
-  appearance: none;
-  color: transparent;
-  transition: all .15s;
-}
-.yk-check:hover:not(:disabled) {
-  border-color: var(--dsw-alias-label-secondary);
-}
-.yk-check[aria-checked="true"], .yk-check[aria-checked="mixed"] {
-  background: var(--dsw-alias-state-business-primary, #6366f1);
-  border-color: var(--dsw-alias-state-business-primary, #6366f1);
-  color: #fff;
-}
-.yk-check[aria-checked="mixed"]::after {
-  content: "";
-  width: 8px;
-  height: 2px;
-  border-radius: 1px;
-  background: currentColor;
-}
-
-/* Floating Batch Action Bar */
-.yk-batchBar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 14px;
-  background: rgba(99, 102, 241, 0.1);
-  border: .5px solid rgba(99, 102, 241, 0.35);
-  border-radius: var(--dsw-radius-md, 10px);
-  color: var(--dsw-alias-label-primary);
-  font-size: 13px;
-  font-weight: 500;
-}
-
-/* Copy & Password Utility */
-.yk-copyBtn {
-  appearance: none;
-  border: 0;
-  background: transparent;
-  padding: 3px;
-  color: var(--dsw-alias-label-tertiary);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all .15s;
-}
-.yk-copyBtn:hover {
-  color: var(--dsw-alias-label-primary);
-  background: var(--dsw-alias-interactive-bg-hover, rgba(255,255,255,0.08));
-}
-.yk-pwWrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  width: 100%;
-}
-.yk-pwWrap input {
-  padding-right: 34px;
-}
-.yk-pwToggle {
-  position: absolute;
-  right: 6px;
-  width: 24px;
-  height: 24px;
-  border: 0;
-  background: transparent;
-  color: var(--dsw-alias-label-tertiary);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  border-radius: 4px;
-  padding: 0;
-  transition: color .15s;
-}
-.yk-pwToggle:hover {
-  color: var(--dsw-alias-label-primary);
-}
-
-/* Form Grid */
-.yk-form {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px 12px;
-}
-.yk-field {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  min-width: 0;
-}
-.yk-fieldLabel {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-secondary);
-}
-.yk-input {
-  height: 36px;
-  min-width: 0;
-  width: 100%;
-  border-radius: var(--dsw-radius-md, 10px);
-  border: .5px solid var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
-  background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base));
-  color: var(--dsw-alias-label-primary);
-  padding: 0 12px;
-  font: inherit;
-  font-size: 13px;
-  outline: none;
-  transition: border-color .15s, box-shadow .15s;
-}
-.yk-input:focus {
-  border-color: var(--dsw-alias-state-business-primary, var(--dsw-alias-brand-primary));
-  box-shadow: 0 0 0 1px var(--dsw-alias-state-business-primary, var(--dsw-alias-brand-primary));
-}
-.yk-input:disabled { opacity: .5; }
-
-/* Banners & Dialogs */
-.yk-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  border-radius: var(--dsw-radius-md, 10px);
-  font-size: 13px;
-  line-height: 19px;
-}
-.yk-bannerInfo {
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--dsw-alias-label-secondary);
-}
-.yk-bannerWarn {
-  background: rgba(245, 158, 11, 0.12);
-  border: .5px solid rgba(245, 158, 11, 0.3);
-  color: #fbbf24;
-}
-.yk-bannerError {
-  background: rgba(239, 68, 68, 0.12);
-  border: .5px solid rgba(239, 68, 68, 0.3);
-  color: #f87171;
-}
-.yk-confirm {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 14px 16px;
-  border-radius: var(--dsw-radius-lg, 12px);
-  border: .5px solid rgba(239, 68, 68, 0.4);
-  background: rgba(239, 68, 68, 0.08);
-}
-.yk-confirmTitle {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--dsw-alias-label-primary);
-}
-.yk-confirmHint {
-  font-size: 12.5px;
-  color: var(--dsw-alias-label-secondary);
-}
-.yk-confirmActions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-/* Empty & Overlay */
-.yk-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 48px 24px;
-  color: var(--dsw-alias-label-tertiary);
-  text-align: center;
-}
-.yk-emptyTitle {
-  font-size: 14.5px;
-  font-weight: 500;
-  color: var(--dsw-alias-label-primary);
-}
-.yk-emptyHint {
-  font-size: 12.5px;
-  color: var(--dsw-alias-label-tertiary);
-  max-width: 44ch;
-}
-.yk-overlay {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: 12px;
-  padding: 64px 20px;
-}
-.yk-overlayTitle {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--dsw-alias-label-primary);
-}
-.yk-overlayHint {
-  font-size: 13px;
-  color: var(--dsw-alias-label-secondary);
-  max-width: 42ch;
-}
-
-/* Footer & Mono */
-.yk-mono {
-  font-family: var(--ds-font-family-code, var(--dsw-font-mono, ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace));
-  font-size: 12px;
-}
-.yk-foot {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--dsw-alias-label-tertiary);
-  padding: 4px 2px;
-}
-.yk-footDot { opacity: .4; }
-.yk-out {
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: var(--dsw-radius-md, 8px);
-  background: var(--dsw-alias-bg-layer-3, rgba(0,0,0,0.2));
-  border: .5px solid var(--dsw-alias-border-l1);
-  color: var(--dsw-alias-label-secondary);
-  font-family: var(--dsw-font-mono, monospace);
-  font-size: 11.5px;
-  line-height: 1.5;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  max-height: 220px;
-  overflow: auto;
-}
+.yk-navTab { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 13px; font-weight: 500; height: 36px; padding: 0 13px; border-radius: var(--dsw-radius-md); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; flex: 0 0 auto; transition: color .15s, background .15s; }
+.yk-navTab:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
+.yk-navTab[aria-selected="true"] { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-active); }
+.yk-navTab:focus-visible, .yk-btn:focus-visible, .yk-cardAction:focus-visible { outline: 2px solid var(--yk-accent); outline-offset: 2px; }
+.yk-tabPanel, .yk-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.yk-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.yk-search { display: flex; align-items: center; gap: 8px; flex: 1 1 220px; height: 34px; padding: 0 10px; border-radius: var(--dsw-radius-md); border: 1px solid var(--yk-line); background: var(--dsw-alias-bg-base); color: var(--yk-muted); }
+.yk-search:focus-within, .yk-input:focus { border-color: var(--yk-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--yk-accent) 12%, transparent); }
+.yk-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--dsw-alias-label-primary); font: inherit; font-size: 13px; }
+.yk-searchClear, .yk-copyBtn, .yk-updateDismiss { appearance: none; border: 0; background: transparent; color: var(--yk-muted); cursor: pointer; display: inline-grid; place-items: center; padding: 3px; border-radius: var(--dsw-radius-sm); }
+.yk-searchClear:hover, .yk-copyBtn:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
+.yk-btn { appearance: none; min-height: 32px; padding: 0 12px; border-radius: var(--dsw-radius-md); border: 1px solid var(--yk-line); background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; text-decoration: none; transition: background .15s, border-color .15s; }
+.yk-btn:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); border-color: var(--dsw-alias-border-l3); }
+.yk-btn:disabled { opacity: .45; cursor: default; }
+.yk-btn-solid { background: var(--dsw-alias-button-primary-fill); border-color: transparent; color: var(--dsw-alias-label-primary-inverted); }
+.yk-btn-solid:hover:not(:disabled) { background: var(--dsw-alias-button-primary-hover); border-color: transparent; }
+.yk-btn-danger { color: var(--dsw-alias-state-error-primary); border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 30%, transparent); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent); }
+.yk-btn-ghost { border-color: transparent; background: transparent; color: var(--dsw-alias-label-secondary); }
+.yk-btn-sm { min-height: 28px; padding: 0 9px; font-size: 12px; }
+.yk-iconBtn { width: 32px; padding: 0; flex: none; }
+.yk-iconBtn.yk-btn-sm { width: 28px; }
+.yk-dangerHover:hover:not(:disabled) { color: var(--dsw-alias-state-error-primary); }
+.yk-chip { display: inline-flex; align-items: center; gap: 5px; min-height: 21px; padding: 1px 7px; border-radius: var(--dsw-radius-sm); font-size: 11px; font-weight: 500; line-height: 17px; background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+.yk-chip-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.yk-chip-ok { color: var(--dsw-alias-state-success-primary, #34a77b); background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #34a77b) 10%, transparent); }
+.yk-chip-warn { color: var(--dsw-alias-state-warning-primary, #c58a2b); background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #c58a2b) 10%, transparent); }
+.yk-chip-danger { color: var(--dsw-alias-state-error-primary); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); }
+.yk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.yk-card { background: var(--dsw-alias-bg-base); border: 1px solid var(--yk-line); border-radius: var(--dsw-radius-lg); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.yk-card-wide { grid-column: 1 / -1; }
+.yk-cardHead, .yk-cardTitleWrap, .yk-cardTools { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.yk-cardHead { justify-content: space-between; }
+.yk-cardTitleWrap { color: var(--dsw-alias-label-secondary); }
+.yk-cardTitle { margin: 0; font-size: 14px; font-weight: 600; color: var(--dsw-alias-label-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yk-cardNote { font-size: 12px; color: var(--yk-muted); }
+.yk-cardAction { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; cursor: pointer; padding: 3px 0; }
+.yk-cardAction:hover { color: var(--yk-accent); }
+.yk-cardText { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 1.65; }
+.yk-cardHint, .yk-foot { color: var(--yk-muted); font-size: 12px; }
+.yk-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.yk-rows { display: flex; flex-direction: column; }
+.yk-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--dsw-alias-border-l1); font-size: 13px; }
+.yk-row:last-child { border-bottom: 0; }
+.yk-key { color: var(--dsw-alias-label-secondary); }
+.yk-val { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 7px; text-align: right; overflow-wrap: anywhere; }
+.yk-val-clamp { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yk-rows-2col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
+.yk-hero { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; border-radius: var(--dsw-radius-lg); border: 1px solid var(--yk-line); }
+.yk-heroDot { width: 7px; height: 7px; border-radius: 50%; background: var(--yk-muted); flex: none; }
+.yk-hero-on .yk-heroDot { background: var(--dsw-alias-state-success-primary, #34a77b); }
+.yk-hero-warn .yk-heroDot { background: var(--dsw-alias-state-warning-primary, #c58a2b); }
+.yk-heroMain { flex: 1 1 220px; min-width: 0; }
+.yk-heroTitle { font-size: 14px; font-weight: 600; }
+.yk-heroSub { font-size: 12px; color: var(--yk-muted); overflow-wrap: anywhere; }
+.yk-heroActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.yk-serviceGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.yk-service { appearance: none; text-align: left; font: inherit; color: inherit; background: var(--dsw-alias-bg-base); border: 1px solid var(--yk-line); border-radius: var(--dsw-radius-lg); padding: 15px 16px; cursor: pointer; display: flex; flex-direction: column; gap: 10px; min-width: 0; transition: border-color .15s, background .15s; }
+.yk-service:hover { border-color: var(--dsw-alias-border-l3); background: var(--dsw-alias-interactive-bg-hover); }
+.yk-serviceHead { display: flex; align-items: center; gap: 8px; color: var(--dsw-alias-label-secondary); }
+.yk-serviceTitle { font-size: 13px; font-weight: 600; color: var(--dsw-alias-label-primary); }
+.yk-serviceArrow { margin-left: auto; color: var(--yk-muted); }
+.yk-serviceValue { font-size: 15px; font-weight: 550; line-height: 1.4; overflow-wrap: anywhere; }
+.yk-serviceHint { color: var(--yk-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yk-list, .yk-groups, .yk-nodeList { display: flex; flex-direction: column; gap: 6px; }
+.yk-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid transparent; border-radius: var(--dsw-radius-md); transition: background .15s; }
+.yk-item:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.yk-item-selected { background: color-mix(in srgb, var(--yk-accent) 7%, transparent); }
+.yk-itemMain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.yk-itemTitleRow { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.yk-itemTitle { appearance: none; border: 0; background: transparent; padding: 0; margin: 0; text-align: left; font: inherit; font-size: 13px; font-weight: 500; color: var(--dsw-alias-label-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; cursor: pointer; text-decoration: none; }
+.yk-itemTitle:hover { color: var(--yk-accent); }
+.yk-itemMeta { display: flex; align-items: center; gap: 5px 9px; flex-wrap: wrap; font-size: 11px; color: var(--yk-muted); }
+.yk-itemMeta span + span::before { content: '·'; margin-right: 9px; opacity: .5; }
+.yk-itemActions { display: flex; align-items: center; gap: 4px; flex: none; }
+.yk-itemIcon { display: inline-flex; color: var(--yk-muted); flex: none; }
+.yk-link { color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.yk-check { flex: none; width: 16px; height: 16px; border-radius: var(--dsw-radius-sm); border: 1px solid var(--dsw-alias-border-l3); background: transparent; display: inline-grid; place-items: center; cursor: pointer; padding: 0; appearance: none; color: transparent; }
+.yk-check[aria-checked="true"], .yk-check[aria-checked="mixed"] { background: var(--yk-accent); border-color: var(--yk-accent); color: var(--dsw-alias-label-primary-inverted); }
+.yk-check[aria-checked="mixed"]::after { content: ''; width: 8px; height: 2px; background: currentColor; }
+.yk-wsGroup { display: flex; flex-direction: column; gap: 3px; margin-bottom: 5px; }
+.yk-wsHeader { display: flex; align-items: center; gap: 10px; padding: 7px 10px; }
+.yk-wsToggleBtn { appearance: none; background: transparent; border: 0; padding: 0; display: flex; align-items: center; gap: 7px; min-width: 0; flex: 1; cursor: pointer; text-align: left; color: var(--dsw-alias-label-secondary); }
+.yk-wsTitle { font-size: 13px; font-weight: 600; color: var(--dsw-alias-label-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yk-wsPath { font-size: 11px; color: var(--yk-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.yk-wsCount { font-size: 11px; color: var(--yk-muted); }
+.yk-batchBar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border: 1px solid var(--yk-line); border-radius: var(--dsw-radius-md); font-size: 13px; }
+.yk-batchActions { display: flex; gap: 8px; }
+.yk-seg { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--yk-line); border-radius: var(--dsw-radius-md); }
+.yk-segItem { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; height: 27px; padding: 0 9px; border-radius: calc(var(--dsw-radius-md) - 2px); cursor: pointer; white-space: nowrap; }
+.yk-segItem[aria-checked="true"] { background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-primary); }
+.yk-segBadge { font-size: 10px; margin-left: 4px; opacity: .7; }
+.yk-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.yk-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.yk-fieldLabel { font-size: 12px; font-weight: 500; color: var(--dsw-alias-label-secondary); }
+.yk-input { height: 34px; width: 100%; min-width: 0; border-radius: var(--dsw-radius-md); border: 1px solid var(--yk-line); background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); padding: 0 10px; font: inherit; font-size: 13px; outline: none; }
+.yk-textarea { height: auto; min-height: 76px; padding: 9px 10px; resize: vertical; line-height: 1.55; }
+.yk-editor { min-height: 300px; font-family: var(--ds-font-family-code, monospace); font-size: 12px; }
+.yk-editorHead { display: flex; align-items: center; justify-content: space-between; }
+.yk-importBox { display: flex; align-items: flex-end; gap: 8px; }
+.yk-importBox .yk-textarea { flex: 1; }
+.yk-settingRow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px 10px; }
+.yk-settingLabel { font-size: 13px; font-weight: 500; white-space: nowrap; }
+.yk-settingHint { grid-column: 1 / -1; font-size: 12px; color: var(--yk-muted); }
+.yk-settingWarn { color: var(--dsw-alias-state-warning-primary, #c58a2b); }
+.yk-disclosure { display: flex; flex-direction: column; gap: 10px; }
+.yk-disclosureBtn { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 3px 0; align-self: flex-start; }
+.yk-disclosureBody { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--yk-line); border-radius: var(--dsw-radius-lg); }
+.yk-banner { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--dsw-radius-md); font-size: 12px; }
+.yk-bannerInfo { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-secondary); }
+.yk-bannerWarn { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #c58a2b) 10%, transparent); color: var(--dsw-alias-state-warning-primary, #c58a2b); }
+.yk-bannerError { background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); color: var(--dsw-alias-state-error-primary); }
+.yk-confirm { display: flex; flex-direction: column; gap: 9px; padding: 14px; border-radius: var(--dsw-radius-lg); border: 1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent); }
+.yk-confirmTitle { font-size: 14px; font-weight: 600; }
+.yk-confirmHint { font-size: 12px; color: var(--dsw-alias-label-secondary); }
+.yk-confirmActions { display: flex; gap: 8px; }
+.yk-options { display: flex; flex-direction: column; gap: 8px; }
+.yk-option { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 13px; }
+.yk-option input { margin: 3px 0 0; accent-color: var(--yk-accent); }
+.yk-option-danger { color: var(--dsw-alias-state-error-primary); }
+.yk-optionText { display: flex; flex-direction: column; gap: 2px; }
+.yk-optionHint { font-size: 12px; color: var(--yk-muted); }
+.yk-heroActions .yk-option { align-items: center; font-size: 12px; color: var(--dsw-alias-label-secondary); }
+.yk-heroActions .yk-option input { margin: 0; }
+.yk-empty, .yk-overlay { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 48px 20px; color: var(--yk-muted); text-align: center; }
+.yk-emptyTitle, .yk-overlayTitle { font-size: 14px; font-weight: 500; color: var(--dsw-alias-label-primary); }
+.yk-emptyHint, .yk-overlayHint { font-size: 12px; max-width: 46ch; }
+.yk-node { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--yk-line); border-radius: var(--dsw-radius-md); }
+.yk-node-active { border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary, #34a77b) 35%, transparent); }
+.yk-nodeName { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yk-radio { appearance: none; flex: none; width: 16px; height: 16px; border-radius: 50%; padding: 0; cursor: pointer; border: 1px solid var(--dsw-alias-border-l3); background: transparent; display: grid; place-items: center; }
+.yk-radio[aria-checked="true"] { border-color: var(--dsw-alias-state-success-primary, #34a77b); box-shadow: inset 0 0 0 4px var(--dsw-alias-state-success-primary, #34a77b); cursor: default; }
+.yk-mono { font-family: var(--ds-font-family-code, var(--dsw-font-mono, monospace)); font-size: 12px; }
+.yk-out { margin: 0; padding: 10px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-layer-3); color: var(--dsw-alias-label-secondary); font: 11px/1.5 var(--dsw-font-mono, monospace); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow: auto; }
+.yk-update, .yk-updatePill { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
+.yk-updatePill { appearance: none; font: inherit; min-height: 30px; padding: 0 10px; border-radius: var(--dsw-radius-md); font-size: 12px; border: 1px solid var(--yk-line); background: transparent; color: var(--dsw-alias-label-secondary); }
+.yk-updatePill-click { cursor: pointer; }
+.yk-updatePill-click:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
+.yk-updateText { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px; }
+.yk-updateStatus-ok { color: var(--dsw-alias-state-success-primary, #34a77b); }
+.yk-updateStatus-warn, .yk-updateStatus-error { color: var(--dsw-alias-state-warning-primary, #c58a2b); }
+.yk-flash, .yk-flashNote { display: inline-flex; align-items: center; gap: 5px; color: var(--dsw-alias-state-success-primary, #34a77b); }
+.yk-flashNote { font-size: 12px; }
+.yk-grow { flex: 1; }
+.yk-progress { width: 100%; height: 4px; overflow: hidden; border-radius: 2px; background: var(--dsw-alias-interactive-bg-hover); }
+.yk-progressBar { height: 100%; border-radius: inherit; background: var(--yk-accent); transition: width .2s; }
 .yk-spin { animation: yk-spin 1s linear infinite; }
 @keyframes yk-spin { to { transform: rotate(360deg); } }
-
-/* Media Breakpoints */
-@media(max-width: 768px) {
-  .yk-page { padding: 0 16px 36px; }
-  .yk-statsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .yk-grid { grid-template-columns: minmax(0, 1fr); }
-  .yk-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .yk-rows-2col { grid-template-columns: minmax(0, 1fr); gap: 0; }
-  .yk-head { flex-direction: column; align-items: flex-start; gap: 12px; }
-  .yk-headBadges { width: 100%; }
-}
-@media(max-width: 520px) {
-  .yk-statsGrid { grid-template-columns: minmax(0, 1fr); }
-  .yk-form { grid-template-columns: minmax(0, 1fr); }
-  .yk-navTab span:not(.yk-navTabLabel) { display: none; }
-  .yk-btnLabel { display: none; }
-}
-@media(prefers-reduced-motion: reduce) {
-  .yk-page * { animation: none !important; transition: none !important; }
-}
-
-/* ---- v1.5 additions ---- */
-.yk-headLogo { width: 40px; height: 40px; box-shadow: none; overflow: visible; }
-.yk-headBrand { gap: 10px; }
-.yk-logoFallback {
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 8px; font-weight: 700;
-  background: rgba(168, 85, 247, 0.18); color: #c084fc;
-}
-.yk-btn-sm { height: 28px; padding: 0 10px; font-size: 12.5px; border-radius: 8px; }
-.yk-iconBtn.yk-btn-sm { width: 28px; padding: 0; }
-.yk-dangerHover:hover:not(:disabled) { color: var(--dsw-alias-state-error-primary, #ef4444); }
-.yk-grow { flex: 1 1 auto; }
-
-.yk-update { display: flex; align-items: center; justify-content: flex-end; min-width: 0; max-width: 100%; }
-.yk-updatePill, .yk-updateStatus {
-  appearance: none; font: inherit;
-  display: inline-flex; align-items: center; gap: 7px; height: 30px;
-  padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 500;
-  border: .5px solid var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
-  background: var(--dsw-alias-bg-layer-2, transparent);
-  color: var(--dsw-alias-label-secondary);
-  max-width: 100%; min-width: 0; white-space: nowrap;
-  transition: background .15s ease, border-color .15s ease, color .15s ease;
-}
-.yk-updatePill-click { cursor: pointer; }
-.yk-updatePill-click:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover, rgba(255, 255, 255, 0.08)); }
-.yk-updateText { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.yk-updatePill:has(> .yk-btn) { padding-right: 3px; }
-.yk-updateStatus-ok { color: #10b981; border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.08); }
-.yk-updateStatus-warn { color: #f59e0b; border-color: rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.08); }
-.yk-updateStatus-error { color: #ef4444; border-color: rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.08); }
-.yk-updatePill.yk-updateStatus-ok:hover, .yk-updatePill.yk-updateStatus-error:hover { color: inherit; }
-.yk-updatePill .yk-btn-sm { height: 24px; border-radius: 999px; padding: 0 10px; }
-
-/* In-place confirmations */
-.yk-flash, .yk-flashNote { display: inline-flex; align-items: center; gap: 5px; color: #10b981; animation: yk-fade .18s ease-out; }
-.yk-flashNote { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 100%; }
-@keyframes yk-fade { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
-.yk-disclosureBody .yk-settingRow { padding: 0; border: 0; background: none; }
-.yk-disclosureBtn .yk-chip { margin-left: 4px; }
-.yk-updateDismiss {
-  appearance: none; border: 0; background: transparent; color: inherit; cursor: pointer;
-  width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; opacity: .7;
-}
-.yk-updateDismiss:hover { opacity: 1; background: rgba(255, 255, 255, 0.08); }
-
-.yk-cardTools { display: flex; align-items: center; gap: 6px; }
-.yk-cardText { margin: 0; font-size: 13px; line-height: 1.65; color: var(--dsw-alias-label-secondary); }
-.yk-cardHint { font-size: 12px; color: var(--dsw-alias-label-tertiary); padding-top: 4px; }
-
-.yk-hero {
-  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
-  padding: 14px 16px; border-radius: var(--dsw-radius-lg, 12px);
-  border: .5px solid var(--dsw-alias-border-l2);
-  background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base));
-}
-.yk-heroDot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--dsw-alias-label-tertiary); opacity: .6; }
-.yk-hero-on .yk-heroDot { background: #10b981; opacity: 1; box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15); }
-.yk-hero-warn .yk-heroDot { background: #f59e0b; opacity: 1; box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15); }
-.yk-heroMain { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.yk-heroTitle { font-size: 15px; font-weight: 600; color: var(--dsw-alias-label-primary); }
-.yk-heroSub { font-size: 12.5px; color: var(--dsw-alias-label-tertiary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.yk-heroActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-
-.yk-options { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 2px; }
-.yk-option { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 13px; color: var(--dsw-alias-label-primary); }
-.yk-option input { margin: 3px 0 0; accent-color: var(--dsw-alias-state-business-primary, #6366f1); flex: none; }
-.yk-option-danger { color: var(--dsw-alias-state-error-primary, #ef4444); }
-.yk-option-danger input { accent-color: #ef4444; }
-.yk-optionText { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.yk-optionHint { font-size: 12px; color: var(--dsw-alias-label-tertiary); line-height: 1.5; overflow-wrap: anywhere; }
-.yk-heroActions .yk-option { align-items: center; font-size: 12.5px; color: var(--dsw-alias-label-secondary); }
-.yk-heroActions .yk-option input { margin: 0; }
-
-.yk-groups { display: flex; flex-direction: column; gap: 12px; }
-.yk-wsHeader { gap: 10px; }
-.yk-wsCount {
-  font-size: 11.5px; min-width: 20px; height: 18px; padding: 0 6px; border-radius: 999px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: rgba(255, 255, 255, 0.08); color: var(--dsw-alias-label-secondary); flex: none;
-}
-.yk-item-selected { background: rgba(99, 102, 241, 0.08); }
-.yk-batchActions { display: flex; gap: 8px; }
-.yk-itemIcon { display: inline-flex; color: var(--dsw-alias-label-tertiary); flex: none; }
-.yk-itemTitle { text-decoration: none; }
-.yk-link { color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
-
-.yk-settingRow {
-  display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px 10px;
-  padding: 12px 14px; border-radius: var(--dsw-radius-lg, 12px);
-  border: .5px solid var(--dsw-alias-border-l2);
-  background: var(--dsw-alias-bg-layer-2, var(--dsw-alias-bg-base));
-}
-.yk-settingLabel { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; white-space: nowrap; }
-.yk-settingHint { grid-column: 1 / -1; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
-.yk-settingWarn { color: #f59e0b; }
-
-.yk-nodeList { display: flex; flex-direction: column; gap: 6px; }
-.yk-node {
-  display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px;
-  border: .5px solid var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
-  transition: border-color .15s ease, background .15s ease;
-}
-.yk-node:hover { background: var(--dsw-alias-interactive-bg-hover, rgba(255, 255, 255, 0.04)); }
-.yk-node-active { border-color: rgba(16, 185, 129, 0.45); background: rgba(16, 185, 129, 0.06); }
-.yk-nodeName { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.yk-radio {
-  appearance: none; flex: none; width: 18px; height: 18px; border-radius: 50%; padding: 0; cursor: pointer;
-  border: 1.5px solid var(--dsw-alias-border-l4, rgba(255, 255, 255, 0.35)); background: transparent;
-  display: inline-flex; align-items: center; justify-content: center; color: inherit;
-}
-.yk-radio[aria-checked="true"] { border-color: #10b981; box-shadow: inset 0 0 0 4px #10b981; cursor: default; }
-.yk-radio:disabled:not([aria-checked="true"]) { opacity: .5; cursor: default; }
-.yk-importBox { display: flex; gap: 8px; align-items: flex-end; padding-top: 4px; }
-.yk-importBox .yk-textarea { flex: 1 1 auto; }
-.yk-textarea { height: auto; min-height: 64px; padding: 9px 11px; resize: vertical; line-height: 1.5; font-family: var(--ds-font-family-code, var(--dsw-font-mono, ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace)); font-size: 12px; }
-.yk-editor { min-height: 320px; }
-.yk-editorHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-
-.yk-disclosure { display: flex; flex-direction: column; gap: 12px; }
-.yk-disclosureBtn {
-  appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 13px;
-  display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 4px 0; align-self: flex-start;
-}
-.yk-disclosureBtn:hover { color: var(--dsw-alias-label-primary); }
-.yk-disclosureBody { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; border-radius: var(--dsw-radius-lg, 12px); border: .5px solid var(--dsw-alias-border-l2); }
-
-@media(max-width: 640px) {
-  .yk-head { flex-direction: column; align-items: flex-start; }
-  .yk-update { justify-content: flex-start; }
-  .yk-settingRow { grid-template-columns: minmax(0, 1fr) auto; }
-  .yk-settingLabel { grid-column: 1 / -1; }
-  .yk-importBox { flex-direction: column; align-items: stretch; }
-}
-`;
+@media(max-width: 720px) { .yk-page { padding-inline: 14px; } .yk-serviceGrid, .yk-grid { grid-template-columns: 1fr; } .yk-settingRow { grid-template-columns: 1fr auto; } .yk-settingLabel { grid-column: 1 / -1; } .yk-rows-2col { grid-template-columns: 1fr; } .yk-updateText { max-width: 200px; } }
+@media(max-width: 480px) { .yk-form { grid-template-columns: 1fr; } .yk-navTab { padding-inline: 10px; } .yk-navTab svg { display: none; } .yk-btnLabel, .yk-wsPath { display: none; } .yk-importBox { flex-direction: column; align-items: stretch; } .yk-itemActions { flex-wrap: wrap; justify-content: flex-end; } .yk-head { align-items: flex-start; } .yk-updateText { max-width: 150px; } }
+@media(prefers-reduced-motion: reduce) { .yk-page * { animation: none !important; transition: none !important; } }
+`
 
     /* --------------------------------------------------------------- helpers */
 
@@ -2124,7 +1235,6 @@ button.yk-itemTitle:hover {
 
     /** Wait for the server to come back after a restart, then reload. */
     function RestartWatch({ t }) {
-      const [attempts, setAttempts] = React.useState(0)
       const [phase, setPhase] = React.useState('waiting')
       React.useEffect(() => {
         let count = 0
@@ -2132,7 +1242,6 @@ button.yk-itemTitle:hover {
         // Give the old process time to go away before the first probe.
         const timer = setInterval(async () => {
           count += 1
-          setAttempts(count)
           if (count > 60) {
             clearInterval(timer)
             setPhase('slow')
@@ -2161,7 +1270,6 @@ button.yk-itemTitle:hover {
         phase === 'back' ? h(CheckIcon, { width: 26, height: 26 }) : h(Spinner, { size: 26 }),
         h('div', { className: 'yk-overlayTitle' }, phase === 'back' ? t('rBack') : t('rRestarting')),
         h('div', { className: 'yk-overlayHint' }, phase === 'slow' ? t('rRestartSlow') : t('rRestartingHint')),
-        phase === 'waiting' ? h('div', { className: 'yk-statSub' }, fill(t('rRestartWait'), { n: attempts })) : null,
       )
     }
 
@@ -2210,175 +1318,76 @@ button.yk-itemTitle:hover {
     /* ---------------------------------------------------------------- overview */
 
     function OverviewTab({ t, components, onGo }) {
-      const [state, setState] = React.useState({ chats: null, runtime: null, sites: null, proxy: null, purge: null })
-      const [busy, setBusy] = React.useState(false)
+      const [state, setState] = React.useState({ chats: null, runtime: null, sites: null, proxy: null, browser: null })
       const { signal, alive } = useAbortOnUnmount()
       const on = (name) => components === null || Boolean(components[name])
-
       const load = React.useCallback(async () => {
-        setBusy(true)
         const want = (name, url) => (on(name) ? getJson(url, signal) : Promise.resolve(null))
         const settled = await Promise.allSettled([
-          want('chats', `${API.chats}/state`),
-          want('runtime', `${API.runtime}/state`),
-          want('sites', `${API.sites}/list`),
-          want('proxy', `${API.proxy}/state`),
-          want('purge', `${API.purge}/config`),
+          want('chats', `${API.chats}/state`), want('runtime', `${API.runtime}/state`),
+          want('sites', `${API.sites}/list`), want('proxy', `${API.proxy}/state`), want('browser', `${API.browser}/state`),
         ])
         if (!alive.current) return
-        const pick = (index) => (settled[index].status === 'fulfilled' ? settled[index].value : null)
-        setState({
-          chats: pick(0)?.state ?? null,
-          runtime: pick(1)?.state ?? null,
-          sites: pick(2) ?? null,
-          proxy: pick(3)?.state ?? null,
-          purge: pick(4) ?? null,
-        })
-        setBusy(false)
+        const pick = (index) => settled[index].status === 'fulfilled' ? settled[index].value : null
+        setState({ chats: pick(0)?.state, runtime: pick(1)?.state, sites: pick(2), proxy: pick(3)?.state, browser: pick(4)?.state })
       }, [components])
+      React.useEffect(() => { load() }, [load])
+      const { chats, runtime, sites, proxy, browser } = state
+      const activeNode = proxy?.nodes?.find((node) => node.active)
+      const browserBusy = browser?.status === 'installing' || browser?.status === 'checking'
+      const services = [
+        on('chats') && { key: 'chats', icon: ChatIcon, value: chats ? fill(t('cTotal'), { n: chats.totals.all }) : '—', hint: chats ? `${chats.totals.archived} ${t('ovArchived')} · ${formatBytes(chats.totals.bytes)}` : t('loading') },
+        on('sites') && { key: 'sites', icon: GlobeIcon, value: sites ? counted(t, 'sCountOne', 'sCount', sites.sites.length) : '—', hint: sites?.sites?.[0]?.title ?? t('sEmpty') },
+        on('proxy') && { key: 'proxy', icon: RouteIcon, value: proxy ? (proxy.enabled ? t('pEnabled') : t('pDisabled')) : '—', hint: activeNode?.name ?? t('pNoNodes') },
+        on('purge') && { key: 'purge', icon: PurgeIcon, value: t('gTitle'), hint: t('ovPurgeHow') },
+        on('browser') && { key: 'browser', icon: OverviewIcon, value: browser?.status === 'ready' ? t('ovReady') : browserBusy ? t('bInstalling') : t('bAutomatic'), hint: browser?.version ?? `${components?.browser?.viewportWidth ?? 1280}×${components?.browser?.viewportHeight ?? 900}` },
+        on('runtime') && { key: 'runtime', icon: PowerIcon, value: `DSH ${runtime?.runtime?.version ?? '—'}`, hint: runtime?.disk?.stale ? t('rNeedsRestart') : runtime?.runtime?.uptime ?? t('rCheck') },
+      ].filter(Boolean)
+      return h('div', { className: 'yk-serviceGrid' }, services.map((service) => h(
+        'button', { type: 'button', className: 'yk-service', key: service.key, onClick: () => onGo(service.key) },
+        h('div', { className: 'yk-serviceHead' }, h(service.icon, { width: 16, height: 16 }), h('span', { className: 'yk-serviceTitle' }, t(COMPONENT_LABEL[service.key])), h('span', { className: 'yk-serviceArrow' }, '→')),
+        h('div', { className: 'yk-serviceValue' }, service.value), h('div', { className: 'yk-serviceHint' }, service.hint),
+      )))
+    }
 
+    function BrowserTab({ t }) {
+      const [state, setState] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const { signal, alive } = useAbortOnUnmount()
+      const load = React.useCallback(async (quiet = false) => {
+        try { const payload = await getJson(`${API.browser}/state`, signal); if (alive.current) { setState(payload.state); setFailure(null) } }
+        catch (error) { if (!quiet && alive.current && error?.name !== 'AbortError') setFailure(failureOf(error)) }
+      }, [])
+      React.useEffect(() => { load() }, [load])
+      const status = state?.status
       React.useEffect(() => {
-        load()
-      }, [load])
-
-      const go = (key) => h('button', { type: 'button', className: 'yk-cardAction', onClick: () => onGo(key) }, t('ovGo'), ' →')
-      const dash = (value) => (value === null || value === undefined ? '—' : value)
-      const { chats, runtime, sites, proxy, purge } = state
-      const browser = components?.browser ?? null
-      const off = components === null ? [] : Object.keys(COMPONENT_LABEL).filter((name) => !components[name])
-      const activeNode = proxy?.nodes?.find((node) => node.active) ?? null
-
-      const cards = []
-      if (on('chats')) {
-        cards.push(
-          h(
-            Card,
-            { key: 'chats', title: t('compChats'), icon: h(ChatIcon, { width: 16, height: 16 }), action: go('chats') },
-            h(
-              'div',
-              { className: 'yk-rows' },
-              h(Row, { label: t('ovTotal'), value: dash(chats?.totals?.all) }),
-              h(Row, { label: t('ovWorkspaces'), value: dash(chats?.workspaces?.length) }),
-              h(Row, { label: t('ovArchived'), value: dash(chats?.totals?.archived) }),
-              h(Row, { label: t('ovStored'), value: chats === null ? '—' : formatBytes(chats.totals.bytes), mono: true }),
-            ),
+        if (status !== 'installing' && status !== 'checking') return undefined
+        const timer = setInterval(() => load(true), 1500)
+        return () => clearInterval(timer)
+      }, [status, load])
+      const retry = async () => { try { setFailure(null); setState((await postJson(`${API.browser}/install/retry`, {})).state) } catch (error) { setFailure(failureOf(error)) } }
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'browser' }))
+      const busy = status === 'installing' || status === 'checking'
+      return h('div', { className: 'yk-body' },
+        h(Failure, { t, name: 'browser', error: failure, onRetry: load }),
+        h(Card, { title: t('compBrowser'), icon: h(GlobeIcon, { width: 16, height: 16 }), action: h(RefreshButton, { t, onClick: load, spinning: busy }) },
+          h('p', { className: 'yk-cardText' }, t('bDesc')),
+          state === null ? h(Loading, { text: t('loading') }) : h(React.Fragment, null,
+            h('div', { className: 'yk-heroTitle' }, busy ? t('bInstalling') : status === 'ready' ? t('ovReady') : t('bInstall')),
+            state?.version ? h('div', { className: 'yk-cardHint' }, `Chrome for Testing ${state.version}`) : null,
+            status === 'ready' && state?.launch
+              ? state.launch.ok
+                ? h(Chip, { kind: 'ok', dot: true }, t('bLaunchOk'))
+                : h(React.Fragment, null,
+                    h(Chip, { kind: 'danger', dot: true }, t('bLaunchFail')),
+                    h(Banner, { kind: 'warn', text: `${t('bLaunchFailHint')} ${state.launch.detail}` }),
+                  )
+              : null,
+            busy ? h('div', { className: 'yk-progress', role: 'progressbar', 'aria-valuenow': state?.percent ?? 0 }, h('div', { className: 'yk-progressBar', style: { width: `${state?.percent ?? 5}%` } })) : null,
+            status === 'error' ? h(Banner, { kind: 'error', text: state.error }) : null,
+            !busy ? h('div', null, h('button', { type: 'button', className: 'yk-btn', onClick: retry }, h(DownloadIcon), status === 'ready' ? t('bVerify') : t('bInstall'))) : null,
           ),
-        )
-      }
-      if (on('sites')) {
-        cards.push(
-          h(
-            Card,
-            { key: 'sites', title: t('compSites'), icon: h(GlobeIcon, { width: 16, height: 16 }), action: go('sites') },
-            h(
-              'div',
-              { className: 'yk-rows' },
-              h(Row, { label: t('ovSitesCount'), value: dash(sites?.sites?.length) }),
-              h(Row, { label: t('ovLatestSite'), value: sites?.sites?.[0]?.title ?? '—', clamp: true }),
-              h(Row, { label: t('ovPrefix'), value: dash(sites?.publicBase), mono: true, clamp: true }),
-            ),
-          ),
-        )
-      }
-      if (on('proxy')) {
-        cards.push(
-          h(
-            Card,
-            {
-              key: 'proxy',
-              title: t('compProxy'),
-              icon: h(RouteIcon, { width: 16, height: 16 }),
-              action: go('proxy'),
-            },
-            h(
-              'div',
-              { className: 'yk-rows' },
-              h(Row, {
-                label: t('ovState'),
-                value: proxy === null ? '—' : proxy.enabled ? t('pEnabled') : t('pDisabled'),
-                chips: proxy === null ? [] : [{ text: proxy.running ? t('pRunning') : t('pStopped'), kind: proxy.running ? 'ok' : undefined, dot: true }],
-              }),
-              h(Row, { label: t('ovNode'), value: activeNode === null ? '—' : activeNode.name, clamp: true }),
-              h(Row, { label: t('ovNodes'), value: dash(proxy?.nodes?.length) }),
-              h(Row, { label: t('ovTraffic'), value: proxy === null ? '—' : formatBytes(proxy.stats?.bytesDown ?? 0), mono: true }),
-            ),
-          ),
-        )
-      }
-      if (on('purge')) {
-        cards.push(
-          h(
-            Card,
-            { key: 'purge', title: t('compPurge'), icon: h(PurgeIcon, { width: 16, height: 16 }), action: go('purge') },
-            h(
-              'div',
-              { className: 'yk-rows' },
-              h(Row, { label: t('ovState'), value: t('ovPurgeReady'), chips: [{ text: purge?.presetId ?? 'unrestricted', kind: 'ok', dot: true }] }),
-              h(Row, { label: t('ovPurgePrompt'), value: purge === null ? '—' : purge.isCustom ? t('ovPurgeCustom') : t('ovPurgeDefault') }),
-              h('div', { className: 'yk-cardHint' }, t('ovPurgeHow')),
-            ),
-          ),
-        )
-      }
-      if (on('runtime')) {
-        cards.push(
-          h(
-            Card,
-            {
-              key: 'runtime',
-              title: t('compRuntime'),
-              icon: h(PowerIcon, { width: 16, height: 16 }),
-              action: go('runtime'),
-              note: runtime?.update?.available === true ? t('ovUpdateReady') : undefined,
-            },
-            h(
-              'div',
-              { className: 'yk-rows' },
-              h(Row, {
-                label: t('ovVersion'),
-                value: dash(runtime?.runtime?.version),
-                mono: true,
-                chips: runtime?.disk?.stale === true ? [{ text: t('rNeedsRestart'), kind: 'warn' }] : [],
-              }),
-              h(Row, { label: t('ovChannel'), value: dash(runtime?.runtime?.channel), mono: true }),
-              h(Row, { label: t('ovUptime'), value: dash(runtime?.runtime?.uptime) }),
-            ),
-          ),
-        )
-      }
-      if (browser !== null) {
-        cards.push(
-          h(
-            Card,
-            { key: 'browser', title: t('compBrowser'), icon: h(OverviewIcon, { width: 16, height: 16 }) },
-            h(
-              'div',
-              { className: 'yk-rows' },
-              h(Row, {
-                label: t('ovState'),
-                value: browser.ready ? t('ovReady') : t('ovNotReady'),
-                chips: [{ text: 'Chromium', kind: browser.ready ? 'ok' : 'warn', dot: true }],
-              }),
-              h(Row, { label: t('ovChromium'), value: browser.executable ?? '—', mono: true, clamp: true }),
-              h(Row, { label: t('ovViewport'), value: `${browser.viewportWidth}×${browser.viewportHeight}`, mono: true }),
-            ),
-          ),
-        )
-      }
-
-      return h(
-        'div',
-        { className: 'yk-body' },
-        busy && cards.length > 0 && chats === null && sites === null && proxy === null ? h(Loading, { text: t('loading') }) : null,
-        h('div', { className: 'yk-grid' }, cards),
-        off.length > 0
-          ? h(
-              'div',
-              { className: 'yk-foot' },
-              h(PowerIcon, { width: 13, height: 13 }),
-              h('span', null, fill(t('offList'), { names: off.map((name) => t(COMPONENT_LABEL[name])).join('、') })),
-            )
-          : null,
+        ),
       )
     }
 
@@ -2781,15 +1790,7 @@ button.yk-itemTitle:hover {
               ? h('div', { className: 'yk-groups' }, groups.map(renderGroup))
               : h('div', { className: 'yk-list' }, visible.map(renderRow)),
 
-        data !== null
-          ? h(
-              'div',
-              { className: 'yk-foot' },
-              h('span', null, counted(t, 'cTotalOne', 'cTotal', rows.length)),
-              h('span', { className: 'yk-footDot' }, '·'),
-              h('span', { className: 'yk-mono' }, data.root),
-            )
-          : null,
+        data !== null ? h('div', { className: 'yk-foot' }, counted(t, 'cTotalOne', 'cTotal', rows.length)) : null,
       )
     }
 
@@ -2970,7 +1971,7 @@ button.yk-itemTitle:hover {
               { className: 'yk-foot' },
               h('span', null, counted(t, 'sCountOne', 'sCount', (sites ?? []).length)),
               h('span', { className: 'yk-footDot' }, '·'),
-              h('span', { className: 'yk-mono' }, payload.root),
+              h('span', null, payload.publicBase),
             )
           : null,
       )
@@ -3125,7 +2126,7 @@ button.yk-itemTitle:hover {
                   'div',
                   { className: 'yk-heroSub' },
                   state.node?.server ? `${nodes.find((node) => node.active)?.name ?? state.node.server} · 127.0.0.1:${state.localPort}` : t('pNoNodes'),
-                  stats && state.enabled ? ` · ↑ ${formatBytes(stats.bytesUp)} ↓ ${formatBytes(stats.bytesDown)} · ${stats.active} ${t('pActive')}` : '',
+                  stats && state.enabled && stats.active > 0 ? ` · ${stats.active} ${t('pActive')}` : '',
                 ),
               ),
               h(
@@ -3287,14 +2288,9 @@ button.yk-itemTitle:hover {
                           )
                         : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-dangerHover', onClick: () => setConfirmReset(true), disabled: busy !== '' || nodes.length === 0 }, t('pReset')),
                     ),
-                    stats
-                      ? h(
-                          'div',
-                          { className: 'yk-rows yk-rows-2col' },
+                    stats && (stats.active > 0 || stats.failures > 0)
+                      ? h('div', { className: 'yk-rows yk-rows-2col' },
                           h(Row, { label: t('pActive'), value: String(stats.active ?? 0) }),
-                          h(Row, { label: t('pTotal'), value: String(stats.total ?? 0) }),
-                          h(Row, { label: t('pUp'), value: formatBytes(stats.bytesUp ?? 0), mono: true }),
-                          h(Row, { label: t('pDown'), value: formatBytes(stats.bytesDown ?? 0), mono: true }),
                           h(Row, { label: t('pFailures'), value: String(stats.failures ?? 0) }),
                         )
                       : null,
@@ -3543,88 +2539,37 @@ button.yk-itemTitle:hover {
         h(Failure, { t, name: 'runtime', error: failure, onRetry: load }),
         snap === null && failure === null ? h(Loading, { text: t('loading') }) : null,
 
-        snap !== null
-          ? h(
-              'div',
-              { className: 'yk-grid' },
-              h(
-                Card,
-                {
-                  title: t('rCardVersion'),
-                  icon: h(DownloadIcon, { width: 16, height: 16 }),
-                  action: h('button', { type: 'button', className: 'yk-cardAction', onClick: () => setPicking((value) => !value) }, t('rPickVersion')),
-                },
-                h(
-                  'div',
-                  { className: 'yk-rows' },
-                  h(Row, { label: t('rRunning'), value: runtime?.version ?? '—', mono: true }),
-                  h(Row, { label: t('rOnDisk'), value: disk?.version ?? '—', mono: true, chips: disk?.stale ? [{ text: t('rNeedsRestart'), kind: 'warn' }] : [] }),
-                  h(Row, { label: t('rLatest'), value: feed?.latest ?? (feed?.error || t('rNotChecked')), mono: Boolean(feed?.latest) }),
-                  h(Row, { label: t('rCheckedAt'), value: feed?.checkedAt ? formatTime(feed.checkedAt) : t('never'), mono: true }),
-                ),
-                picking
-                  ? h(
-                      'div',
-                      { className: 'yk-toolbar' },
-                      h('input', { className: 'yk-input yk-mono', style: { flex: '1 1 160px' }, value: version, placeholder: t('rVersionInput'), onChange: (event) => setVersion(event.target.value) }),
-                      h('button', { type: 'button', className: 'yk-btn', onClick: () => update(version.trim()), disabled: disabled || version.trim() === '' }, t('rInstall')),
-                    )
-                  : null,
-              ),
-              h(
-                Card,
-                { title: t('rCardProcess'), icon: h(PowerIcon, { width: 16, height: 16 }) },
-                h(
-                  'div',
-                  { className: 'yk-rows' },
-                  h(Row, { label: t('rHost'), value: runtime?.hostname ?? '—', mono: true, chips: [{ text: runtime?.docker ? t('rDocker') : t('rBare') }] }),
-                  h(Row, { label: t('rPid'), value: String(runtime?.pid ?? '—'), mono: true }),
-                  h(Row, { label: t('rNode'), value: runtime?.node ?? '—', mono: true }),
-                  h(Row, { label: t('rUptime'), value: runtime?.uptime ?? '—' }),
-                  h(Row, { label: t('rChannel'), value: runtime?.channel ?? '—', mono: true }),
-                ),
-              ),
-              h(
-                Card,
-                { title: t('rCardRestart'), icon: h(RefreshIcon, { width: 16, height: 16 }) },
-                h(
-                  'div',
-                  { className: 'yk-rows' },
-                  h(Row, { label: t('rRegistry'), value: snap.npm?.registry ?? '—', mono: true, clamp: true }),
-                  h(Row, { label: t('rStrategy'), value: strategy }),
-                  h(Row, { label: t('rLastRestart'), value: snap.restart?.last ? formatTime(snap.restart.last.at) : t('never'), mono: true }),
-                ),
-              ),
-              h(
-                Card,
-                { title: t('rCardActivity'), icon: h(OverviewIcon, { width: 16, height: 16 }) },
-                snap.lastAction === null || snap.lastAction === undefined
-                  ? h('div', { className: 'yk-cardText' }, t('rNoActivity'))
-                  : h(
-                      'div',
-                      { className: 'yk-rows' },
-                      h(Row, {
-                        label: snap.lastAction.kind ?? '—',
-                        value: snap.lastAction.detail ?? '—',
-                        clamp: true,
-                        chips: [{ text: snap.lastAction.ok ? t('rOk') : t('rFail'), kind: snap.lastAction.ok ? 'ok' : 'danger', dot: true }],
-                      }),
-                      h(Row, { label: t('rCheckedAt'), value: formatTime(snap.lastAction.at), mono: true }),
-                      snap.lastAction.output ? h('pre', { key: 'out', className: 'yk-out' }, snap.lastAction.output) : null,
-                    ),
-              ),
-            )
-          : null,
+        snap !== null ? h('div', { className: 'yk-grid' },
+          h(Card, { title: t('rCardVersion'), icon: h(DownloadIcon, { width: 16, height: 16 }), action: h('button', { type: 'button', className: 'yk-cardAction', onClick: () => setPicking((value) => !value) }, t('rPickVersion')) },
+            h('div', { className: 'yk-rows' },
+              disk?.stale ? h(Row, { label: t('rOnDisk'), value: disk?.version ?? '—', mono: true }) : null,
+              h(Row, { label: t('rChannel'), value: runtime?.channel ?? '—', mono: true }),
+              feed?.latest ? h(Row, { label: t('rLatest'), value: feed.latest, mono: true }) : null,
+            ),
+            picking ? h('div', { className: 'yk-toolbar' },
+              h('input', { className: 'yk-input yk-mono', style: { flex: '1 1 160px' }, value: version, placeholder: t('rVersionInput'), onChange: (event) => setVersion(event.target.value) }),
+              h('button', { type: 'button', className: 'yk-btn', onClick: () => update(version.trim()), disabled: disabled || version.trim() === '' }, t('rInstall')),
+            ) : null,
+          ),
+          h(Card, { title: t('rCardProcess'), icon: h(PowerIcon, { width: 16, height: 16 }) },
+            h('div', { className: 'yk-rows' },
+              h(Row, { label: t('rNode'), value: runtime?.node ?? '—', mono: true }),
+              h(Row, { label: t('rUptime'), value: runtime?.uptime ?? '—' }),
+              h(Row, { label: t('rStrategy'), value: strategy }),
+            ),
+          ),
+          snap.lastAction?.output ? h(Card, { title: t('rCardActivity'), span: true }, h('pre', { className: 'yk-out' }, snap.lastAction.output)) : null,
+        ) : null,
         h('div', { className: 'yk-foot' }, t('rHint')),
       )
     }
 
     /* ----------------------------------------------------------------- shell */
 
-    const TABS = ['overview', 'chats', 'sites', 'proxy', 'purge', 'runtime']
+    const TABS = ['overview', 'chats', 'sites', 'proxy', 'browser', 'purge', 'runtime']
     const TAB_STORAGE_KEY = 'yukari-dsh-plugin:tab'
-    const TAB_LABEL = { overview: 'tabOverview', chats: 'tabChats', sites: 'tabSites', proxy: 'tabProxy', purge: 'tabPurge', runtime: 'tabRuntime' }
-    const TAB_ICON = { overview: OverviewIcon, chats: ChatIcon, sites: GlobeIcon, proxy: RouteIcon, purge: PurgeIcon, runtime: PowerIcon }
+    const TAB_LABEL = { overview: 'tabOverview', chats: 'tabChats', sites: 'tabSites', proxy: 'tabProxy', browser: 'compBrowser', purge: 'tabPurge', runtime: 'tabRuntime' }
+    const TAB_ICON = { overview: OverviewIcon, chats: ChatIcon, sites: GlobeIcon, proxy: RouteIcon, browser: GlobeIcon, purge: PurgeIcon, runtime: PowerIcon }
 
     function readStoredTab() {
       try {
@@ -3818,9 +2763,11 @@ button.yk-itemTitle:hover {
                   ? h(SitesTab, { key: 'sites', t })
                   : current === 'proxy'
                     ? h(ProxyTab, { key: 'proxy', t })
-                    : current === 'purge'
-                      ? h(PurgeTab, { key: 'purge', t })
-                      : h(RuntimeTab, { key: 'runtime', t, onRestart }),
+                    : current === 'browser'
+                      ? h(BrowserTab, { key: 'browser', t })
+                      : current === 'purge'
+                        ? h(PurgeTab, { key: 'purge', t })
+                        : h(RuntimeTab, { key: 'runtime', t, onRestart }),
         ),
       )
     }

@@ -7,6 +7,7 @@
  */
 
 const DSH_INTERPOLATE_ALLOWED = new Set(['cwd', 'model', 'provider'])
+const REWRITE_MARKER = Symbol.for('yukari-purge.rewritten')
 const liveRewriteCache = new WeakMap()
 
 /** Extract preset label safely from string or object */
@@ -74,7 +75,7 @@ export function isUnrestrictedSession(context) {
   const preset = sessionAgentPreset(context)
   if (!preset) return false
   const p = preset.toLowerCase().trim()
-  return p === 'unrestricted' || p === '无限制模式' || p === 'redteam'
+  return p === 'unrestricted' || p === '无限制模式'
 }
 
 /**
@@ -110,6 +111,8 @@ function shouldStripSection(sectionName) {
  */
 export function rewritePromptAssembly(assembled, context, promptText, options = {}) {
   if (!assembled || !Array.isArray(assembled.sections)) return assembled
+  // The event hook and assemble guard can both observe the same assembly.
+  if (assembled[REWRITE_MARKER] === true) return assembled
 
   // 1. Strict Mode Isolation Check
   const unrestricted = isUnrestrictedSession(context)
@@ -118,9 +121,9 @@ export function rewritePromptAssembly(assembled, context, promptText, options = 
     return assembled
   }
 
-  // 2. WeakMap cache check
+  // Content and mode form the cache key; equal-length prompts must not collide.
   const cacheKey = assembled
-  const sig = `${promptText ? promptText.length : 0}`
+  const sig = `${unrestricted}\0${options.force === true}\0${String(promptText ?? '')}`
   const cached = liveRewriteCache.get(cacheKey)
   if (cached && cached.sig === sig) {
     return cached.result
@@ -147,6 +150,7 @@ export function rewritePromptAssembly(assembled, context, promptText, options = 
   const rewritten = {
     ...assembled,
     sections: outSections,
+    [REWRITE_MARKER]: true,
   }
 
   liveRewriteCache.set(cacheKey, { sig, result: rewritten })

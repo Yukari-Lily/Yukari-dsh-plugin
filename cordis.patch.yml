@@ -16,6 +16,7 @@
         # 站点链接的默认前缀；也可以在面板「站点」页直接填写自己的域名
         publicBase: http://127.0.0.1:3080/p
         maxMb: 200
+        maxFiles: 10000
         keep: 5
 
     - id: yukari-proxy
@@ -34,6 +35,11 @@
         viewportWidth: 1280
         viewportHeight: 900
         settleMs: 300
+        # 不填 executablePath 时自动下载官方 Chrome for Testing 到 DSH_HOME
+        # sandbox: auto 普通主机保持沙箱，root/容器内自动加 --no-sandbox
+        sandbox: auto
+        allowLocalUrls: false
+        allowAnyScreenshotPath: false
 
     - id: yukari-runtime
       name: yukari-dsh-plugin/runtime

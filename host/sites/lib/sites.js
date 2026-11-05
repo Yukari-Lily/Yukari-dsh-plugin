@@ -6,12 +6,15 @@
  * outside the root, under the state directory, and never reach the Web.
  * @module @local/publish-sites/lib/sites
  */
-import { chmod, cp, mkdir, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises'
+import { chmod, cp, lstat, mkdir, readdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
 /** Allowed URL segment. */
 const SLUG = /^[a-z0-9][a-z0-9._-]{0,40}$/
+
+/** Bound recursive copies as well as total bytes. */
+const DEFAULT_MAX_FILES = 10000
 
 /** An asset reference that resolves against the origin root instead of the site. */
 const ROOT_LINK = /(?:src|href)\s*=\s*["']\/[^/"']/i
@@ -32,13 +35,16 @@ function formatBytes(bytes) {
   return `${(value / 1048576).toFixed(1)} MB`
 }
 
-/** Recursive walk yielding `{ file, size }` for every regular file. */
-async function* walk(directory) {
+/** Recursive walk yielding regular files and rejecting every symbolic link. */
+async function* walk(directory, sourceRoot = directory) {
   const entries = await readdir(directory, { withFileTypes: true })
   for (const entry of entries) {
     const file = path.join(directory, entry.name)
+    if (entry.isSymbolicLink()) {
+      throw new Error(`symbolic links are not allowed: ${path.relative(sourceRoot, file) || file}`)
+    }
     if (entry.isDirectory()) {
-      yield* walk(file)
+      yield* walk(file, sourceRoot)
     } else if (entry.isFile()) {
       yield { file, size: (await stat(file)).size }
     }
@@ -51,7 +57,7 @@ async function uniquePath(directory, base) {
   let counter = 2
   for (;;) {
     try {
-      await stat(candidate)
+      await lstat(candidate)
       candidate = path.join(directory, `${base}-${counter}`)
       counter += 1
     } catch {
@@ -101,6 +107,7 @@ export class SiteStore {
     /** Prefix saved from the panel; overrides the row config when set. */
     this.customPublicBase = null
     this.maxMb = positive(config.maxMb, 200)
+    this.maxFiles = positive(config.maxFiles, DEFAULT_MAX_FILES)
     this.keep = positive(config.keep, 5)
     this.ready = null
   }
@@ -242,65 +249,97 @@ export class SiteStore {
     await this.init()
     if (typeof source !== 'string' || source.trim() === '') throw new Error('source directory is required')
     const from = path.resolve(source.trim())
-    let sourceInfo = null
+    let sourceInfo
     try {
-      sourceInfo = await stat(from)
+      sourceInfo = await lstat(from)
     } catch {
       throw new Error(`source directory does not exist: ${from}`)
     }
+    if (sourceInfo.isSymbolicLink()) throw new Error(`source directory must not be a symbolic link: ${from}`)
     if (!sourceInfo.isDirectory()) throw new Error(`source is not a directory: ${from}`)
-    try {
-      await stat(path.join(from, 'index.html'))
-    } catch {
-      throw new Error(`source has no index.html at its top level: ${from}`)
-    }
 
-    const resolvedSlug = this.normalizeSlug(slug ?? path.basename(from))
-    const target = this.assertSlug(resolvedSlug)
+    const [realSource, realRoot, realState] = await Promise.all([
+      realpath(from),
+      realpath(this.root),
+      realpath(this.stateRoot),
+    ])
+    const protectedPath = (parent, child) => child === parent || child.startsWith(`${parent}${path.sep}`)
+    if (protectedPath(realRoot, realSource) || protectedPath(realState, realSource)
+      || protectedPath(realSource, realRoot) || protectedPath(realSource, realState)) {
+      throw new Error('source must not contain, or be contained by, the publish root or state directory')
+    }
 
     let files = 0
     let bytes = 0
-    for await (const entry of walk(from)) {
+    for await (const entry of walk(realSource)) {
       files += 1
       bytes += entry.size
+      if (files > this.maxFiles) throw new Error(`site has more than ${this.maxFiles} files`)
     }
     if (bytes > this.maxMb * 1048576) {
       throw new Error(`site is ${formatBytes(bytes)}, above the ${this.maxMb} MB limit`)
     }
+    const index = await lstat(path.join(realSource, 'index.html')).catch(() => null)
+    if (!index?.isFile()) throw new Error(`source has no index.html at its top level: ${from}`)
 
-    const id = `${resolvedSlug}.${stamp()}`
-    const stage = path.join(this.stagingDir, id)
-    await rm(stage, { recursive: true, force: true })
-    await cp(from, stage, { recursive: true, force: true })
-    await this.relax(stage)
-    await this.sanitize(stage)
-
-    const previous = await this.readManifest(resolvedSlug)
-    const nextTitle = (title && title.trim()) || (await this.titleOf(stage)) || resolvedSlug
-
+    const resolvedSlug = this.normalizeSlug(slug ?? path.basename(from))
+    const target = this.assertSlug(resolvedSlug)
+    const id = `${resolvedSlug}.${stamp()}.${process.pid}`
+    const stage = await uniquePath(this.stagingDir, id)
+    let staged = false
+    let activated = false
     let retired = null
-    try {
-      await stat(target)
-      retired = await uniquePath(this.trashDir, id)
-      await rename(target, retired)
-    } catch {
-      retired = null
-    }
-    await rename(stage, target)
 
-    const record = {
-      slug: resolvedSlug,
-      title: nextTitle,
-      url: this.urlOf(resolvedSlug),
-      bytes,
-      files,
-      version: (Number(previous?.version) || 0) + 1,
-      publishedAt: new Date().toISOString(),
-      source: from,
+    try {
+      await cp(realSource, stage, {
+        recursive: true,
+        force: true,
+        dereference: false,
+        filter: async (file) => !(await lstat(file)).isSymbolicLink(),
+      })
+      staged = true
+      await this.relax(stage)
+      await this.sanitize(stage)
+
+      const previous = await this.readManifest(resolvedSlug)
+      const nextTitle = (title && title.trim()) || (await this.titleOf(stage)) || resolvedSlug
+      const existing = await lstat(target).catch(() => null)
+      if (existing !== null) {
+        if (!existing.isDirectory() || existing.isSymbolicLink()) {
+          throw new Error(`publish target is not a regular directory: ${target}`)
+        }
+        retired = await uniquePath(this.trashDir, id)
+        await rename(target, retired)
+      }
+
+      const record = {
+        slug: resolvedSlug,
+        title: nextTitle,
+        url: this.urlOf(resolvedSlug),
+        bytes,
+        files,
+        version: (Number(previous?.version) || 0) + 1,
+        publishedAt: new Date().toISOString(),
+        source: from,
+      }
+      try {
+        await rename(stage, target)
+        staged = false
+        activated = true
+        await this.writeManifest(record)
+      } catch (error) {
+        // Best-effort restoration: retain both the old directory and its manifest.
+        if (activated) {
+          await rename(target, stage).then(() => { staged = true }).catch(() => {})
+        }
+        if (retired !== null) await rename(retired, target).catch(() => {})
+        throw error
+      }
+      if (retired !== null) await this.rotate(resolvedSlug)
+      return record
+    } finally {
+      if (staged) await rm(stage, { recursive: true, force: true }).catch(() => {})
     }
-    await this.writeManifest(record)
-    if (retired !== null) await this.rotate(resolvedSlug)
-    return record
   }
 
   /** Move one site out of the publish root. */
@@ -387,8 +426,12 @@ export class SiteStore {
   async writeManifest(record) {
     const file = path.join(this.sitesDir, `${record.slug}.json`)
     const temporary = `${file}.tmp`
-    await writeFile(temporary, `${JSON.stringify(record, null, 2)}\n`, 'utf8')
-    await rename(temporary, file)
+    try {
+      await writeFile(temporary, `${JSON.stringify(record, null, 2)}\n`, 'utf8')
+      await rename(temporary, file)
+    } finally {
+      await rm(temporary, { force: true }).catch(() => {})
+    }
   }
 
   /** Keep only the newest generations of one slug in the trash. */

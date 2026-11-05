@@ -11,7 +11,48 @@
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { markMounted } from '../shared/mounted.js'
-import { BrowserManager, resolveRuntime } from './lib/browser.js'
+import { BrowserManager, resolveRuntime, sandboxDecision } from './lib/browser.js'
+import { BrowserRuntime } from './lib/runtime.js'
+
+export const API_PATH = '/browser/api'
+const messageOf = (error) => (error instanceof Error ? error.message : String(error))
+
+/** Serialize a cache-bypassed browser runtime response. */
+function sendJson(res, status, value) {
+  res.statusCode = status
+  res.setHeader('content-type', 'application/json; charset=utf-8')
+  res.setHeader('cache-control', 'no-store')
+  res.end(JSON.stringify(value))
+}
+
+/** Register connection-guarded runtime status and retry routes. */
+export function registerRuntimeApi(ctx, runtime, details = {}) {
+  ctx.webServer.register({
+    kind: 'prefix', path: API_PATH,
+    handler: async (req, res) => {
+      const rejection = ctx.connection.requestRejection(req)
+      if (rejection !== undefined && rejection !== null) {
+        res.statusCode = rejection
+        res.end()
+        return
+      }
+      const action = new URL(String(req.url), 'http://localhost').pathname.slice(API_PATH.length).replace(/^\/+|\/+$/g, '')
+      if (action === 'state') {
+        if (req.method !== 'GET') return sendJson(res, 405, { ok: false, error: 'use GET' })
+        return sendJson(res, 200, { ok: true, state: { ...runtime.state(), ...details } })
+      }
+      if (action === 'install/retry') {
+        if (req.method !== 'POST') return sendJson(res, 405, { ok: false, error: 'use POST' })
+        try {
+          return sendJson(res, 200, { ok: true, state: runtime.state(), executablePath: await runtime.retry() })
+        } catch (error) {
+          return sendJson(res, 500, { ok: false, error: messageOf(error), state: runtime.state() })
+        }
+      }
+      return sendJson(res, 404, { ok: false, error: `unknown browser action "${action}"` })
+    },
+  })
+}
 
 /** Read one positive number from the plugin row config. */
 const positive = (value, fallback) => (Number.isFinite(value) && value > 0 ? value : fallback)
@@ -28,7 +69,11 @@ function normalizeConfig(config = {}) {
     navigationTimeoutMs: positive(config.navigationTimeoutMs, 25000),
     startTimeoutMs: positive(config.startTimeoutMs, 30000),
     settleMs: Number.isFinite(config.settleMs) && config.settleMs >= 0 ? config.settleMs : 300,
-    sandbox: config.sandbox === true,
+    sandbox: config.sandbox === true ? true : config.sandbox === false ? false : 'auto',
+    allowLocalUrls: config.allowLocalUrls === true,
+    allowAnyScreenshotPath: config.allowAnyScreenshotPath === true,
+    downloadTimeoutMs: positive(config.downloadTimeoutMs, 300000),
+    extractTimeoutMs: positive(config.extractTimeoutMs, 120000),
     libraryPath: config.libraryPath,
     arguments: Array.isArray(config.arguments) ? config.arguments : undefined,
     env: config.env && typeof config.env === 'object' ? config.env : undefined,
@@ -108,8 +153,8 @@ function describeTarget(target) {
  * @param config - normalized plugin config.
  * @returns the shared browser manager.
  */
-function registerTools(ctx, config) {
-  const browser = new BrowserManager(config)
+function registerTools(ctx, config, runtime) {
+  const browser = new BrowserManager(config, runtime)
 
   /** Wrap a definition with the shared concurrency and timeout defaults. */
   const register = (definition, timeoutMs = 60000) => {
@@ -300,25 +345,34 @@ function registerTools(ctx, config) {
 }
 
 /** Register the browser tools and tie the browser lifetime to this plugin. */
-export function apply(ctx, config) {
+export function apply(ctx, config, dependencies = {}) {
   const options = normalizeConfig(config ?? {})
   let executable = null
   try {
     executable = resolveRuntime(options).executablePath
-  } catch {
-    executable = null
-  }
+  } catch { /* background provisioning supplies the runtime */ }
+  const runtime = dependencies.runtime ?? new BrowserRuntime({ ...options, executablePath: executable })
+  const browser = registerTools(ctx, options, runtime)
+  registerRuntimeApi(ctx, runtime, { sandbox: sandboxDecision(options) })
   markMounted(ctx, 'browser', {
     viewportWidth: options.viewportWidth,
     viewportHeight: options.viewportHeight,
     settleMs: options.settleMs,
     executable,
     ready: executable !== null,
+    runtime: runtime.state(),
+    sandbox: sandboxDecision(options),
   })
-  const browser = registerTools(ctx, options)
+  // Mounting never throws for a missing browser or a network failure. All tools
+  // and the retry API subsequently await this exact installation promise.
+  const installation = runtime.ensureReady().catch((error) => {
+    try { ctx.logger?.('browser')?.warn?.(messageOf(error)) } catch { /* optional logger */ }
+    return undefined
+  })
   ctx.effect(() => () => {
+    void installation
     void browser.dispose()
   })
 }
 
-export const inject = ['tools']
+export const inject = ['tools', 'webServer', 'connection']

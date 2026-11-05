@@ -8,7 +8,7 @@ DeepSeek Harness（dsh）自用插件合集。装好后侧边栏多一个「Yuka
 | 站点 | 静态网页一键发布到 `/p/<名字>/`，可在面板里设置自己的访问域名前缀 |
 | 代理 | Shadowsocks 出站代理，支持一次导入多个节点（ss:// / 订阅 / Clash），选一个使用并测速 |
 | 无限制模式 | 额外注册一个对话模式，选中时注入自定义提示词；标准模式不受影响 |
-| 无头浏览器 | 给智能体用的 Chromium 浏览器工具（`browser_*`） |
+| 无头浏览器 | 给智能体用的 Chromium 浏览器工具（`browser_*`），首次使用时自动准备 |
 | 状态 | dsh 版本检查、更新与重启 |
 
 ## 安装
@@ -29,12 +29,30 @@ git+https://github.com/Yukari-Lily/Yukari-dsh-plugin.git
 >
 > 然后重启 dsh。之后的版本会自己校验，不会再出现这种情况。
 
+## 浏览器：装好即用
+
+不需要预先安装 Chrome，也不需要 `unzip`：
+
+- 插件挂载后会在后台解析官方 [Chrome for Testing](https://googlechromelabs.github.io/chrome-for-testing/) 元数据，取**最新稳定版**中对应平台的归档，下载并解压到 `DSH_HOME/browser-runtime/`。
+- 解压使用 Node 内置 `zlib` 实现，不依赖系统的 `unzip` / PowerShell，因此在精简容器里同样可用。
+- 下载有 512 MB 与超时上限，先解压到临时目录、校验可执行文件后再原子改名，失败不会留下半个浏览器。
+- 所有 `browser_*` 工具与面板「浏览器」页共用同一个安装 Promise：并发调用只会下载一次，失败后可在面板里重试。
+- 装好会再做一次 `--version` 启动自检；若宿主缺少运行库（精简镜像常见 `libglib-2.0`、`libnss3` 等），面板会直接列出缺失的库，而不是等到调用工具时才失败。补装依赖或把库目录填进 `libraryPath` 即可。
+- 想用系统自己的浏览器：设置行配置 `executablePath`，或导出 `DSH_BROWSER_EXECUTABLE`。
+
+安全默认值：
+
+- `sandbox` 默认 `auto`：普通主机保持 Chromium 沙箱；仅在 root 或容器（无用户命名空间）环境自动加 `--no-sandbox`，并在面板标明原因。需要强制开启/关闭时填 `true` / `false`。
+- `file:` / `data:` 页面默认禁止，需要时设置 `allowLocalUrls: true`。
+- 截图只能写进 `screenshotDir`；需要任意路径时设置 `allowAnyScreenshotPath: true`。
+
 ## 说明
 
 - 「删除会话新建的文件」只删除由 `write` / `str_replace_editor` 新建、仍在工作区内、且在会话开始后才出现的文件；命令行生成的文件不会被追踪。
+- 站点发布拒绝任何符号链接，并限制单站点文件数与体积（`maxFiles` / `maxMb`），失败会回滚到上一个版本。
 - 站点访问前缀填你对外可访问的地址，例如 `https://pages.example.com` 或 `https://dsh.example.com/p`，链接 = 前缀 + `/名字/`。
 - 代理节点和密码保存在 `DSH_HOME/ss-proxy.json`（权限 0600），重启后自动恢复。
-- 无限制模式的提示词可在面板里修改，保存在 `DSH_HOME/yukari-purge-prompt.md`。
+- 无限制模式的提示词可在面板里修改，保存在 `DSH_HOME/yukari-purge-prompt.md`；预设定义以 `preset.json` 为唯一来源，`agent.cordis.yml` 的工具集由测试保证一致。
 
 ## 开发
 

@@ -6,7 +6,7 @@
  * half-finished interactions.
  * @module @local/browser-control/browser
  */
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -79,6 +79,9 @@ export function resolveRuntime(config) {
   }
 
   const candidates = []
+  if (config.runtimeReady === true && typeof config.executablePath === 'string' && config.executablePath.length > 0) {
+    return { executablePath: config.executablePath, env }
+  }
   if (typeof config.executablePath === 'string' && config.executablePath.length > 0) candidates.push(config.executablePath)
   for (const name of ['DSH_BROWSER_EXECUTABLE', 'CHROME_PATH', 'CHROMIUM_PATH']) {
     const value = process.env[name]
@@ -107,6 +110,27 @@ export function resolveRuntime(config) {
     )
   }
   return { executablePath, env }
+}
+
+/**
+ * Decide whether the Chromium sandbox can stay on.
+ *
+ * `sandbox: true` always keeps it on, `false` always passes `--no-sandbox`.
+ * The default (`auto`) keeps the sandbox except where Chromium provably cannot
+ * use it — running as root or inside a container without user namespaces — so
+ * the browser works out of the box without silently weakening a normal host.
+ * @param config - normalized plugin config.
+ * @param detection - environment seams, for tests.
+ * @returns `{ enabled, reason, flag }`.
+ */
+export function sandboxDecision(config = {}, detection = {}) {
+  const uid = detection.uid ?? process.getuid?.()
+  const container = detection.container ?? existsSync('/.dockerenv')
+  if (config.sandbox === true) return { enabled: true, reason: 'configured', flag: '' }
+  if (config.sandbox === false) return { enabled: false, reason: 'configured', flag: '--no-sandbox' }
+  if (uid === 0) return { enabled: false, reason: 'root', flag: '--no-sandbox' }
+  if (container) return { enabled: false, reason: 'container', flag: '--no-sandbox' }
+  return { enabled: true, reason: 'auto', flag: '' }
 }
 
 /** Timestamped screenshot filename. */
@@ -139,12 +163,15 @@ export class BrowserManager {
   #active
   #queue = Promise.resolve()
   #starting
+  #runtime
 
   /**
    * @param config - the plugin row config, already normalized by the caller.
+   * @param runtime - shared automatic Chromium installer.
    */
-  constructor(config) {
+  constructor(config, runtime) {
     this.#config = config
+    this.#runtime = runtime
   }
 
   /** Run an operation exclusively, so two tool calls never interleave. */
@@ -176,7 +203,15 @@ export class BrowserManager {
 
   async #launch() {
     const config = this.#config
-    const { executablePath, env } = resolveRuntime(config)
+    let runtime
+    try {
+      runtime = resolveRuntime(config)
+    } catch (error) {
+      if (!this.#runtime) throw error
+      const executablePath = await this.#runtime.ensureReady()
+      runtime = resolveRuntime({ ...config, executablePath, runtimeReady: true })
+    }
+    const { executablePath, env } = runtime
     if (config.env && typeof config.env === 'object') {
       for (const [key, value] of Object.entries(config.env)) {
         if (typeof value === 'string') env[key] = value
@@ -184,8 +219,12 @@ export class BrowserManager {
     }
     const userDataDir = config.userDataDir ?? path.join(tmpdir(), `dsh-browser-profile-${process.pid}`)
     try { mkdirSync(userDataDir, { recursive: true }) } catch { /* the browser reports a real failure */ }
+    if (process.getuid?.() === 0 && config.sandbox === true) {
+      throw new CdpError('Chromium sandbox cannot start as root; run as an unprivileged user or set browser sandbox false to accept the risk')
+    }
+    const sandbox = sandboxDecision(config)
     const args = [
-      config.sandbox === true ? '' : '--no-sandbox',
+      sandbox.flag,
       '--disable-gpu',
       '--disable-dev-shm-usage',
       '--hide-scrollbars',
@@ -271,6 +310,9 @@ export class BrowserManager {
     }
     if (!/^(https?|file|data|about):$/u.test(parsed.protocol)) {
       throw new CdpError(`unsupported URL protocol ${parsed.protocol}`)
+    }
+    if (this.#config.allowLocalUrls !== true && (parsed.protocol === 'file:' || parsed.protocol === 'data:')) {
+      throw new CdpError(`${parsed.protocol} URLs are disabled; set browser allowLocalUrls true only when local content is trusted`)
     }
     const page = options.newTab === true ? await this.#newTab() : await this.#currentPage()
     return this.#navigate(page, parsed.href)
@@ -446,9 +488,21 @@ export class BrowserManager {
     const buffer = Buffer.from(shot.data, 'base64')
     const directory = this.#config.screenshotDir
     try { mkdirSync(directory, { recursive: true }) } catch { /* fall through to the write error */ }
-    const requested = typeof options.path === 'string' && options.path.length > 0 ? path.resolve(options.path) : path.join(directory, screenshotName())
+    const requested = typeof options.path === 'string' && options.path.length > 0
+      ? (this.#config.allowAnyScreenshotPath === true ? path.resolve(options.path) : path.resolve(directory, options.path))
+      : path.join(directory, screenshotName())
+    const relative = path.relative(directory, requested)
+    if (this.#config.allowAnyScreenshotPath !== true && (relative === '' || relative.startsWith('..') || path.isAbsolute(relative))) {
+      throw new CdpError(`screenshot path must name a PNG file inside ${directory}; set browser allowAnyScreenshotPath true to override`)
+    }
     try { mkdirSync(path.dirname(requested), { recursive: true }) } catch { /* the write reports it */ }
-    writeFileSync(requested, buffer)
+    if (this.#config.allowAnyScreenshotPath !== true) {
+      const canonicalDirectory = realpathSync(directory)
+      const canonicalParent = realpathSync(path.dirname(requested))
+      const escaped = path.relative(canonicalDirectory, canonicalParent)
+      if (escaped.startsWith('..') || path.isAbsolute(escaped)) throw new CdpError('screenshot path escapes screenshotDir through a symbolic link')
+    }
+    writeFileSync(requested, buffer, { flag: 'w' })
     const size = pngSize(buffer)
     return {
       path: requested,

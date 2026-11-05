@@ -1,8 +1,8 @@
 # Dependencies are installed by the profile, never committed.
 node_modules/
 
-# Optional local Chromium runtime (~444 MB, 881 files). A published install
-# falls back to a system Chromium; see README → 浏览器半.
+# A locally bundled Chromium runtime. Published installs download the official
+# Chrome for Testing build into DSH_HOME instead; see README → 浏览器：装好即用.
 host/browser/runtime/
 
 # Packing and local artefacts

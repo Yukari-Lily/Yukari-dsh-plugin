@@ -2,7 +2,10 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { rewritePromptAssembly, isUnrestrictedSession, escapeDshInterpolation } from '../host/purge/lib/rewriter.js'
 import { DEFAULT_PURGE_PROMPT } from '../host/purge/lib/default-prompt.js'
-import { getPresetDefinition, UNRESTRICTED_PRESET_ID } from '../host/purge/lib/preset.js'
+import { getPresetDefinition, ensurePresetFiles, UNRESTRICTED_PRESET_ID } from '../host/purge/lib/preset.js'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 
 test('rewritePromptAssembly: pass-through untouched for standard preset', () => {
   const assembled = {
@@ -120,4 +123,62 @@ test('getPresetDefinition: returns valid unrestricted preset structure', () => {
   assert.equal(Array.isArray(def.plugins), true)
   assert.equal(def.plugins.some((p) => p.id === 'persona'), true)
   assert.equal(def.plugins.some((p) => p.id === 'tool-fs'), true)
+  assert.equal(def.plugins.some((p) => p.id === 'delegation'), true)
+  assert.equal(def.plugins.some((p) => p.id === 'planning'), true)
+  assert.equal(def.plugins.some((p) => p.id === 'compaction'), true)
+})
+
+test('getPresetDefinition and installed JSON share one full definition', async (t) => {
+  const home = await mkdtemp(path.join(os.tmpdir(), 'yukari-purge-'))
+  t.after(() => rm(home, { recursive: true, force: true }))
+  ensurePresetFiles(home)
+  const disk = JSON.parse(await readFile(path.join(home, '.agent-presets/unrestricted/preset.json'), 'utf8'))
+  const { id, ...definition } = getPresetDefinition()
+  // The disk copy keeps portable `platform` markers; the registered definition
+  // resolves them into `disabled` for this host. Applying the same resolution to
+  // the disk copy must reproduce the registered definition exactly.
+  const resolve = (value) => {
+    if (Array.isArray(value)) return value.map(resolve)
+    if (!value || typeof value !== 'object') return value
+    const { platform, ...rest } = value
+    const row = Object.fromEntries(Object.entries(rest).map(([key, child]) => [key, resolve(child)]))
+    if (platform === 'win32') row.disabled = process.platform !== 'win32'
+    if (platform === 'non-win32') row.disabled = process.platform === 'win32'
+    return row
+  }
+  assert.deepEqual(definition, resolve(disk))
+})
+
+test('rewritePromptAssembly: repeated hooks inject only one purge section', () => {
+  const assembled = { sections: [{ name: 'harness:identity', text: 'AI' }, { name: 'persona', text: 'Persona' }] }
+  const context = { session: { agentPreset: 'unrestricted' } }
+  const once = rewritePromptAssembly(assembled, context, 'Prompt')
+  const twice = rewritePromptAssembly(once, context, 'Prompt')
+  assert.equal(twice, once)
+  assert.equal(twice.sections.filter((section) => section.name === 'yukari:purge').length, 1)
+})
+
+test('rewritePromptAssembly: cache keys include full prompt content', () => {
+  const assembled = { sections: [{ name: 'persona', text: 'Persona' }] }
+  const context = { session: { agentPreset: 'unrestricted' } }
+  const first = rewritePromptAssembly(assembled, context, 'first')
+  const second = rewritePromptAssembly(assembled, context, 'other')
+  assert.equal(first.sections[0].text, 'first')
+  assert.equal(second.sections[0].text, 'other')
+})
+
+test('rewritePromptAssembly: cache keys include mode', () => {
+  const assembled = { sections: [{ name: 'harness:identity', text: 'AI' }] }
+  const unrestricted = rewritePromptAssembly(assembled, { session: { agentPreset: 'unrestricted' } }, 'Prompt')
+  const standard = rewritePromptAssembly(assembled, { session: { agentPreset: 'standard' } }, 'Prompt')
+  assert.equal(standard, assembled)
+})
+
+test('registered definition and agent.cordis.yml describe the same tool set', async () => {
+  const yaml = await readFile(new URL('../host/purge/presets/unrestricted/agent.cordis.yml', import.meta.url), 'utf8')
+  const yamlNames = new Set([...yaml.matchAll(/name:\s*'?(@deepseek-ai\/[\w/-]+)'?/g)].map((match) => match[1]))
+  const json = JSON.parse(await readFile(new URL('../host/purge/presets/unrestricted/preset.json', import.meta.url), 'utf8'))
+  const walk = (rows) => rows.flatMap((row) => (Array.isArray(row.config) ? [row.name, ...walk(row.config)] : [row.name]))
+  const jsonNames = new Set(walk(json.plugins).filter((name) => name.startsWith('@deepseek-ai/')))
+  assert.deepEqual([...jsonNames].sort(), [...yamlNames].sort())
 })

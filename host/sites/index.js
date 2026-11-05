@@ -166,11 +166,13 @@ export function apply(ctx, config = {}) {
             items: {
               type: 'object',
               additionalProperties: false,
-              required: ['slug', 'title', 'url'],
+              required: ['slug', 'title', 'url', 'files', 'version'],
               properties: {
                 slug: { type: 'string', description: 'Path segment.' },
                 title: { type: 'string', description: 'Index title.' },
                 url: { type: 'string', description: 'Public URL.' },
+                files: { type: 'number', description: 'Number of published files.' },
+                version: { type: 'number', description: 'Publish generation.' },
                 bytes: { type: 'number', description: 'Total size in bytes.' },
                 publishedAt: { type: 'string', description: 'ISO time of the last publish.' },
               },
