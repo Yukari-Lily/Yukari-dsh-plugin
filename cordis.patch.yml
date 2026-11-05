@@ -19,6 +19,12 @@
         maxFiles: 10000
         keep: 5
 
+    - id: yukari-files
+      name: yukari-dsh-plugin/files
+      config:
+        # 单次打包下载的总量上限（MB）
+        maxMb: 1024
+
     - id: yukari-proxy
       name: yukari-dsh-plugin/proxy
       config:

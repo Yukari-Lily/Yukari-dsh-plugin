@@ -20,6 +20,7 @@ window.__ModuleLoader__.load({
       sites: '/publish/api',
       proxy: '/ssproxy/api',
       purge: '/purge/api',
+      files: '/files/api',
       browser: '/browser/api',
     }
 
@@ -70,6 +71,7 @@ window.__ModuleLoader__.load({
 
       compChats: '会话管理',
       compSites: '站点发布',
+      compFiles: '工作区文件',
       compProxy: '出站代理',
       compPurge: '无限制模式',
       compBrowser: '无头浏览器',
@@ -211,6 +213,24 @@ window.__ModuleLoader__.load({
       sGone: '已下线 /{slug}/',
       sKept: '没有找到 /{slug}/',
 
+      tabFiles: '文件',
+      fWorkspace: '工作区',
+      fRoot: '根目录',
+      fName: '名称',
+      fSize: '大小',
+      fPreview: '预览',
+      fDownload: '下载',
+      fDownloadN: '打包下载 {n} 项',
+      fSelectAll: '全选',
+      fPick: '选择',
+      fUnpick: '取消',
+      fSymlink: '符号链接',
+      fEmpty: '这个目录是空的',
+      fEmptyHint: '换一个工作区或返回上级目录。',
+      fHint: '已选 {n} 项；预览使用 DSH 自己的文件预览。',
+      fNoSession: '这个工作区还没有会话，无法预览（下载不受影响）',
+      fNoPreview: '当前界面没有文件预览服务，只能下载',
+
       pEnable: '启用代理',
       pDisable: '停用代理',
       pEnabled: '已接管出站流量',
@@ -349,6 +369,7 @@ window.__ModuleLoader__.load({
 
       compChats: 'Chats',
       compSites: 'Sites',
+      compFiles: 'Workspace files',
       compProxy: 'Proxy',
       compPurge: 'Unrestricted mode',
       compBrowser: 'Headless browser',
@@ -489,6 +510,24 @@ window.__ModuleLoader__.load({
       sNoMatch: 'No site matches',
       sGone: 'Unpublished /{slug}/',
       sKept: 'No site at /{slug}/',
+
+      tabFiles: 'Files',
+      fWorkspace: 'Workspace',
+      fRoot: 'root',
+      fName: 'Name',
+      fSize: 'Size',
+      fPreview: 'Preview',
+      fDownload: 'Download',
+      fDownloadN: 'Download {n} as ZIP',
+      fSelectAll: 'Select all',
+      fPick: 'Select',
+      fUnpick: 'Clear',
+      fSymlink: 'symlink',
+      fEmpty: 'This folder is empty',
+      fEmptyHint: 'Pick another workspace or go up a level.',
+      fHint: '{n} selected; preview uses the DSH file viewer.',
+      fNoSession: 'This workspace has no chat yet, so preview is unavailable (download still works)',
+      fNoPreview: 'No file preview service in this surface; download only',
 
       pEnable: 'Enable proxy',
       pDisable: 'Disable proxy',
@@ -738,6 +777,15 @@ window.__ModuleLoader__.load({
 .yk-libs { color: var(--dsw-alias-label-tertiary); font-size: 11px; overflow-wrap: anywhere; }
 .yk-cmdRow { display: flex; align-items: flex-start; gap: 6px; }
 .yk-cmdRow .yk-out { flex: 1; }
+.yk-select { width: auto; min-width: 140px; max-width: 240px; height: 32px; padding: 0 8px; }
+.yk-crumbs { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 1 1 240px; overflow-x: auto; scrollbar-width: none; }
+.yk-crumbs::-webkit-scrollbar { display: none; }
+.yk-crumbWrap { display: inline-flex; align-items: center; gap: 2px; color: var(--yk-muted); flex: none; }
+.yk-crumb { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; cursor: pointer; padding: 2px 4px; border-radius: var(--dsw-radius-sm); white-space: nowrap; }
+.yk-crumb:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
+.yk-itemHead { padding-block: 4px; border-bottom: 1px solid var(--yk-line); border-radius: 0; font-size: 11px; color: var(--yk-muted); }
+.yk-itemHead:hover { background: transparent; }
+.yk-metaRight { margin-left: auto; flex: none; justify-content: flex-end; }
 .yk-itemIcon { display: inline-flex; color: var(--yk-muted); flex: none; }
 .yk-link { color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .yk-check { flex: none; width: 16px; height: 16px; border-radius: var(--dsw-radius-sm); border: 1px solid var(--dsw-alias-border-l3); background: transparent; display: inline-grid; place-items: center; cursor: pointer; padding: 0; appearance: none; color: transparent; }
@@ -1228,6 +1276,7 @@ window.__ModuleLoader__.load({
     const COMPONENT_LABEL = {
       chats: 'compChats',
       sites: 'compSites',
+      files: 'compFiles',
       proxy: 'compProxy',
       purge: 'compPurge',
       browser: 'compBrowser',
@@ -2212,6 +2261,237 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /* ---------------------------------------------------------------- files */
+
+    /** Build the resource address DSH's own preview understands. */
+    function resourceAddress(sessionId, relative) {
+      const encoded = String(relative).split('/').map((part) => encodeURIComponent(part)).join('/')
+      return `dsh-resource://file/session/${encodeURIComponent(sessionId)}/${encoded}`
+    }
+
+    function formatSize(bytes) {
+      if (typeof bytes !== 'number' || bytes <= 0) return '—'
+      return formatBytes(bytes)
+    }
+
+    /** Breadcrumb + listing of one workspace, with download and preview. */
+    function FilesTab({ t, ui }) {
+      const [roots, setRoots] = React.useState(null)
+      const [rootId, setRootId] = React.useState('')
+      const [path, setPath] = React.useState('')
+      const [entries, setEntries] = React.useState([])
+      const [selected, setSelected] = React.useState([])
+      const [busy, setBusy] = React.useState('')
+      const [failure, setFailure] = React.useState(null)
+      const { signal, alive } = useAbortOnUnmount()
+
+      const root = roots === null ? null : roots.find((item) => item.id === rootId) ?? null
+
+      React.useEffect(() => {
+        (async () => {
+          try {
+            const payload = await getJson(`${API.files}/roots`, signal)
+            if (!alive.current) return
+            setRoots(payload.roots ?? [])
+            setRootId((current) => (current !== '' ? current : payload.roots?.[0]?.id ?? ''))
+          } catch (error) {
+            if (alive.current) setFailure(failureOf(error))
+          }
+        })()
+      }, [])
+
+      const load = React.useCallback(async () => {
+        if (rootId === '') return
+        setBusy('load')
+        try {
+          const query = `?root=${encodeURIComponent(rootId)}&path=${encodeURIComponent(path)}`
+          const payload = await getJson(`${API.files}/list${query}`, signal)
+          if (!alive.current) return
+          setEntries(payload.entries ?? [])
+          setSelected([])
+          setFailure(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }, [rootId, path])
+
+      React.useEffect(() => { load() }, [load])
+
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'files' }))
+
+      const crumbs = path === '' ? [] : path.split('/')
+      const go = (next) => { setPath(next); setSelected([]) }
+      const toggle = (entry) => setSelected((current) =>
+        current.includes(entry.path) ? current.filter((item) => item !== entry.path) : [...current, entry.path])
+
+      const preview = (entry) => {
+        try {
+          if (root === null || entry.type !== 'file') return
+          if (root.sessionId === null) throw new Error(t('fNoSession'))
+          ui.openResource(root.sessionId, path === '' ? entry.name : `${path}/${entry.name}`)
+        } catch (error) {
+          setFailure(failureOf(error))
+        }
+      }
+
+      const downloadOne = (entry) => {
+        if (root === null) return
+        const query = `?root=${encodeURIComponent(root.id)}&path=${encodeURIComponent(entry.path)}`
+        const anchor = document.createElement('a')
+        anchor.href = `${API.files}/download${query}`
+        anchor.download = entry.name
+        anchor.click()
+      }
+
+      const downloadSelected = async () => {
+        if (root === null || selected.length === 0) return
+        setBusy('archive')
+        setFailure(null)
+        try {
+          const response = await fetch(`${API.files}/archive`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ root: root.id, paths: selected }),
+          })
+          if (!response.ok) {
+            const type = response.headers.get('content-type') ?? ''
+            const payload = type.includes('json') ? await response.json() : null
+            throw new Error(payload?.error ?? `HTTP ${response.status}`)
+          }
+          const blob = await response.blob()
+          const url = URL.createObjectURL(blob)
+          const anchor = document.createElement('a')
+          anchor.href = url
+          anchor.download = `${root.title || 'workspace'}.zip`
+          anchor.click()
+          setTimeout(() => URL.revokeObjectURL(url), 10000)
+        } catch (error) {
+          if (alive.current) setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const allPicked = entries.length > 0 && entries.every((entry) => selected.includes(entry.path))
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        h(
+          'div',
+          { className: 'yk-toolbar' },
+          roots === null
+            ? null
+            : h(
+                'select',
+                {
+                  className: 'yk-input yk-select',
+                  value: rootId,
+                  'aria-label': t('fWorkspace'),
+                  onChange: (event) => { setRootId(event.target.value); setPath(''); setSelected([]) },
+                },
+                roots.map((item) => h('option', { key: item.id, value: item.id }, item.title)),
+              ),
+          h(
+            'div',
+            { className: 'yk-crumbs' },
+            h('button', { type: 'button', className: 'yk-crumb', onClick: () => go('') }, root?.title ?? t('fRoot')),
+            crumbs.map((name, index) =>
+              h(
+                'span',
+                { key: `${name}-${index}`, className: 'yk-crumbWrap' },
+                h(ChevronRightIcon, { width: 12, height: 12 }),
+                h('button', { type: 'button', className: 'yk-crumb', onClick: () => go(crumbs.slice(0, index + 1).join('/')) }, name),
+              ),
+            ),
+          ),
+          h(RefreshButton, { t, onClick: load, spinning: busy === 'load' }),
+          h(
+            'button',
+            { type: 'button', className: 'yk-btn yk-btn-solid', onClick: downloadSelected, disabled: busy !== '' || selected.length === 0 },
+            busy === 'archive' ? h(Spinner) : h(DownloadIcon),
+            fill(t('fDownloadN'), { n: selected.length }),
+          ),
+        ),
+        h(Failure, { t, name: 'files', error: failure, onRetry: load }),
+
+        entries.length === 0 && busy !== 'load'
+          ? h(Empty, { icon: h(FolderIcon, { width: 22, height: 22 }), title: t('fEmpty'), hint: t('fEmptyHint') })
+          : h(
+              'div',
+              { className: 'yk-list' },
+              h(
+                'div',
+                { className: 'yk-item yk-itemHead' },
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'yk-check',
+                    role: 'checkbox',
+                    'aria-checked': allPicked ? 'true' : selected.length > 0 ? 'mixed' : 'false',
+                    'aria-label': t('fSelectAll'),
+                    onClick: () => setSelected(allPicked ? [] : entries.map((entry) => entry.path)),
+                  },
+                  allPicked ? h(CheckIcon, { width: 11, height: 11 }) : null,
+                ),
+                h('span', { className: 'yk-itemTitle' }, t('fName')),
+                h('span', { className: 'yk-itemMeta yk-metaRight' }, t('fSize')),
+              ),
+              entries.map((entry) => {
+                const checked = selected.includes(entry.path)
+                const isDir = entry.type === 'dir'
+                return h(
+                  'div',
+                  { className: checked ? 'yk-item yk-item-selected' : 'yk-item', key: entry.path },
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'yk-check',
+                      role: 'checkbox',
+                      'aria-checked': checked ? 'true' : 'false',
+                      'aria-label': entry.name,
+                      onClick: () => toggle(entry),
+                    },
+                    checked ? h(CheckIcon, { width: 11, height: 11 }) : null,
+                  ),
+                  h(
+                    'div',
+                    { className: 'yk-itemMain' },
+                    h(
+                      'div',
+                      { className: 'yk-itemTitleRow' },
+                      isDir
+                        ? h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => go(entry.path) }, `${entry.name}/`)
+                        : h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => preview(entry), title: t('fPreview') }, entry.name),
+                      entry.type === 'symlink' ? h(Chip, { kind: 'warn' }, t('fSymlink')) : null,
+                    ),
+                  ),
+                  h('span', { className: 'yk-itemMeta yk-metaRight yk-mono' }, isDir ? '' : formatSize(entry.size)),
+                  h(
+                    'div',
+                    { className: 'yk-itemActions' },
+                    isDir
+                      ? null
+                      : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => preview(entry), disabled: root?.sessionId == null }, t('fPreview')),
+                    isDir
+                      ? null
+                      : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm', title: t('fDownload'), 'aria-label': t('fDownload'), onClick: () => downloadOne(entry) }, h(DownloadIcon, { width: 14, height: 14 })),
+                    isDir
+                      ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => toggle(entry) }, checked ? t('fUnpick') : t('fPick'))
+                      : null,
+                  ),
+                )
+              }),
+            ),
+
+        h('div', { className: 'yk-foot' }, fill(t('fHint'), { n: selected.length })),
+      )
+    }
+
     /* ---------------------------------------------------------------- proxy */
 
     function ProxyTab({ t }) {
@@ -2802,10 +3082,10 @@ window.__ModuleLoader__.load({
 
     /* ----------------------------------------------------------------- shell */
 
-    const TABS = ['overview', 'chats', 'sites', 'proxy', 'browser', 'purge', 'runtime']
+    const TABS = ['overview', 'chats', 'sites', 'files', 'proxy', 'browser', 'purge', 'runtime']
     const TAB_STORAGE_KEY = 'yukari-dsh-plugin:tab'
-    const TAB_LABEL = { overview: 'tabOverview', chats: 'tabChats', sites: 'tabSites', proxy: 'tabProxy', browser: 'compBrowser', purge: 'tabPurge', runtime: 'tabRuntime' }
-    const TAB_ICON = { overview: OverviewIcon, chats: ChatIcon, sites: GlobeIcon, proxy: RouteIcon, browser: GlobeIcon, purge: PurgeIcon, runtime: PowerIcon }
+    const TAB_LABEL = { overview: 'tabOverview', chats: 'tabChats', sites: 'tabSites', files: 'tabFiles', proxy: 'tabProxy', browser: 'compBrowser', purge: 'tabPurge', runtime: 'tabRuntime' }
+    const TAB_ICON = { overview: OverviewIcon, chats: ChatIcon, sites: GlobeIcon, files: FolderIcon, proxy: RouteIcon, browser: GlobeIcon, purge: PurgeIcon, runtime: PowerIcon }
 
     function readStoredTab() {
       try {
@@ -3015,6 +3295,8 @@ window.__ModuleLoader__.load({
                 ? h(ChatsTab, { key: 'chats', t, ui })
                 : current === 'sites'
                   ? h(SitesTab, { key: 'sites', t })
+                  : current === 'files'
+                    ? h(FilesTab, { key: 'files', t, ui })
                   : current === 'proxy'
                     ? h(ProxyTab, { key: 'proxy', t })
                     : current === 'browser'
@@ -3079,6 +3361,14 @@ window.__ModuleLoader__.load({
         ctx.effect(() => ctx.locale.register(NS, 'zh', zh))
         const t = ctx.locale.bind(NS)
         const ui = {
+          /** Open a file in DSH's own preview by its resource address. */
+          openResource: (sessionId, relative) => {
+            const right = (typeof ctx.get === 'function' ? ctx.get('sidebarRight') : undefined) ?? ctx.sidebarRight
+            if (right === undefined || right === null || typeof right.openResourceIn !== 'function') {
+              throw new Error(t('fNoPreview'))
+            }
+            right.openResourceIn(sessionId, resourceAddress(sessionId, relative))
+          },
           openSession: (id) => {
             if (ctx.uiWorkspace === undefined || typeof ctx.uiWorkspace.openSession !== 'function') {
               throw new Error('uiWorkspace is unavailable')
