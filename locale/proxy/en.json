@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Shadowsocks Proxy",
+    "description": "Outbound egress proxy service for Agent and Harness."
+  }
+}

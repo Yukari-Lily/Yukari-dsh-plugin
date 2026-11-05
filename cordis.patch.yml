@@ -1,0 +1,43 @@
+# Yukari 6 组件配置：主面板 + 5 个独立子系统组件
+- insert:
+    - id: yukari
+      name: yukari-dsh-plugin
+
+    - id: yukari-browser
+      name: yukari-dsh-plugin/browser
+      config:
+        viewportWidth: 1280
+        viewportHeight: 900
+        settleMs: 300
+
+    - id: yukari-chats
+      name: yukari-dsh-plugin/chats
+      config:
+        sessionsRoot: ''
+        titleBudget: 160
+
+    - id: yukari-runtime
+      name: yukari-dsh-plugin/runtime
+      config:
+        channel: ''
+        registry: ''
+        restartMode: auto
+        restartCommand: ''
+        restartDelayMs: 800
+
+    - id: yukari-sites
+      name: yukari-dsh-plugin/sites
+      config:
+        root: /workspace/publish
+        # 默认本地/局域网访问：http://127.0.0.1:3080/p
+        # 如配置了公网域名或反代，可改为自己的域名访问（例如 https://your-domain.com/p）
+        publicBase: http://127.0.0.1:3080/p
+        maxMb: 200
+        keep: 5
+
+    - id: yukari-proxy
+      name: yukari-dsh-plugin/proxy
+      config:
+        localPort: 17890
+        bypass: localhost,127.0.0.1,::1
+        autoStart: false

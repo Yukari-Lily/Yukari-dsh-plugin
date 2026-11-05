@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "智能体无头浏览器",
+    "description": "提供给 Agent 的 Chromium 无头浏览器工具集。"
+  }
+}

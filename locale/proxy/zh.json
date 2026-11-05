@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Shadowsocks 代理",
+    "description": "为 Agent 和 Harness 提供出站安全代理。"
+  }
+}
