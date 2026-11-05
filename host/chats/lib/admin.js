@@ -268,6 +268,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
         pinned: pinned.has(id),
         origin: header.origin ?? null,
         parentSession: header.parentSession ?? null,
+        delegationDepth: Number.isInteger(header.delegationDepth) ? header.delegationDepth : 0,
         agentPreset: header.agentPreset ?? null,
         directory,
       })

@@ -139,6 +139,11 @@ window.__ModuleLoader__.load({
       cWorkspaceRemoved: '工作区已移除（目录保留）',
       cLive: '打开中',
       cRunning: '运行中',
+      cDeleteOne: '永久删除这个会话？',
+      cDeleteOneHint: '会话记录、归档和置顶标记会一并移除，无法恢复。',
+      cForceOne: '包括正在打开的会话',
+      cSubagentTag: '子会话',
+      cSubSessions: '{n} 个子会话',
       cArchivedTag: '已归档',
       cEvents: '{n} 条事件',
       cReason_live: '正在打开，需勾选「包括正在打开的会话」',
@@ -278,6 +283,8 @@ window.__ModuleLoader__.load({
 
       bDesc: '首次使用时自动准备官方 Chrome for Testing，无需手动配置。浏览器仅供智能体工具调用。',
       bLaunchOk: '启动正常',
+      bMissingLibs: '缺少 {n} 个系统库',
+      bFixHint: '在容器内以 root 执行一次（只需一次，重启容器后仍在镜像里才持久）：',
       bLaunchFail: '无法启动',
       bLaunchFailHint: '浏览器已下载，但当前系统缺少运行库，使用时才会失败。按提示安装依赖或设置 browser libraryPath。',
       bAutomatic: '自动准备',
@@ -405,6 +412,11 @@ window.__ModuleLoader__.load({
       cWorkspaceRemoved: 'workspace removed (directory kept)',
       cLive: 'Open',
       cRunning: 'Running',
+      cDeleteOne: 'Permanently delete this chat?',
+      cDeleteOneHint: 'History, archive and pin marks are removed together. This cannot be undone.',
+      cForceOne: 'Include this open chat',
+      cSubagentTag: 'Subagent',
+      cSubSessions: '{n} subagent chats',
       cArchivedTag: 'Archived',
       cEvents: '{n} events',
       cReason_live: 'open — tick “Include chats that are open”',
@@ -544,6 +556,8 @@ window.__ModuleLoader__.load({
 
       bDesc: 'Official Chrome for Testing is prepared automatically on first use. The browser is available to agent tools; no manual setup is needed.',
       bLaunchOk: 'Launch OK',
+      bMissingLibs: '{n} system libraries missing',
+      bFixHint: 'Run once as root inside the container (persists only if baked into the image):',
       bLaunchFail: 'Cannot launch',
       bLaunchFailHint: 'The browser downloaded but this host lacks its runtime libraries; it will fail on first use. Install them or set browser libraryPath.',
       bAutomatic: 'Automatic setup',
@@ -658,6 +672,18 @@ window.__ModuleLoader__.load({
 .yk-itemMeta { display: flex; align-items: center; gap: 5px 9px; flex-wrap: wrap; font-size: 11px; color: var(--yk-muted); }
 .yk-itemMeta span + span::before { content: '·'; margin-right: 9px; opacity: .5; }
 .yk-itemActions { display: flex; align-items: center; gap: 4px; flex: none; }
+.yk-iconBtnOn { color: var(--dsw-alias-state-error-primary); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); }
+.yk-itemWrap { display: flex; flex-direction: column; min-width: 0; }
+.yk-children { display: flex; flex-direction: column; gap: 2px; margin: 0 0 4px 22px; padding-left: 12px; border-left: 1px solid var(--yk-line); }
+.yk-childWrap .yk-item { padding-block: 7px; }
+.yk-childWrap .yk-itemTitle { font-size: 12.5px; }
+.yk-subToggle { appearance: none; border: 0; background: transparent; color: var(--yk-muted); font: inherit; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 3px; padding: 1px 4px; border-radius: var(--dsw-radius-sm); flex: none; }
+.yk-subToggle:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
+.yk-confirmInline { margin: 2px 0 8px 26px; padding: 10px 12px; background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 5%, transparent); }
+.yk-confirmInline .yk-confirmTitle { font-size: 13px; }
+.yk-libs { color: var(--dsw-alias-label-tertiary); font-size: 11px; overflow-wrap: anywhere; }
+.yk-cmdRow { display: flex; align-items: flex-start; gap: 6px; }
+.yk-cmdRow .yk-out { flex: 1; }
 .yk-itemIcon { display: inline-flex; color: var(--yk-muted); flex: none; }
 .yk-link { color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .yk-check { flex: none; width: 16px; height: 16px; border-radius: var(--dsw-radius-sm); border: 1px solid var(--dsw-alias-border-l3); background: transparent; display: inline-grid; place-items: center; cursor: pointer; padding: 0; appearance: none; color: transparent; }
@@ -1379,8 +1405,25 @@ window.__ModuleLoader__.load({
               ? state.launch.ok
                 ? h(Chip, { kind: 'ok', dot: true }, t('bLaunchOk'))
                 : h(React.Fragment, null,
-                    h(Chip, { kind: 'danger', dot: true }, t('bLaunchFail')),
-                    h(Banner, { kind: 'warn', text: `${t('bLaunchFailHint')} ${state.launch.detail}` }),
+                    h('div', { className: 'yk-toolbar' },
+                      h(Chip, { kind: 'danger', dot: true }, t('bLaunchFail')),
+                      state.launch.missing?.length > 0
+                        ? h(Chip, { kind: 'warn' }, fill(t('bMissingLibs'), { n: state.launch.missing.length }))
+                        : null,
+                    ),
+                    h(Banner, { kind: 'warn', text: t('bLaunchFailHint') }),
+                    state.launch.missing?.length > 0
+                      ? h('div', { className: 'yk-mono yk-libs' }, state.launch.missing.slice(0, 8).join(', ') + (state.launch.missing.length > 8 ? ` +${state.launch.missing.length - 8}` : ''))
+                      : null,
+                    state.launch.command
+                      ? h(React.Fragment, null,
+                          h('div', { className: 'yk-cardHint' }, t('bFixHint')),
+                          h('div', { className: 'yk-cmdRow' },
+                            h('pre', { className: 'yk-out' }, state.launch.command),
+                            h(CopyButton, { text: state.launch.command, label: t('copy'), t }),
+                          ),
+                        )
+                      : null,
                   )
               : null,
             busy ? h('div', { className: 'yk-progress', role: 'progressbar', 'aria-valuenow': state?.percent ?? 0 }, h('div', { className: 'yk-progressBar', style: { width: `${state?.percent ?? 5}%` } })) : null,
@@ -1413,6 +1456,8 @@ window.__ModuleLoader__.load({
       const [collapsed, setCollapsed] = React.useState([])
       const [selected, setSelected] = React.useState([])
       const [confirming, setConfirming] = React.useState(null)
+      const [rowConfirm, setRowConfirm] = React.useState(null)
+      const [collapsedKids, setCollapsedKids] = React.useState([])
       const [force, setForce] = React.useState(false)
       const [deleteFiles, setDeleteFiles] = React.useState(false)
       const [deleteDir, setDeleteDir] = React.useState(false)
@@ -1497,6 +1542,7 @@ window.__ModuleLoader__.load({
       const toggle = (id) => setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
 
       const ask = (target) => {
+        setRowConfirm(null)
         setForce(false)
         setDeleteFiles(false)
         setDeleteDir(target.workspace !== undefined)
@@ -1518,22 +1564,25 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const remove = () => {
-        const target = confirming
-        if (target === null) return
-        return run('delete', async () => {
+      /**
+       * One delete request, shared by the inline row confirm and the batch or
+       * workspace panel at the top of the list.
+       */
+      const performDelete = ({ ids, force: forceLive, deleteFiles: withFiles, workspace, deleteWorkspaceDir }) =>
+        run('delete', async () => {
           const payload = await postJson(`${API.chats}/delete`, {
-            ids: target.ids,
-            force,
-            deleteFiles,
-            deleteWorkspace: target.workspace !== undefined,
-            deleteWorkspaceDir: target.workspace !== undefined && deleteDir,
-            workspaceId: target.workspace?.registered ? target.workspace.id : undefined,
-            workspacePath: target.workspace?.path || undefined,
+            ids,
+            force: forceLive === true,
+            deleteFiles: withFiles === true,
+            deleteWorkspace: workspace !== undefined,
+            deleteWorkspaceDir: workspace !== undefined && deleteWorkspaceDir === true,
+            workspaceId: workspace?.registered ? workspace.id : undefined,
+            workspacePath: workspace?.path || undefined,
           })
           setData(payload.state)
           setSelected((current) => current.filter((id) => !payload.ids.includes(id)))
           setConfirming(null)
+          setRowConfirm(null)
           const parts = [fill(t('cDeleted'), { n: payload.deleted ?? 0 })]
           if (payload.filesDeleted > 0) parts.push(fill(t('cFilesDeleted'), { n: payload.filesDeleted }))
           if (payload.workspaceDirDeleted) parts.push(t('cDirDeleted'))
@@ -1543,11 +1592,22 @@ window.__ModuleLoader__.load({
             ...(payload.failed ?? []).map((item) => {
               const row = rows.find((candidate) => candidate.id === item.id)
               const reason = t(`cReason_${item.reason}`)
-              return `${row?.title ?? item.id}：${reason.startsWith('cReason_') ? item.reason : reason}`
+              return `${row?.title ?? item.id}：${reason.startsWith('cReason_') ? reason : reason}`
             }),
             ...(payload.notes ?? []).filter((note) => !/^已(删除|清空)工作区目录/.test(note)),
           ]
           if (problems.length > 0) setFailure({ message: problems.slice(0, 6).join('；'), off: false })
+        })
+
+      const remove = () => {
+        const target = confirming
+        if (target === null) return
+        return performDelete({
+          ids: target.ids,
+          force,
+          deleteFiles,
+          workspace: target.workspace,
+          deleteWorkspaceDir: deleteDir,
         })
       }
 
@@ -1574,56 +1634,132 @@ window.__ModuleLoader__.load({
             ? fill(t('cConfirmWorkspace'), { name: confirming.workspace.title, n: confirming.ids.length })
             : fill(t('cConfirm'), { n: confirming.ids.length })
 
-      const renderRow = (row) => {
+      /** Children of one chat inside the current (already filtered) group. */
+      const childrenOf = (group, id) => group.rows.filter((row) => row.parentSession === id)
+
+      /**
+       * One chat row. A single delete confirms in place, under that row; only
+       * batch and whole-workspace deletes use the panel at the top.
+       */
+      const renderRow = (row, group, depth = 0) => {
         const checked = selected.includes(row.id)
+        const pending = rowConfirm !== null && rowConfirm.id === row.id ? rowConfirm : null
+        const kids = depth < 3 ? childrenOf(group, row.id) : []
+        const kidsOpen = !collapsedKids.includes(row.id)
         const meta = [
           groupBy === 'flat' ? row.workspaceTitle ?? null : null,
           relativeTime(row.updatedAt, t),
           row.bytes === null ? null : formatBytes(row.bytes),
           row.events === null ? null : fill(t('cEvents'), { n: row.events }),
         ].filter((item) => item !== null && item !== '')
-        return h(
+
+        const confirmStrip = pending === null ? null : h(
           'div',
-          { className: checked ? 'yk-item yk-item-selected' : 'yk-item', key: row.id },
+          { className: 'yk-confirm yk-confirmInline', role: 'alertdialog', 'aria-label': t('cDeleteOne') },
+          h('div', { className: 'yk-confirmTitle' }, t('cDeleteOne')),
+          h('div', { className: 'yk-confirmHint' }, t('cDeleteOneHint')),
           h(
-            'button',
-            { type: 'button', className: 'yk-check', role: 'checkbox', 'aria-checked': checked ? 'true' : 'false', 'aria-label': row.title ?? row.id, onClick: () => toggle(row.id) },
-            checked ? h(CheckIcon, { width: 11, height: 11 }) : null,
+            'div',
+            { className: 'yk-options' },
+            row.live
+              ? h(Option, { checked: pending.force === true, onChange: (value) => setRowConfirm({ ...pending, force: value }), label: t('cForceOne') })
+              : null,
+            h(Option, {
+              checked: pending.deleteFiles === true,
+              onChange: (value) => setRowConfirm({ ...pending, deleteFiles: value }),
+              label: t('cDeleteFiles'),
+              hint: t('cDeleteFilesHint'),
+            }),
           ),
           h(
             'div',
-            { className: 'yk-itemMain' },
-            h(
-              'div',
-              { className: 'yk-itemTitleRow' },
-              h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => openSession(row.id), title: row.title ?? row.id }, row.title ?? row.id),
-              row.archived ? h(Chip, null, t('cArchivedTag')) : null,
-              row.running ? h(Chip, { kind: 'warn', dot: true }, t('cRunning')) : row.live ? h(Chip, { kind: 'ok', dot: true }, t('cLive')) : null,
-            ),
-            h('div', { className: 'yk-itemMeta' }, meta.map((part, index) => h('span', { key: index }, part))),
-          ),
-          h(
-            'div',
-            { className: 'yk-itemActions' },
-            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn', onClick: () => openSession(row.id), title: t('open'), 'aria-label': t('open') }, h(OpenIcon)),
+            { className: 'yk-confirmActions' },
+            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => setRowConfirm(null), disabled: busy !== '' }, t('cancel')),
             h(
               'button',
               {
                 type: 'button',
-                className: 'yk-btn yk-btn-ghost yk-iconBtn',
-                onClick: () => archive(row),
-                disabled: busy !== '',
-                title: row.archived ? t('cUnarchive') : t('cArchive'),
-                'aria-label': row.archived ? t('cUnarchive') : t('cArchive'),
+                className: 'yk-btn yk-btn-danger yk-btn-sm',
+                disabled: busy !== '' || (row.live && pending.force !== true),
+                onClick: () => performDelete({ ids: [row.id], force: pending.force === true, deleteFiles: pending.deleteFiles === true }),
               },
-              h(ArchiveIcon),
-            ),
-            h(
-              'button',
-              { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-dangerHover', title: t('cDelete'), 'aria-label': t('cDelete'), disabled: busy !== '', onClick: () => ask({ ids: [row.id] }) },
-              h(TrashIcon),
+              busy === 'delete' ? h(Spinner, { size: 13 }) : h(TrashIcon, { width: 13, height: 13 }),
+              t('cDelete'),
             ),
           ),
+        )
+
+        return h(
+          'div',
+          { className: depth === 0 ? 'yk-itemWrap' : 'yk-itemWrap yk-childWrap', key: row.id },
+          h(
+            'div',
+            { className: checked ? 'yk-item yk-item-selected' : 'yk-item' },
+            h(
+              'button',
+              { type: 'button', className: 'yk-check', role: 'checkbox', 'aria-checked': checked ? 'true' : 'false', 'aria-label': row.title ?? row.id, onClick: () => toggle(row.id) },
+              checked ? h(CheckIcon, { width: 11, height: 11 }) : null,
+            ),
+            h(
+              'div',
+              { className: 'yk-itemMain' },
+              h(
+                'div',
+                { className: 'yk-itemTitleRow' },
+                h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => openSession(row.id), title: row.title ?? row.id }, row.title ?? row.id),
+                row.origin === 'subagent' ? h(Chip, null, t('cSubagentTag')) : null,
+                row.archived ? h(Chip, null, t('cArchivedTag')) : null,
+                row.running ? h(Chip, { kind: 'warn', dot: true }, t('cRunning')) : row.live ? h(Chip, { kind: 'ok', dot: true }, t('cLive')) : null,
+                kids.length > 0
+                  ? h(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'yk-subToggle',
+                        'aria-expanded': kidsOpen ? 'true' : 'false',
+                        title: kidsOpen ? t('collapse') : t('expand'),
+                        onClick: () => setCollapsedKids((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id]),
+                      },
+                      h(kidsOpen ? ChevronDownIcon : ChevronRightIcon, { width: 12, height: 12 }),
+                      fill(t('cSubSessions'), { n: kids.length }),
+                    )
+                  : null,
+              ),
+              h('div', { className: 'yk-itemMeta' }, meta.map((part, index) => h('span', { key: index }, part))),
+            ),
+            h(
+              'div',
+              { className: 'yk-itemActions' },
+              h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn', onClick: () => openSession(row.id), title: t('open'), 'aria-label': t('open') }, h(OpenIcon)),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: 'yk-btn yk-btn-ghost yk-iconBtn',
+                  onClick: () => archive(row),
+                  disabled: busy !== '',
+                  title: row.archived ? t('cUnarchive') : t('cArchive'),
+                  'aria-label': row.archived ? t('cUnarchive') : t('cArchive'),
+                },
+                h(ArchiveIcon),
+              ),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: pending === null ? 'yk-btn yk-btn-ghost yk-iconBtn yk-dangerHover' : 'yk-btn yk-btn-ghost yk-iconBtn yk-dangerHover yk-iconBtnOn',
+                  title: t('cDelete'),
+                  'aria-label': t('cDelete'),
+                  'aria-expanded': pending === null ? 'false' : 'true',
+                  disabled: busy !== '',
+                  onClick: () => setRowConfirm(pending === null ? { id: row.id, deleteFiles: false, force: false } : null),
+                },
+                h(TrashIcon),
+              ),
+            ),
+          ),
+          confirmStrip,
+          kids.length > 0 && kidsOpen ? h('div', { className: 'yk-children' }, kids.map((kid) => renderRow(kid, group, depth + 1))) : null,
         )
       }
 
@@ -1632,6 +1768,7 @@ window.__ModuleLoader__.load({
         const ids = group.rows.map((row) => row.id)
         const picked = ids.filter((id) => selected.includes(id)).length
         const allPicked = ids.length > 0 && picked === ids.length
+        const roots = group.rows.filter((row) => !row.parentSession || !group.rows.some((candidate) => candidate.id === row.parentSession))
         return h(
           'section',
           { className: 'yk-wsGroup', key: group.id },
@@ -1680,7 +1817,7 @@ window.__ModuleLoader__.load({
                 )
               : null,
           ),
-          isCollapsed ? null : h('div', { className: 'yk-list' }, group.rows.map(renderRow)),
+          isCollapsed ? null : h('div', { className: 'yk-list' }, roots.map((row) => renderRow(row, group))),
         )
       }
 
@@ -1788,7 +1925,11 @@ window.__ModuleLoader__.load({
                 })
             : groups !== null
               ? h('div', { className: 'yk-groups' }, groups.map(renderGroup))
-              : h('div', { className: 'yk-list' }, visible.map(renderRow)),
+              : h('div', { className: 'yk-list' }, (() => {
+                  const flat = { id: '__flat__', rows: visible }
+                  const roots = visible.filter((row) => !row.parentSession || !visible.some((candidate) => candidate.id === row.parentSession))
+                  return roots.map((row) => renderRow(row, flat))
+                })()),
 
         data !== null ? h('div', { className: 'yk-foot' }, counted(t, 'cTotalOne', 'cTotal', rows.length)) : null,
       )

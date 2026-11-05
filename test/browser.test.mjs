@@ -211,19 +211,27 @@ test('sandbox policy keeps isolation on a normal host and explains container fal
   assert.deepEqual(sandboxDecision({ sandbox: 'auto' }, { uid: 0, container: false }), { enabled: false, reason: 'root', flag: '--no-sandbox' })
 })
 
-test('launch probe reports missing shared libraries instead of claiming success', async () => {
+test('launch probe names every missing library and builds the fix command', async () => {
   const ok = await probeLaunch('/usr/bin/chrome', {
     execFile: async () => ({ stdout: 'Google Chrome 159.0.0.0\n', stderr: '' }),
   })
   assert.deepEqual(ok, { ok: true, detail: 'Google Chrome 159.0.0.0' })
+
+  // The loader reports one library; `ldd` lists the rest and must win.
   const broken = await probeLaunch('/usr/bin/chrome', {
-    execFile: async () => {
+    execFile: async (command) => {
+      if (command === 'ldd') {
+        return { stdout: '\tlibglib-2.0.so.0 => not found\n\tlibnss3.so => not found\n', stderr: '' }
+      }
       const error = new Error('Command failed')
       error.stderr = 'chrome: error while loading shared libraries: libglib-2.0.so.0: cannot open shared object file'
       throw error
     },
   })
   assert.equal(broken.ok, false)
-  assert.match(broken.detail, /missing libglib-2\.0\.so\.0/u)
-  assert.match(broken.detail, /libraryPath/u)
+  assert.deepEqual(broken.missing, ['libglib-2.0.so.0', 'libnss3.so'])
+  assert.ok(broken.packages.includes('libglib2.0-0'))
+  assert.ok(broken.packages.includes('libnss3'))
+  assert.match(broken.command, /^apt-get update && apt-get install -y --no-install-recommends /u)
+  assert.match(broken.hint, /libraryPath/u)
 })
