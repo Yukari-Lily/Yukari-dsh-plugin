@@ -68,6 +68,24 @@ async function fixture() {
   return { tmp, ws, artifact, admin, registry, created, createdRelative, updated, outside, events }
 }
 
+test('a chat loaded in this process is refused, even when files are gone', async () => {
+  const f = await fixture()
+  const loaded = { ...f.admin }
+  // A store that knows this chat: the same condition the Host uses for "已加载".
+  const ctx = {
+    sessionQuery: { listSessions: async () => [{ header: { id: 'session-123', cwd: f.ws, createdAt: Date.now() }, live: true }] },
+    sessionPersistence: { root: path.dirname(path.dirname(f.artifact)) },
+    sessions: { get: (id) => (id === 'session-123' ? { id } : undefined) },
+    workspaceRegistry: { list: () => [], unarchiveSession: async () => {}, unpinSession: async () => {} },
+  }
+  const admin = createAdmin({ ctx, config: { sessionsRoot: path.dirname(path.dirname(f.artifact)) } })
+  const res = await admin.remove({ ids: ['session-123'] })
+  assert.equal(res.deleted, 0)
+  assert.deepEqual(res.failed, [{ id: 'session-123', reason: 'live' }])
+  assert.equal(await exists(f.artifact), true, 'the artifact survives a refused delete')
+  await fs.rm(f.tmp, { recursive: true, force: true })
+})
+
 test('createdFilesFromEvents keeps only files a file tool reported creating', () => {
   const events = [
     ...toolPair('a', 'write', { file_path: '/w/a.txt' }, 'Created file'),

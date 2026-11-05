@@ -115,7 +115,6 @@ export function apply(ctx, config = {}) {
             if (action === 'delete') {
               const result = await admin.remove({
                 ids: body.ids,
-                force: body.force === true,
                 deleteFiles: body.deleteFiles === true,
                 deleteWorkspaceDir: body.deleteWorkspaceDir === true,
                 deleteWorkspace: body.deleteWorkspace === true,
@@ -223,7 +222,7 @@ export function apply(ctx, config = {}) {
       ctx.tools.register({
         name: 'chat_delete',
         description:
-          'Permanently delete stored chats by Session id: removes the chat artifact from the Host, then drops the id from workspace accounting, the archive set, and the pin set. Archived chats are deleted the same way. A chat still open in this process is refused unless force is true.',
+          'Permanently delete stored chats by Session id: removes the chat artifact from the Host, then drops the id from workspace accounting, the archive set, and the pin set. Archived chats are deleted the same way. A chat currently loaded in this process is always refused: switch to another chat or restart the Host first.',
         parameters: {
           type: 'object',
           additionalProperties: false,
@@ -233,10 +232,6 @@ export function apply(ctx, config = {}) {
               type: 'array',
               items: { type: 'string' },
               description: 'Session ids to delete, as returned by chat_inventory.',
-            },
-            force: {
-              type: 'boolean',
-              description: 'Also delete chats currently loaded in this Host process. Defaults to false.',
             },
           },
         },
@@ -272,7 +267,7 @@ export function apply(ctx, config = {}) {
           },
         },
         async execute(args = {}) {
-          const result = await admin.remove({ ids: args.ids, force: args.force === true })
+          const result = await admin.remove({ ids: args.ids })
           return { deleted: result.deleted, ids: result.ids, failed: result.failed }
         },
       }),

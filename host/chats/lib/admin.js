@@ -359,7 +359,6 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
         .map((id) => id.trim())
         .filter((id) => id !== ''),
     )].slice(0, MAX_DELETE_IDS)
-    const force = request.force === true
     const deleteFiles = request.deleteFiles === true
     const deleteWorkspaceDir = request.deleteWorkspaceDir === true
     const workspaceId = typeof request.workspaceId === 'string' ? request.workspaceId.trim() : ''
@@ -400,7 +399,9 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
         failed.push({ id, reason: 'unknown' })
         continue
       }
-      if (session !== undefined && !force) {
+      // A chat loaded in this process cannot be removed safely: its files would
+      // vanish while the in-memory session keeps trying to append to them.
+      if (session !== undefined) {
         failed.push({ id, reason: 'live' })
         continue
       }

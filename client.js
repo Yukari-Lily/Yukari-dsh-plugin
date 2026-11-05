@@ -155,8 +155,9 @@ window.__ModuleLoader__.load({
       cConfirm: '永久删除 {n} 个会话？',
       cConfirmWorkspace: '删除工作区「{name}」及其 {n} 个会话？',
       cConfirmHint: '会话记录、归档和置顶标记一并移除，无法恢复。',
-      cLiveBlocked: '有 {n} 个会话正在使用中，切换到其他会话后再删除',
-      cLiveBlockedOne: '这个会话正在使用中，切换到其他会话后再删除',
+      cLiveBlocked: '有 {n} 个会话正在使用中，切换到其他会话或重启后再删除',
+      cMissingRecord: '记录缺失',
+      cLiveBlockedOne: '这个会话正在使用中，切换到其他会话或重启后再删除',
       cDeleteFiles: '同时删除这些会话新建的文件',
       cDeleteFilesHint: '只删由 write / str_replace_editor 新建、且仍在工作区内的文件；命令行生成的文件和会话前已存在的文件不会动。',
       cDeleteWorkspaceDir: '同时删除工作区文件夹',
@@ -433,8 +434,9 @@ window.__ModuleLoader__.load({
       cConfirm: 'Permanently delete {n} chats?',
       cConfirmWorkspace: 'Delete workspace “{name}” and its {n} chats?',
       cConfirmHint: 'Chat history, archive and pin marks are removed. This cannot be undone.',
-      cLiveBlocked: '{n} of these chats are in use; switch away from them first',
-      cLiveBlockedOne: 'This chat is in use; switch away from it first',
+      cLiveBlocked: '{n} of these chats are in use; switch away or restart first',
+      cMissingRecord: 'Record missing',
+      cLiveBlockedOne: 'This chat is in use; switch away from it or restart first',
       cDeleteFiles: 'Also delete files these chats created',
       cDeleteFilesHint: 'Only files created by write / str_replace_editor that are still inside the workspace. Files made by shell commands or that existed before the chat are kept.',
       cDeleteWorkspaceDir: 'Also delete the workspace folder',
@@ -1518,7 +1520,6 @@ window.__ModuleLoader__.load({
       const [confirming, setConfirming] = React.useState(null)
       const [rowConfirm, setRowConfirm] = React.useState(null)
       const [expandedKids, setExpandedKids] = React.useState([])
-      const [force, setForce] = React.useState(false)
       const [deleteFiles, setDeleteFiles] = React.useState(false)
       const [deleteDir, setDeleteDir] = React.useState(false)
       const { signal, alive } = useAbortOnUnmount()
@@ -1602,7 +1603,6 @@ window.__ModuleLoader__.load({
 
       const ask = (target) => {
         setRowConfirm(null)
-        setForce(false)
         setDeleteFiles(false)
         setDeleteDir(target.workspace !== undefined)
         setNotice(null)
@@ -1627,11 +1627,10 @@ window.__ModuleLoader__.load({
        * One delete request, shared by the inline row confirm and the batch or
        * workspace panel at the top of the list.
        */
-      const performDelete = ({ ids, force: forceLive, deleteFiles: withFiles, workspace, deleteWorkspaceDir }) =>
+      const performDelete = ({ ids, deleteFiles: withFiles, workspace, deleteWorkspaceDir }) =>
         run('delete', async () => {
           const payload = await postJson(`${API.chats}/delete`, {
             ids,
-            force: forceLive === true,
             deleteFiles: withFiles === true,
             deleteWorkspace: workspace !== undefined,
             deleteWorkspaceDir: workspace !== undefined && deleteWorkspaceDir === true,
@@ -1663,7 +1662,6 @@ window.__ModuleLoader__.load({
         if (target === null) return
         return performDelete({
           ids: target.ids,
-          force,
           deleteFiles,
           workspace: target.workspace,
           deleteWorkspaceDir: deleteDir,
@@ -1801,6 +1799,7 @@ window.__ModuleLoader__.load({
                 { className: 'yk-itemTitleRow' },
                 h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => openSession(row.id), title: row.title ?? row.id }, row.title ?? row.id),
                 row.origin === 'subagent' ? h(Chip, null, t('cSubagentTag')) : null,
+                row.stored === false ? h(Chip, { kind: 'danger', dot: true }, t('cMissingRecord')) : null,
                 row.archived ? h(Chip, null, t('cArchivedTag')) : null,
                 row.running ? h(Chip, { kind: 'warn', dot: true }, t('cRunning')) : row.live ? h(Chip, { kind: 'ok', dot: true }, t('cLive')) : null,
                 kids.length > 0
@@ -1845,7 +1844,7 @@ window.__ModuleLoader__.load({
                   'aria-label': t('cDelete'),
                   'aria-expanded': pending === null ? 'false' : 'true',
                   disabled: busy !== '',
-                  onClick: () => setRowConfirm(pending === null ? { id: row.id, deleteFiles: false, force: false } : null),
+                  onClick: () => setRowConfirm(pending === null ? { id: row.id, deleteFiles: false } : null),
                 },
                 h(TrashIcon),
               ),
