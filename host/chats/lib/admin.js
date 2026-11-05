@@ -363,7 +363,9 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
     const deleteWorkspaceDir = request.deleteWorkspaceDir === true
     const workspaceId = typeof request.workspaceId === 'string' ? request.workspaceId.trim() : ''
     const workspacePath = typeof request.workspacePath === 'string' ? request.workspacePath.trim() : ''
-    if (ids.length === 0 && !deleteWorkspaceDir) throw new Error('没有指定要删除的会话')
+    // `deleteWorkspace`: the request removes a whole workspace (its registration too).
+    const deleteWorkspace = request.deleteWorkspace === true || deleteWorkspaceDir
+    if (ids.length === 0 && !deleteWorkspace) throw new Error('没有指定要删除的会话')
 
     const records = await query.listSessions()
     const headers = new Map(records.map((record) => [String(record.header.id), record.header]))
@@ -373,9 +375,9 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
     // The directory a workspace delete may remove: a registered workspace, or
     // the working directory of a chat in this very request. Never a client path alone.
     let workspaceDir = null
-    let registered = null
+    const registered = deleteWorkspace ? workspaces.find((workspace) => workspace.id === workspaceId) ?? null : null
+    if (deleteWorkspace && registered === null && ids.length === 0) throw new Error('找不到要删除的工作区')
     if (deleteWorkspaceDir) {
-      registered = workspaces.find((workspace) => workspace.id === workspaceId) ?? null
       if (registered !== null && registered.path !== '') {
         workspaceDir = registered.path
       } else if (workspacePath !== '' && ids.some((id) => headers.get(id)?.cwd === workspacePath)) {
@@ -436,19 +438,21 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
     for (const id of deleted) await forget(id, notes)
 
     let workspaceDirDeleted = false
-    if (workspaceDir !== null) {
-      if (failed.length > 0) {
-        notes.push(`有 ${failed.length} 个会话没删掉，工作区目录已保留：${workspaceDir}`)
-      } else {
+    let workspaceRemoved = false
+    if (deleteWorkspace && failed.length > 0) {
+      notes.push(`有 ${failed.length} 个会话没删掉，工作区${workspaceDir === null ? '' : `和目录 ${workspaceDir} `}已保留`)
+    } else if (deleteWorkspace) {
+      if (workspaceDir !== null) {
         const outcome = await removeWorkspaceDirectory(workspaceDir, [sessionRoot], fs)
         workspaceDirDeleted = outcome.removed
         notes.push(outcome.note)
-        if (outcome.removed && registered !== null && registry !== undefined && typeof registry.delete === 'function') {
-          try {
-            await registry.delete(registered.id)
-          } catch (error) {
-            notes.push(`工作区登记未移除（${messageOf(error)}）`)
-          }
+      }
+      // Drop the registration so the sidebar forgets the workspace, unless its directory was kept by a failure.
+      if (registered !== null && (workspaceDir === null || workspaceDirDeleted) && registry !== undefined && typeof registry.delete === 'function') {
+        try {
+          workspaceRemoved = (await registry.delete(registered.id)) !== false
+        } catch (error) {
+          notes.push(`工作区登记未移除（${messageOf(error)}）`)
         }
       }
     }
@@ -460,6 +464,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
       failed,
       filesDeleted,
       workspaceDirDeleted,
+      workspaceRemoved,
       notes,
       state,
     }

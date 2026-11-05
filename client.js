@@ -58,6 +58,7 @@ window.__ModuleLoader__.load({
       cancel: '取消',
       confirm: '确认',
       save: '保存',
+      saved: '已保存',
       close: '关闭',
       loading: '加载中…',
       never: '从未',
@@ -116,13 +117,13 @@ window.__ModuleLoader__.load({
       cDelete: '删除',
       cDeleteN: '删除 {n} 个',
       cConfirm: '永久删除 {n} 个会话？',
-      cConfirmWorkspace: '删除工作区「{name}」的 {n} 个会话？',
+      cConfirmWorkspace: '删除工作区「{name}」及其 {n} 个会话？',
       cConfirmHint: '会话记录、归档和置顶标记一并移除，无法恢复。',
       cForce: '包括正在打开的会话',
       cDeleteFiles: '同时删除这些会话新建的文件',
       cDeleteFilesHint: '只删由 write / str_replace_editor 新建、且仍在工作区内的文件；命令行生成的文件和会话前已存在的文件不会动。',
-      cDeleteWorkspaceDir: '同时删除整个工作区目录',
-      cDeleteWorkspaceDirHint: '{path} 及其中所有文件都会被删除。',
+      cDeleteWorkspaceDir: '同时删除工作区文件夹',
+      cDeleteWorkspaceDirHint: '文件夹 {path} 本身和里面的所有文件都会被删除；取消勾选则只移除工作区，文件夹保留。',
       cArchive: '归档',
       cUnarchive: '取消归档',
       cSelected: '已选 {n}',
@@ -133,7 +134,8 @@ window.__ModuleLoader__.load({
       cNoChats: '还没有会话',
       cDeleted: '已删除 {n} 个会话',
       cFilesDeleted: '清理了 {n} 个文件',
-      cDirDeleted: '工作区目录已删除',
+      cDirDeleted: '工作区及目录已删除',
+      cWorkspaceRemoved: '工作区已移除（目录保留）',
       cLive: '打开中',
       cRunning: '运行中',
       cArchivedTag: '已归档',
@@ -146,8 +148,11 @@ window.__ModuleLoader__.load({
 
       sSearch: '搜索站点名称或路径',
       sPrefix: '访问前缀',
+      sSettings: '高级设置',
+      sPrefixUnsetTag: '未设置访问前缀',
       sPrefixHint: '站点链接 = 前缀 + /站点名/。填你自己的对外地址，例如 https://pages.example.com 或 https://dsh.example.com/p',
       sPrefixDefault: '恢复默认',
+      sPrefixUnset: '还在用默认前缀（dsh 本身不提供 /p 页面）。发布目录需要由你自己的静态服务对外提供，把那个地址填在这里，链接才能打开。',
       sPrefixSaved: '访问前缀已保存',
       sCount: '共 {n} 个站点',
       sCountOne: '共 1 个站点',
@@ -221,6 +226,7 @@ window.__ModuleLoader__.load({
       gUnsaved: '有未保存的修改',
 
       rCheck: '检查更新',
+      rLatestShort: '已是最新',
       rChecking: '正在查询 npm…',
       rUpdateTo: '更新到 {version}',
       rUpdating: '正在安装…',
@@ -309,6 +315,7 @@ window.__ModuleLoader__.load({
       cancel: 'Cancel',
       confirm: 'Confirm',
       save: 'Save',
+      saved: 'Saved',
       close: 'Close',
       loading: 'Loading…',
       never: 'never',
@@ -367,13 +374,13 @@ window.__ModuleLoader__.load({
       cDelete: 'Delete',
       cDeleteN: 'Delete {n}',
       cConfirm: 'Permanently delete {n} chats?',
-      cConfirmWorkspace: 'Delete the {n} chats of workspace “{name}”?',
+      cConfirmWorkspace: 'Delete workspace “{name}” and its {n} chats?',
       cConfirmHint: 'Chat history, archive and pin marks are removed. This cannot be undone.',
       cForce: 'Include chats that are open',
       cDeleteFiles: 'Also delete files these chats created',
       cDeleteFilesHint: 'Only files created by write / str_replace_editor that are still inside the workspace. Files made by shell commands or that existed before the chat are kept.',
-      cDeleteWorkspaceDir: 'Also delete the whole workspace directory',
-      cDeleteWorkspaceDirHint: '{path} and everything in it will be deleted.',
+      cDeleteWorkspaceDir: 'Also delete the workspace folder',
+      cDeleteWorkspaceDirHint: 'The folder {path} and everything in it is deleted; untick to remove only the workspace and keep the folder.',
       cArchive: 'Archive',
       cUnarchive: 'Unarchive',
       cSelected: '{n} selected',
@@ -384,7 +391,8 @@ window.__ModuleLoader__.load({
       cNoChats: 'No chats yet',
       cDeleted: 'Deleted {n} chats',
       cFilesDeleted: 'removed {n} files',
-      cDirDeleted: 'workspace directory deleted',
+      cDirDeleted: 'workspace and its directory deleted',
+      cWorkspaceRemoved: 'workspace removed (directory kept)',
       cLive: 'Open',
       cRunning: 'Running',
       cArchivedTag: 'Archived',
@@ -397,8 +405,11 @@ window.__ModuleLoader__.load({
 
       sSearch: 'Search sites',
       sPrefix: 'URL prefix',
+      sSettings: 'Advanced',
+      sPrefixUnsetTag: 'prefix not set',
       sPrefixHint: 'Site link = prefix + /name/. Use your public address, e.g. https://pages.example.com or https://dsh.example.com/p',
       sPrefixDefault: 'Reset',
+      sPrefixUnset: 'Still on the default prefix (dsh itself does not serve /p). Serve the publish root with your own static host and enter its address here so links open.',
       sPrefixSaved: 'URL prefix saved',
       sCount: '{n} sites',
       sCountOne: '1 site',
@@ -472,6 +483,7 @@ window.__ModuleLoader__.load({
       gUnsaved: 'Unsaved changes',
 
       rCheck: 'Check for updates',
+      rLatestShort: 'Up to date',
       rChecking: 'Asking npm…',
       rUpdateTo: 'Update to {version}',
       rUpdating: 'Installing…',
@@ -1426,7 +1438,7 @@ button.yk-itemTitle:hover {
 
 /* Footer & Mono */
 .yk-mono {
-  font-family: var(--ds-font-family-code, var(--dsw-font-mono, monospace));
+  font-family: var(--ds-font-family-code, var(--dsw-font-mono, ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace));
   font-size: 12px;
 }
 .yk-foot {
@@ -1490,22 +1502,33 @@ button.yk-itemTitle:hover {
 .yk-dangerHover:hover:not(:disabled) { color: var(--dsw-alias-state-error-primary, #ef4444); }
 .yk-grow { flex: 1 1 auto; }
 
-.yk-update { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
-.yk-updateStatus {
-  display: inline-flex; align-items: center; gap: 8px; min-height: 30px;
-  padding: 3px 6px 3px 12px; border-radius: 999px; font-size: 12.5px;
+.yk-update { display: flex; align-items: center; justify-content: flex-end; min-width: 0; max-width: 100%; }
+.yk-updatePill, .yk-updateStatus {
+  appearance: none; font: inherit;
+  display: inline-flex; align-items: center; gap: 7px; height: 30px;
+  padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 500;
   border: .5px solid var(--dsw-alias-border-l3, var(--dsw-alias-border-l2));
   background: var(--dsw-alias-bg-layer-2, transparent);
   color: var(--dsw-alias-label-secondary);
-  max-width: 100%;
+  max-width: 100%; min-width: 0; white-space: nowrap;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
 }
-.yk-updateStatus > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.yk-updateStatus-ok { color: #10b981; border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.08); padding-right: 12px; }
-.yk-updateStatus-ok:has(.yk-btn) { padding-right: 4px; }
-.yk-updateStatus-warn { color: #f59e0b; border-color: rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.08); padding-right: 4px; }
+.yk-updatePill-click { cursor: pointer; }
+.yk-updatePill-click:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover, rgba(255, 255, 255, 0.08)); }
+.yk-updateText { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.yk-updatePill:has(> .yk-btn) { padding-right: 3px; }
+.yk-updateStatus-ok { color: #10b981; border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.08); }
+.yk-updateStatus-warn { color: #f59e0b; border-color: rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.08); }
 .yk-updateStatus-error { color: #ef4444; border-color: rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.08); }
-.yk-updateStatus-busy { padding-right: 12px; }
-.yk-updateStatus .yk-btn-sm { height: 24px; border-radius: 999px; }
+.yk-updatePill.yk-updateStatus-ok:hover, .yk-updatePill.yk-updateStatus-error:hover { color: inherit; }
+.yk-updatePill .yk-btn-sm { height: 24px; border-radius: 999px; padding: 0 10px; }
+
+/* In-place confirmations */
+.yk-flash, .yk-flashNote { display: inline-flex; align-items: center; gap: 5px; color: #10b981; animation: yk-fade .18s ease-out; }
+.yk-flashNote { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 100%; }
+@keyframes yk-fade { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+.yk-disclosureBody .yk-settingRow { padding: 0; border: 0; background: none; }
+.yk-disclosureBtn .yk-chip { margin-left: 4px; }
 .yk-updateDismiss {
   appearance: none; border: 0; background: transparent; color: inherit; cursor: pointer;
   width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; opacity: .7;
@@ -1561,6 +1584,7 @@ button.yk-itemTitle:hover {
 }
 .yk-settingLabel { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; white-space: nowrap; }
 .yk-settingHint { grid-column: 1 / -1; font-size: 12px; color: var(--dsw-alias-label-tertiary); }
+.yk-settingWarn { color: #f59e0b; }
 
 .yk-nodeList { display: flex; flex-direction: column; gap: 6px; }
 .yk-node {
@@ -1580,7 +1604,7 @@ button.yk-itemTitle:hover {
 .yk-radio:disabled:not([aria-checked="true"]) { opacity: .5; cursor: default; }
 .yk-importBox { display: flex; gap: 8px; align-items: flex-end; padding-top: 4px; }
 .yk-importBox .yk-textarea { flex: 1 1 auto; }
-.yk-textarea { height: auto; min-height: 64px; padding: 9px 11px; resize: vertical; line-height: 1.5; font-family: var(--dsw-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: 12px; }
+.yk-textarea { height: auto; min-height: 64px; padding: 9px 11px; resize: vertical; line-height: 1.5; font-family: var(--ds-font-family-code, var(--dsw-font-mono, ui-monospace, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace)); font-size: 12px; }
 .yk-editor { min-height: 320px; }
 .yk-editorHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 
@@ -1815,10 +1839,10 @@ button.yk-itemTitle:hover {
     const ArchiveIcon = (props) =>
       glyph(
         [
-          stroke('M4.6 7.4h14.8', { key: 'a' }),
-          stroke('M6.2 7.4v10.2a1.4 1.4 0 0 0 1.4 1.4h8.8a1.4 1.4 0 0 0 1.4-1.4V7.4', { key: 'b' }),
-          stroke('M9.4 5h5.2v2.4', { key: 'c' }),
-          stroke('M9.8 11.6h4.4', { key: 'd' }),
+          stroke('M3.8 5.2h16.4v3.6H3.8z', { key: 'a' }),
+          stroke('M5.4 8.8v9a1.6 1.6 0 0 0 1.6 1.6h10a1.6 1.6 0 0 0 1.6-1.6v-9', { key: 'b' }),
+          stroke('M12 11.6v4.8', { key: 'c' }),
+          stroke('M9.8 14.4 12 16.6l2.2-2.2', { key: 'd' }),
         ],
         props,
       )
@@ -2051,6 +2075,53 @@ button.yk-itemTitle:hover {
       )
     }
 
+    /**
+     * Short-lived confirmation shown where the action happened (on the button
+     * or next to it) instead of a banner row that pushes the page around.
+     * @returns `[flash, show]`; `show(key, text)` clears itself after `ms`.
+     */
+    function useFlash(ms = 3200) {
+      const [flash, setFlash] = React.useState(null)
+      const timer = React.useRef(null)
+      React.useEffect(() => () => clearTimeout(timer.current), [])
+      const show = React.useCallback(
+        (key, text = '') => {
+          clearTimeout(timer.current)
+          setFlash({ key, text })
+          timer.current = setTimeout(() => setFlash(null), ms)
+        },
+        [ms],
+      )
+      return [flash, show]
+    }
+
+    /** Button content that briefly turns into "✓ text" after its action. */
+    const flashed = (flash, key, content) =>
+      flash?.key === key ? h('span', { className: 'yk-flash' }, h(CheckIcon, { width: 13, height: 13 }), flash.text) : content
+
+    /** Inline confirmation text next to an action. */
+    const FlashNote = ({ flash, keys }) =>
+      flash !== null && keys.includes(flash.key) && flash.text
+        ? h('span', { className: 'yk-flashNote', role: 'status' }, h(CheckIcon, { width: 13, height: 13 }), flash.text)
+        : null
+
+    /** Collapsible "advanced settings" section at the bottom of a tab. */
+    function Disclosure({ title, badge, children, defaultOpen }) {
+      const [open, setOpen] = React.useState(defaultOpen === true)
+      return h(
+        'div',
+        { className: 'yk-disclosure' },
+        h(
+          'button',
+          { type: 'button', className: 'yk-disclosureBtn', 'aria-expanded': open ? 'true' : 'false', onClick: () => setOpen((value) => !value) },
+          h(open ? ChevronDownIcon : ChevronRightIcon, { width: 14, height: 14 }),
+          title,
+          badge ?? null,
+        ),
+        open ? h('div', { className: 'yk-disclosureBody' }, children) : null,
+      )
+    }
+
     /** Wait for the server to come back after a restart, then reload. */
     function RestartWatch({ t }) {
       const [attempts, setAttempts] = React.useState(0)
@@ -2218,7 +2289,6 @@ button.yk-itemTitle:hover {
               title: t('compProxy'),
               icon: h(RouteIcon, { width: 16, height: 16 }),
               action: go('proxy'),
-              note: proxy === null ? undefined : proxy.enabled ? (proxy.running ? t('pEnabled') : t('pPending')) : t('pDisabled'),
             },
             h(
               'div',
@@ -2320,6 +2390,7 @@ button.yk-itemTitle:hover {
       const [data, setData] = React.useState(null)
       const [failure, setFailure] = React.useState(null)
       const [notice, setNotice] = React.useState(null)
+      const [flash, show] = useFlash()
       const [busy, setBusy] = React.useState('')
       const [query, setQuery] = React.useState('')
       const [filter, setFilter] = React.useState('all')
@@ -2407,7 +2478,9 @@ button.yk-itemTitle:hover {
             loose.rows.push(row)
           }
         }
-        const list = [...map.values()].filter((group) => group.rows.length > 0)
+        // Registered workspaces without chats stay listed (unfiltered view) so they can be deleted too.
+        const showEmpty = needle === '' && filter === 'all'
+        const list = [...map.values()].filter((group) => group.rows.length > 0 || (showEmpty && group.registered))
         if (loose.rows.length > 0) list.push(loose)
         return list
       })()
@@ -2417,7 +2490,7 @@ button.yk-itemTitle:hover {
       const ask = (target) => {
         setForce(false)
         setDeleteFiles(false)
-        setDeleteDir(false)
+        setDeleteDir(target.workspace !== undefined)
         setNotice(null)
         setConfirming(target)
       }
@@ -2444,6 +2517,7 @@ button.yk-itemTitle:hover {
             ids: target.ids,
             force,
             deleteFiles,
+            deleteWorkspace: target.workspace !== undefined,
             deleteWorkspaceDir: target.workspace !== undefined && deleteDir,
             workspaceId: target.workspace?.registered ? target.workspace.id : undefined,
             workspacePath: target.workspace?.path || undefined,
@@ -2454,7 +2528,8 @@ button.yk-itemTitle:hover {
           const parts = [fill(t('cDeleted'), { n: payload.deleted ?? 0 })]
           if (payload.filesDeleted > 0) parts.push(fill(t('cFilesDeleted'), { n: payload.filesDeleted }))
           if (payload.workspaceDirDeleted) parts.push(t('cDirDeleted'))
-          setNotice(parts.join(' · '))
+          else if (payload.workspaceRemoved) parts.push(t('cWorkspaceRemoved'))
+          show('delete', parts.join(' · '))
           const problems = [
             ...(payload.failed ?? []).map((item) => {
               const row = rows.find((candidate) => candidate.id === item.id)
@@ -2627,6 +2702,7 @@ button.yk-itemTitle:hover {
             ],
           }),
           h(RefreshButton, { t, onClick: load, spinning: busy === 'load' }),
+          h(FlashNote, { flash, keys: ['delete'] }),
         ),
 
         selected.length > 0
@@ -2649,7 +2725,6 @@ button.yk-itemTitle:hover {
           : null,
 
         h(Failure, { t, name: 'chats', error: failure, onRetry: load }),
-        notice !== null ? h(Banner, { kind: 'info', text: notice }) : null,
 
         confirming !== null
           ? h(
@@ -2694,7 +2769,7 @@ button.yk-itemTitle:hover {
 
         data === null && busy === 'load'
           ? h(Loading, { text: t('loading') })
-          : visible.length === 0
+          : visible.length === 0 && (groups === null || groups.length === 0)
             ? data === null
               ? null
               : h(Empty, {
@@ -2724,6 +2799,7 @@ button.yk-itemTitle:hover {
       const [payload, setPayload] = React.useState(null)
       const [failure, setFailure] = React.useState(null)
       const [notice, setNotice] = React.useState(null)
+      const [flash, show] = useFlash()
       const [busy, setBusy] = React.useState('')
       const [query, setQuery] = React.useState('')
       const [confirming, setConfirming] = React.useState('')
@@ -2773,7 +2849,7 @@ button.yk-itemTitle:hover {
       const savePrefix = (value) =>
         run('prefix', async () => {
           adopt(await postJson(`${API.sites}/settings`, { publicBase: value }))
-          setNotice(t('sPrefixSaved'))
+          show('prefix', t('saved'))
         })
 
       const remove = (slug) =>
@@ -2781,7 +2857,6 @@ button.yk-itemTitle:hover {
           const result = await postJson(`${API.sites}/delete`, { slug })
           setPayload((current) => ({ ...(current ?? {}), sites: result.sites }))
           setConfirming('')
-          setNotice(result.deleted ? fill(t('sGone'), { slug }) : fill(t('sKept'), { slug }))
         })
 
       const sites = payload?.sites ?? null
@@ -2794,37 +2869,6 @@ button.yk-itemTitle:hover {
       return h(
         'div',
         { className: 'yk-body' },
-        payload !== null
-          ? h(
-              'div',
-              { className: 'yk-settingRow' },
-              h('span', { className: 'yk-settingLabel' }, h(LinkIcon, { width: 14, height: 14 }), t('sPrefix')),
-              h('input', {
-                className: 'yk-input yk-mono',
-                value: prefix,
-                placeholder: payload.defaultPublicBase,
-                'aria-label': t('sPrefix'),
-                onChange: (event) => {
-                  setPrefix(event.target.value)
-                  setPrefixTouched(true)
-                },
-                onKeyDown: (event) => {
-                  if (event.key === 'Enter' && prefixTouched) savePrefix(prefix)
-                },
-              }),
-              h(
-                'button',
-                { type: 'button', className: 'yk-btn yk-btn-solid', disabled: busy !== '' || !prefixTouched, onClick: () => savePrefix(prefix) },
-                busy === 'prefix' ? h(Spinner) : null,
-                t('save'),
-              ),
-              payload.customPublicBase
-                ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', disabled: busy !== '', onClick: () => savePrefix('') }, t('sPrefixDefault'))
-                : null,
-              h('div', { className: 'yk-settingHint' }, t('sPrefixHint')),
-            )
-          : null,
-
         h(
           'div',
           { className: 'yk-toolbar' },
@@ -2832,7 +2876,6 @@ button.yk-itemTitle:hover {
           h(RefreshButton, { t, onClick: load, spinning: busy === 'load' }),
         ),
         h(Failure, { t, name: 'sites', error: failure, onRetry: load }),
-        notice !== null ? h(Banner, { kind: 'info', text: notice }) : null,
 
         sites === null
           ? busy === 'load'
@@ -2888,6 +2931,41 @@ button.yk-itemTitle:hover {
 
         payload !== null
           ? h(
+              Disclosure,
+              { title: t('sSettings'), badge: payload.customPublicBase ? null : h(Chip, { kind: 'warn' }, t('sPrefixUnsetTag')) },
+              h(
+                'div',
+                { className: 'yk-settingRow' },
+              h('span', { className: 'yk-settingLabel' }, h(LinkIcon, { width: 14, height: 14 }), t('sPrefix')),
+              h('input', {
+                className: 'yk-input yk-mono',
+                value: prefix,
+                placeholder: payload.defaultPublicBase,
+                'aria-label': t('sPrefix'),
+                onChange: (event) => {
+                  setPrefix(event.target.value)
+                  setPrefixTouched(true)
+                },
+                onKeyDown: (event) => {
+                  if (event.key === 'Enter' && prefixTouched) savePrefix(prefix)
+                },
+              }),
+              h(
+                'button',
+                { type: 'button', className: 'yk-btn yk-btn-solid', disabled: busy !== '' || !prefixTouched, onClick: () => savePrefix(prefix) },
+                busy === 'prefix' ? h(Spinner) : null,
+                flashed(flash, 'prefix', t('save')),
+              ),
+              payload.customPublicBase
+                ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', disabled: busy !== '', onClick: () => savePrefix('') }, t('sPrefixDefault'))
+                : null,
+              h('div', { className: 'yk-settingHint' }, payload.customPublicBase ? t('sPrefixHint') : h('span', { className: 'yk-settingWarn' }, t('sPrefixUnset'))),
+            ),
+            )
+          : null,
+
+        payload !== null
+          ? h(
               'div',
               { className: 'yk-foot' },
               h('span', null, counted(t, 'sCountOne', 'sCount', (sites ?? []).length)),
@@ -2904,6 +2982,7 @@ button.yk-itemTitle:hover {
       const [state, setState] = React.useState(null)
       const [failure, setFailure] = React.useState(null)
       const [notice, setNotice] = React.useState(null)
+      const [flash, show] = useFlash()
       const [busy, setBusy] = React.useState('')
       const [importText, setImportText] = React.useState('')
       const [removing, setRemoving] = React.useState('')
@@ -2962,7 +3041,6 @@ button.yk-itemTitle:hover {
           const wasOn = state?.enabled === true
           const payload = await postJson(`${API.proxy}/${wasOn ? 'disable' : 'enable'}`, {})
           adopt(payload.state)
-          setNotice(wasOn ? t('pDisabledNotice') : t('pEnabledNotice'))
         })
 
       const importNodes = () =>
@@ -2973,21 +3051,24 @@ button.yk-itemTitle:hover {
           let text = fill(t('pImported'), { added: payload.added ?? 0 })
           if (payload.updated > 0) text += fill(t('pImportedUpdated'), { updated: payload.updated })
           if (payload.skipped > 0) text += fill(t('pImportedSkipped'), { skipped: payload.skipped })
-          setNotice(text)
+          show('import', text)
         })
 
       const select = (id) =>
         run(`select:${id}`, async () => {
           const payload = await postJson(`${API.proxy}/select`, { id })
           adopt(payload.state)
-          setNotice(fill(t('pSelected'), { name: nameOf(id) }))
         })
 
       const test = (id) =>
         run(`test:${id}`, async () => {
-          const payload = await postJson(`${API.proxy}/test`, { id })
-          adopt(payload.state)
-          setNotice(fill(t('pTested'), { name: nameOf(id), ms: payload.test?.ms ?? '?' }))
+          // The result lands on the node's latency chip; a failed probe is a result too, not an error banner.
+          try {
+            adopt((await postJson(`${API.proxy}/test`, { id })).state)
+          } catch (error) {
+            if (error?.state === undefined) throw error
+            adopt(error.state)
+          }
         })
 
       const testAll = () =>
@@ -3003,7 +3084,6 @@ button.yk-itemTitle:hover {
       const reset = () =>
         run('reset', async () => {
           adopt((await postJson(`${API.proxy}/reset`, {})).state)
-          setNotice(t('pResetDone'))
         })
 
       const saveSettings = () => {
@@ -3014,7 +3094,7 @@ button.yk-itemTitle:hover {
         }
         run('settings', async () => {
           adopt((await postJson(`${API.proxy}/configure`, { localPort, bypass: settings.bypass.trim() })).state)
-          setNotice(t('pSaved'))
+          show('settings', t('saved'))
         })
       }
 
@@ -3063,7 +3143,6 @@ button.yk-itemTitle:hover {
           : null,
 
         h(Failure, { t, name: 'proxy', error: failure, onRetry: load }),
-        notice !== null ? h(Banner, { kind: 'info', text: notice }) : null,
         state?.lastError ? h(Banner, { kind: 'warn', text: `${t('pLastError')}：${state.lastError}` }) : null,
         state === null && busy === 'load' ? h(Loading, { text: t('loading') }) : null,
 
@@ -3160,6 +3239,7 @@ button.yk-itemTitle:hover {
                   t('pImport'),
                 ),
               ),
+              h(FlashNote, { flash, keys: ['import'] }),
             )
           : null,
 
@@ -3196,7 +3276,7 @@ button.yk-itemTitle:hover {
                     h(
                       'div',
                       { className: 'yk-toolbar' },
-                      h('button', { type: 'button', className: 'yk-btn', onClick: saveSettings, disabled: busy !== '' }, busy === 'settings' ? h(Spinner) : null, t('save')),
+                      h('button', { type: 'button', className: 'yk-btn', onClick: saveSettings, disabled: busy !== '' }, busy === 'settings' ? h(Spinner) : null, flashed(flash, 'settings', t('save'))),
                       h('span', { className: 'yk-grow' }),
                       confirmReset
                         ? h(
@@ -3233,6 +3313,7 @@ button.yk-itemTitle:hover {
       const [prompt, setPrompt] = React.useState('')
       const [busy, setBusy] = React.useState('')
       const [notice, setNotice] = React.useState(null)
+      const [flash, show] = useFlash()
       const [failure, setFailure] = React.useState(null)
       const [confirmReset, setConfirmReset] = React.useState(false)
       const { signal, alive } = useAbortOnUnmount()
@@ -3276,7 +3357,7 @@ button.yk-itemTitle:hover {
         run('save', async () => {
           await postJson(`${API.purge}/config`, { prompt })
           setConfig((current) => ({ ...current, prompt, isCustom: true }))
-          setNotice(t('gSaved'))
+          show('save', t('saved'))
         })
 
       const reset = () =>
@@ -3284,7 +3365,7 @@ button.yk-itemTitle:hover {
           const payload = await postJson(`${API.purge}/reset`, {})
           setConfig(payload)
           setPrompt(payload.prompt ?? '')
-          setNotice(t('gResetDone'))
+          show('reset', t('gResetDone'))
         })
 
       const dirty = config !== null && prompt !== (config.prompt ?? '')
@@ -3293,7 +3374,6 @@ button.yk-itemTitle:hover {
         'div',
         { className: 'yk-body' },
         h(Failure, { t, name: 'purge', error: failure, onRetry: load }),
-        notice !== null ? h(Banner, { kind: 'info', text: notice }) : null,
         config === null && busy === 'load' ? h(Loading, { text: t('loading') }) : null,
         config !== null
           ? h(
@@ -3327,8 +3407,9 @@ button.yk-itemTitle:hover {
               h(
                 'div',
                 { className: 'yk-toolbar' },
-                h('button', { type: 'button', className: 'yk-btn yk-btn-solid', onClick: save, disabled: busy !== '' || !dirty }, busy === 'save' ? h(Spinner) : h(CheckIcon), t('gSave')),
+                h('button', { type: 'button', className: 'yk-btn yk-btn-solid', onClick: save, disabled: busy !== '' || (!dirty && flash?.key !== 'save') }, busy === 'save' ? h(Spinner) : null, flashed(flash, 'save', t('gSave'))),
                 h(CopyButton, { text: prompt, label: t('copy'), t }),
+                h(FlashNote, { flash, keys: ['reset'] }),
                 h('span', { className: 'yk-grow' }),
                 confirmReset
                   ? h(
@@ -3350,6 +3431,7 @@ button.yk-itemTitle:hover {
       const [snap, setSnap] = React.useState(null)
       const [failure, setFailure] = React.useState(null)
       const [notice, setNotice] = React.useState(null)
+      const [flash, show] = useFlash()
       const [busy, setBusy] = React.useState('')
       const [autoRestart, setAutoRestart] = React.useState(true)
       const [confirmRestart, setConfirmRestart] = React.useState(false)
@@ -3392,19 +3474,14 @@ button.yk-itemTitle:hover {
         run('check', async () => {
           const payload = await postJson(`${API.runtime}/check`, {})
           if (payload.state !== undefined) setSnap(payload.state)
-          const channel = payload.state?.runtime?.channel ?? ''
-          setNotice(
-            payload.state?.update?.available === true
-              ? fill(t('rUpdateReady'), { version: payload.latest })
-              : fill(t('rUpToDate'), { channel }),
-          )
+          if (payload.state?.update?.available !== true) show('check', t('rLatestShort'))
         })
 
       const update = (target) =>
         run('update', async () => {
           const payload = await postJson(`${API.runtime}/update`, { version: target, restart: autoRestart })
           if (payload.state !== undefined) setSnap(payload.state)
-          setNotice(payload.changed ? fill(t('rUpdated'), { version: payload.installed ?? '?' }) : fill(t('rUpdatedSame'), { version: payload.installed ?? '?' }))
+          show('update', payload.changed ? fill(t('rUpdated'), { version: payload.installed ?? '?' }) : fill(t('rUpdatedSame'), { version: payload.installed ?? '?' }))
           if (payload.restarted === true) onRestart()
         })
 
@@ -3447,6 +3524,7 @@ button.yk-itemTitle:hover {
               h(
                 'div',
                 { className: 'yk-heroActions' },
+                h(FlashNote, { flash, keys: ['update'] }),
                 feed?.available
                   ? h(
                       React.Fragment,
@@ -3454,7 +3532,7 @@ button.yk-itemTitle:hover {
                       h(Option, { checked: autoRestart, onChange: setAutoRestart, label: t('rAutoRestart') }),
                       h('button', { type: 'button', className: 'yk-btn yk-btn-solid', onClick: () => update(undefined), disabled }, busy === 'update' ? h(Spinner) : h(DownloadIcon), busy === 'update' ? t('rUpdating') : fill(t('rUpdateTo'), { version: feed.latest })),
                     )
-                  : h('button', { type: 'button', className: 'yk-btn', onClick: check, disabled }, busy === 'check' ? h(Spinner) : h(RefreshIcon), busy === 'check' ? t('rChecking') : t('rCheck')),
+                  : h('button', { type: 'button', className: 'yk-btn', onClick: check, disabled }, busy === 'check' ? h(Spinner) : flash?.key === 'check' ? null : h(RefreshIcon), busy === 'check' ? t('rChecking') : flashed(flash, 'check', t('rCheck'))),
                 confirmRestart
                   ? h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: restart, disabled }, busy === 'restart' ? h(Spinner) : h(PowerIcon), t('rConfirmRestart'))
                   : h('button', { type: 'button', className: disk?.stale ? 'yk-btn yk-btn-solid' : 'yk-btn yk-btn-ghost', onClick: () => setConfirmRestart(true), disabled }, h(PowerIcon), t('rRestart')),
@@ -3463,7 +3541,6 @@ button.yk-itemTitle:hover {
           : null,
 
         h(Failure, { t, name: 'runtime', error: failure, onRetry: load }),
-        notice !== null ? h(Banner, { kind: 'info', text: notice }) : null,
         snap === null && failure === null ? h(Loading, { text: t('loading') }) : null,
 
         snap !== null
@@ -3614,29 +3691,31 @@ button.yk-itemTitle:hover {
                     : phase === 'error' ? { kind: 'error', text: message }
                       : null
 
+      // One pill that changes in place: idle → checking → result (→ updating → restart).
+      const idleLike = status === null
+      const clickable = idleLike || phase === 'latest' || phase === 'error'
       return h(
         'div',
-        { className: 'yk-update' },
-        status !== null
-          ? h(
-              'div',
-              { className: `yk-updateStatus yk-updateStatus-${status.kind}`, role: 'status' },
-              status.kind === 'busy' ? h(Spinner, { size: 13 }) : status.kind === 'ok' ? h(CheckIcon, { width: 13, height: 13 }) : null,
-              h('span', null, status.text),
-              status.action ?? null,
-              phase === 'error' || phase === 'manual'
-                ? h('button', { type: 'button', className: 'yk-updateDismiss', 'aria-label': t('close'), onClick: () => setPhase('idle') }, h(ClearIcon, { width: 11, height: 11 }))
-                : null,
-            )
-          : null,
-        status === null || phase === 'latest' || phase === 'error'
-          ? h(
-              'button',
-              { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: check, title: t('upCheck') },
-              h(RefreshIcon, { width: 13, height: 13 }),
-              h('span', { className: 'yk-btnLabel' }, t('upCheck')),
-            )
-          : null,
+        { className: 'yk-update', role: 'status', 'aria-live': 'polite' },
+        h(
+          clickable ? 'button' : 'div',
+          {
+            ...(clickable ? { type: 'button', onClick: check, title: t('upCheck') } : {}),
+            className: `yk-updatePill${status === null ? '' : ` yk-updateStatus-${status.kind}`}${clickable ? ' yk-updatePill-click' : ''}`,
+          },
+          idleLike
+            ? h(React.Fragment, null, h(RefreshIcon, { width: 13, height: 13 }), h('span', null, t('upCheck')))
+            : h(
+                React.Fragment,
+                null,
+                status.kind === 'busy' ? h(Spinner, { size: 13 }) : status.kind === 'ok' ? h(CheckIcon, { width: 13, height: 13 }) : null,
+                h('span', { className: 'yk-updateText', title: status.text }, status.text),
+              ),
+          !clickable && status?.action ? status.action : null,
+          phase === 'manual'
+            ? h('button', { type: 'button', className: 'yk-updateDismiss', 'aria-label': t('close'), onClick: () => setPhase('idle') }, h(ClearIcon, { width: 11, height: 11 }))
+            : null,
+        ),
       )
     }
 

@@ -199,6 +199,7 @@ async function checkUpdate() {
     latest: latestVersion ?? RUNNING_VERSION,
     currentCommit: (RUNNING_COMMIT ?? installed)?.slice(0, 7) ?? null,
     latestCommit: latestCommit?.slice(0, 7) ?? null,
+    latestSha: latestCommit,
     available: (newerVersion || newerCommit) && !(pendingRestart && latestCommit === installed),
     pendingRestart,
     updatable: install.kind !== 'unknown',
@@ -228,15 +229,23 @@ async function runPnpm(args, cwd) {
   throw new Error(detail.split('\n').slice(-6).join('\n'))
 }
 
-/** Pull the newest copy into the profile. */
-async function applyUpdate() {
+/** Pull the newest copy into the profile and make sure the lockfile moved. */
+async function applyUpdate(target) {
   const install = locateInstall()
   if (install.kind === 'git') {
     const { stdout } = await execFileAsync('git', ['pull', '--ff-only'], { cwd: install.dir, timeout: 60000 })
     return { updated: true, detail: stdout.trim() }
   }
   if (install.kind !== 'profile') throw new Error('找不到安装位置，请在「插件」页重新安装')
+  const moved = () => {
+    if (target === null) return true
+    const now = installedCommit(install)
+    return now === null || now === target
+  }
   await runPnpm(['add', install.spec], install.profileDir)
+  // `pnpm add` can keep a git dependency at its locked commit; `update` re-resolves it.
+  if (!moved()) await runPnpm(['update', PACKAGE_NAME], install.profileDir)
+  if (!moved()) throw new Error(`pnpm 没有拉到最新提交 ${target.slice(0, 7)}，请在「插件」页重新安装`)
   return { updated: true, detail: `已从 ${install.spec} 拉取最新版本` }
 }
 
@@ -316,7 +325,7 @@ export function apply(ctx) {
                   sendJson(res, 200, { ok: true, updated: false, update: before })
                   return
                 }
-                const result = await applyUpdate()
+                const result = await applyUpdate(before.latestSha)
                 sendJson(res, 200, { ok: true, ...result, update: { ...before, available: false, pendingRestart: true } })
               } finally {
                 updating = false

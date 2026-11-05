@@ -105,9 +105,27 @@ test('workspace delete removes the registered directory and its registration', a
   await fs.rm(f.tmp, { recursive: true, force: true })
 })
 
+test('workspace delete without the folder keeps the directory but drops the registration', async () => {
+  const f = await fixture()
+  const res = await f.admin.remove({ ids: ['session-123'], deleteWorkspace: true, workspaceId: 'ws-1' })
+  assert.equal(res.workspaceDirDeleted, false)
+  assert.equal(res.workspaceRemoved, true)
+  assert.equal(await exists(f.ws), true)
+  assert.deepEqual(f.registry.deleted, ['ws-1'])
+  await fs.rm(f.tmp, { recursive: true, force: true })
+})
+
+test('an empty registered workspace can be deleted with its folder', async () => {
+  const f = await fixture()
+  const res = await f.admin.remove({ ids: [], deleteWorkspaceDir: true, workspaceId: 'ws-1' })
+  assert.equal(res.workspaceDirDeleted, true)
+  assert.equal(await exists(f.ws), false)
+  await fs.rm(f.tmp, { recursive: true, force: true })
+})
+
 test('workspace delete refuses a path that is neither registered nor a chat cwd', async () => {
   const f = await fixture()
-  await assert.rejects(() => f.admin.remove({ ids: [], deleteWorkspaceDir: true, workspacePath: f.tmp }), /找不到要删除的工作区目录/)
+  await assert.rejects(() => f.admin.remove({ ids: [], deleteWorkspaceDir: true, workspacePath: f.tmp }), /找不到要删除的工作区/)
   assert.equal(await exists(f.tmp), true)
   await fs.rm(f.tmp, { recursive: true, force: true })
 })

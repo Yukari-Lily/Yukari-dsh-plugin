@@ -118,6 +118,7 @@ export function apply(ctx, config = {}) {
                 force: body.force === true,
                 deleteFiles: body.deleteFiles === true,
                 deleteWorkspaceDir: body.deleteWorkspaceDir === true,
+                deleteWorkspace: body.deleteWorkspace === true,
                 workspaceId: body.workspaceId,
                 workspacePath: body.workspacePath,
               })

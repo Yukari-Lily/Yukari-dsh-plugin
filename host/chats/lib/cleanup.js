@@ -242,27 +242,29 @@ export async function removeCreatedFiles({ persistence, header, directory, roots
 }
 
 /**
- * Remove a workspace directory. `/workspace` (a volume mount) is emptied
- * instead of removed.
+ * Remove a workspace directory, the directory itself included. A mount point
+ * (e.g. the `/workspace` volume) cannot be removed from inside the container:
+ * its contents are deleted and the empty mount point stays.
  * @param directory - the directory.
  * @param extraProtected - more directories to keep.
  * @param fs - fs seam.
- * @returns a note describing what happened.
+ * @returns whether the directory is gone, and a note describing what happened.
  */
 export async function removeWorkspaceDirectory(directory, extraProtected = [], fs = nodeFs) {
   const reason = unsafeDirectoryReason(directory, extraProtected)
   if (reason !== null) return { removed: false, note: `未删除工作区目录 ${directory}（${reason}）` }
   const resolved = path.resolve(directory)
   try {
-    if (resolved.replace(/\\/g, '/') === '/workspace') {
-      for (const entry of await fs.readdir(resolved)) {
-        await fs.rm(path.join(resolved, entry), { recursive: true, force: true })
-      }
-      return { removed: true, note: `已清空工作区目录 ${resolved}` }
-    }
-    await fs.rm(resolved, { recursive: true, force: true })
+    await fs.rm(resolved, { recursive: true, force: true, maxRetries: 2 })
     return { removed: true, note: `已删除工作区目录 ${resolved}` }
   } catch (error) {
+    if (error?.code === 'EBUSY' || error?.code === 'EPERM' || error?.code === 'EACCES') {
+      // The children went first; only the directory entry itself was refused.
+      const left = await fs.readdir(resolved).catch(() => null)
+      if (Array.isArray(left) && left.length === 0) {
+        return { removed: true, note: `已清空 ${resolved}（它是挂载点，目录本身无法在容器内删除）` }
+      }
+    }
     return { removed: false, note: `删除工作区目录失败 ${resolved}：${error instanceof Error ? error.message : String(error)}` }
   }
 }
