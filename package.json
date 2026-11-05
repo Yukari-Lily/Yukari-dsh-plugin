@@ -1,6 +1,6 @@
 {
   "name": "yukari-dsh-plugin",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "自用插件合集。",
   "icon": "./icon.webp",
   "author": "YG",
@@ -14,6 +14,7 @@
     "./runtime": "./host/runtime/index.js",
     "./sites": "./host/sites/index.js",
     "./proxy": "./host/proxy/index.js",
+    "./purge": "./host/purge/index.js",
     "./browser/locale/*.json": "./locale/browser/*.json",
     "./chats/locale/*.json": "./locale/chats/*.json",
     "./runtime/locale/*.json": "./locale/runtime/*.json",
@@ -40,7 +41,9 @@
     "panel",
     "shadowsocks",
     "static-site",
-    "headless-browser"
+    "headless-browser",
+    "purge",
+    "unrestricted"
   ],
   "engines": {
     "dsh": ">=0.2.1-rc.5"

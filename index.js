@@ -25,13 +25,14 @@ import { promisify } from 'node:util'
 import { apply as applyBrowser } from './host/browser/index.js'
 import { apply as applyChats } from './host/chats/index.js'
 import { apply as applyProxy } from './host/proxy/index.js'
+import { apply as applyPurge } from './host/purge/index.js'
 import { apply as applyRuntime } from './host/runtime/index.js'
 import { apply as applySites } from './host/sites/index.js'
 
 const execFileAsync = promisify(execFile)
 const PLUGIN_DIR = path.dirname(fileURLToPath(import.meta.url))
 
-let suiteVersion = '1.3.0'
+let suiteVersion = '1.4.0'
 try {
   const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
   if (pkg.version) suiteVersion = String(pkg.version)
@@ -42,8 +43,8 @@ try {
 /** Read-only endpoint the overview tab calls. */
 export const API_PATH = '/yukari/api'
 
-/** Services the merged bundle needs: the union of its five host halves. */
-export const inject = ['tools', 'webServer', 'connection', 'sessionPersistence', 'sessionQuery', 'sessions']
+/** Services the merged bundle needs: the union of its host halves. */
+export const inject = ['tools', 'webServer', 'connection', 'sessionPersistence', 'sessionQuery', 'sessions', 'systemPrompt']
 
 /** Serialize one JSON response. */
 function sendJson(res, status, value) {
@@ -85,8 +86,13 @@ function sections(config) {
   const runtime = config.runtime ?? {}
   const sites = config.sites ?? {}
   const proxy = config.proxy ?? {}
+  const purge = config.purge ?? {}
   const browserDetected = detectChromium(browser.executablePath)
   return {
+    purge: {
+      enabled: purge.enabled !== false,
+      preset: 'unrestricted',
+    },
     browser: {
       viewportWidth: Number(browser.viewportWidth) > 0 ? Number(browser.viewportWidth) : 1280,
       viewportHeight: Number(browser.viewportHeight) > 0 ? Number(browser.viewportHeight) : 900,
@@ -170,6 +176,7 @@ export function apply(ctx, config = {}) {
   if (!root['yukari.runtime']) applyRuntime(ctx, config?.runtime ?? {})
   if (!root['yukari.sites']) applySites(ctx, config?.sites ?? {})
   if (!root['yukari.proxy']) applyProxy(ctx, config?.proxy ?? {})
+  if (!root['yukari.purge']) applyPurge(ctx, config?.purge ?? {})
 
   ctx.effect(
     () =>

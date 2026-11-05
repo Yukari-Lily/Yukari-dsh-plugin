@@ -17,6 +17,7 @@ window.__ModuleLoader__.load({
       runtime: '/dshctl/api',
       sites: '/publish/api',
       proxy: '/ssproxy/api',
+      purge: '/purge/api',
     }
 
     /* ------------------------------------------------------------------ i18n */
@@ -29,6 +30,7 @@ window.__ModuleLoader__.load({
       tabRuntime: '运行时',
       tabSites: '站点',
       tabProxy: '代理',
+      tabPurge: '无限制模式',
 
       updatePlugin: '更新 Yukari',
       updatingPlugin: '正在更新…',
@@ -241,6 +243,7 @@ window.__ModuleLoader__.load({
       tabRuntime: 'Runtime',
       tabSites: 'Sites',
       tabProxy: 'Proxy',
+      tabPurge: 'Unrestricted',
 
       updatePlugin: 'Update Yukari',
       updatingPlugin: 'Updating…',
@@ -1639,6 +1642,15 @@ button.yk-itemTitle:hover {
         ],
         props,
       )
+    const PurgeIcon = (props) =>
+      glyph(
+        [
+          stroke('M12 3.2 4.8 6.4v5.4c0 4.8 3.1 9.2 7.2 10.2 4.1-1 7.2-5.4 7.2-10.2V6.4L12 3.2Z', { key: 'a' }),
+          stroke('M12 8.4v7.2', { key: 'b' }),
+          stroke('M9.6 12h4.8', { key: 'c' }),
+        ],
+        props,
+      )
 
     const Spinner = ({ size }) => h(RefreshIcon, { className: 'yk-spin', width: size ?? 15, height: size ?? 15 })
 
@@ -1925,6 +1937,28 @@ button.yk-itemTitle:hover {
               }),
               h(Row, { label: t('pTotal'), value: proxy === null ? '—' : String(proxy.stats?.total ?? 0) }),
               h(Row, { label: t('pDown'), value: proxy === null ? '—' : formatBytes(proxy.stats?.bytesDown ?? 0), mono: true }),
+            ),
+          ),
+          h(
+            Card,
+            {
+              title: t('tabPurge'),
+              icon: h(PurgeIcon, { width: 16, height: 16 }),
+              action: go('purge'),
+              note: '预设已就绪',
+            },
+            h(
+              'div',
+              { className: 'yk-rows' },
+              h(Row, {
+                label: '模式支持',
+                value: '无限制模式 (unrestricted)',
+                mono: true,
+                chips: [{ text: '独立隔离', kind: 'ok', dot: true }],
+              }),
+              h(Row, { label: '生效时机', value: '会话下拉选择无限制模式时' }),
+              h(Row, { label: '标准模式', value: '100% 原始体验零干扰' }),
+              h(Row, { label: '注入机制', value: '纯插件上下文装配清洗' }),
             ),
           ),
 
@@ -3146,9 +3180,222 @@ button.yk-itemTitle:hover {
       )
     }
 
+    function PurgeTab({ t }) {
+      const [config, setConfig] = React.useState(null)
+      const [prompt, setPrompt] = React.useState('')
+      const [busy, setBusy] = React.useState('')
+      const [notice, setNotice] = React.useState(null)
+      const [error, setError] = React.useState(null)
+      const [confirmReset, setConfirmReset] = React.useState(false)
+      const [copied, setCopied] = React.useState(false)
+      const { signal, alive } = useAbortOnUnmount()
+
+      const load = React.useCallback(async () => {
+        setBusy('load')
+        try {
+          const payload = await getJson(`${API.purge}/config`, signal)
+          if (!alive.current) return
+          setConfig(payload)
+          setPrompt(payload.prompt ?? '')
+          setError(null)
+        } catch (err) {
+          if (alive.current && err?.name !== 'AbortError') setError(messageOf(err))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }, [])
+
+      React.useEffect(() => {
+        load()
+      }, [load])
+
+      const save = async () => {
+        setBusy('save')
+        setError(null)
+        setNotice(null)
+        try {
+          await postJson(`${API.purge}/config`, { prompt }, signal)
+          if (!alive.current) return
+          setConfig((prev) => ({ ...prev, prompt, isCustom: true }))
+          setNotice('破甲系统提示词已保存并实时生效！')
+        } catch (err) {
+          if (alive.current) setError(messageOf(err))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const reset = async () => {
+        setBusy('reset')
+        setError(null)
+        setNotice(null)
+        try {
+          const payload = await postJson(`${API.purge}/reset`, {}, signal)
+          if (!alive.current) return
+          setConfig(payload)
+          setPrompt(payload.prompt ?? '')
+          setConfirmReset(false)
+          setNotice('已恢复为内置默认破甲提示词！')
+        } catch (err) {
+          if (alive.current) setError(messageOf(err))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const copyPrompt = async () => {
+        try {
+          await navigator.clipboard.writeText(prompt)
+          setCopied(true)
+          setTimeout(() => setCopied(false), 2000)
+        } catch {}
+      }
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        error !== null ? h(Banner, { kind: 'error', text: error }) : null,
+        notice !== null ? h(Banner, { kind: 'info', text: notice }) : null,
+
+        /* Status & Isolation Explanation Card */
+        h(
+          Card,
+          {
+            title: '无限制模式 (Unrestricted Mode)',
+            icon: h(PurgeIcon, { width: 16, height: 16 }),
+            span: true,
+            action: h(
+              'div',
+              { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+              h(Chip, { kind: 'ok', dot: true }, '预设就绪'),
+              config?.isCustom
+                ? h(Chip, { kind: 'warn' }, '自定义提示词')
+                : h(Chip, { kind: undefined }, '内置默认提示词'),
+            ),
+          },
+          h(
+            'div',
+            { style: { marginBottom: '16px' } },
+            h(
+              Banner,
+              {
+                kind: 'info',
+                text: '💡 模式完全隔离：本插件已向 DSH 注册独立的「无限制模式」。请在 DSH 对话输入框下方的模式选择下拉中切换为「无限制模式」以享受破甲体验。当选择内置的「标准模式」或其他模式时，保持原生官方体验，完全不干扰。',
+              },
+            ),
+          ),
+          h(
+            'div',
+            { className: 'yk-rows' },
+            h(Row, { label: '模式名称', value: config?.presetName ?? '无限制模式', mono: true }),
+            h(Row, { label: '预设 ID', value: config?.presetId ?? 'unrestricted', mono: true }),
+            h(Row, { label: '提示词字符', value: `${prompt.length} 字符`, mono: true }),
+            h(Row, { label: '运行机制', value: '纯插件上下文装配清洗 (Zero-Host-Patch)' }),
+          ),
+        ),
+
+        /* Prompt Editor Card */
+        h(
+          Card,
+          {
+            title: '破甲系统提示词配置',
+            icon: h(PurgeIcon, { width: 16, height: 16 }),
+            span: true,
+            note: '仅在会话处于「无限制模式」时置顶注入，标准模式下不加载',
+          },
+          h(
+            'div',
+            { style: { width: '100%', marginBottom: '12px' } },
+            h('textarea', {
+              className: 'yk-input',
+              style: {
+                minHeight: '340px',
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                lineHeight: '1.6',
+                resize: 'vertical',
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '12px',
+                borderRadius: '8px',
+              },
+              value: prompt,
+              placeholder: '输入破甲系统提示词...',
+              onChange: (e) => setPrompt(e.target.value),
+              disabled: busy !== '',
+            }),
+          ),
+          h(
+            'div',
+            { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'yk-btn yk-btn-primary',
+                onClick: save,
+                disabled: busy !== '',
+              },
+              busy === 'save' ? h(Spinner) : null,
+              '保存修改并生效',
+            ),
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'yk-btn',
+                onClick: copyPrompt,
+                disabled: busy !== '' || !prompt,
+              },
+              copied ? '已复制！' : '复制提示词',
+            ),
+            h(
+              'span',
+              { style: { marginLeft: 'auto' } },
+              confirmReset
+                ? h(
+                    React.Fragment,
+                    null,
+                    h(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'yk-btn yk-btn-danger',
+                        onClick: reset,
+                        disabled: busy !== '',
+                        style: { marginRight: '8px' },
+                      },
+                      '确认恢复默认',
+                    ),
+                    h(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'yk-btn yk-btn-ghost',
+                        onClick: () => setConfirmReset(false),
+                      },
+                      t('cancel'),
+                    ),
+                  )
+                : h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'yk-btn yk-btn-ghost',
+                      onClick: () => setConfirmReset(true),
+                      disabled: busy !== '',
+                    },
+                    '恢复默认提示词',
+                  ),
+            ),
+          ),
+        ),
+      )
+    }
+
     /* ----------------------------------------------------------------- shell */
 
-    const TABS = ['overview', 'chats', 'runtime', 'sites', 'proxy']
+    const TABS = ['overview', 'chats', 'runtime', 'sites', 'proxy', 'purge']
     const TAB_STORAGE_KEY = 'yukari-dsh-plugin:tab'
 
     function readStoredTab() {
@@ -3243,7 +3490,9 @@ button.yk-itemTitle:hover {
               ? h(PowerIcon, { width: 14, height: 14 })
               : key === 'sites'
                 ? h(GlobeIcon, { width: 14, height: 14 })
-                : h(RouteIcon, { width: 14, height: 14 })
+                : key === 'proxy'
+                  ? h(RouteIcon, { width: 14, height: 14 })
+                  : h(PurgeIcon, { width: 14, height: 14 })
 
       const label = (key) =>
         key === 'overview'
@@ -3254,7 +3503,9 @@ button.yk-itemTitle:hover {
               ? t('tabRuntime')
               : key === 'sites'
                 ? t('tabSites')
-                : t('tabProxy')
+                : key === 'proxy'
+                  ? t('tabProxy')
+                  : t('tabPurge')
 
       return h(
         'div',
@@ -3287,7 +3538,7 @@ button.yk-itemTitle:hover {
           h(
             'div',
             { className: 'yk-headBadges' },
-            h(Chip, { kind: 'purple', dot: true }, 'Yukari v1.3.0'),
+            h(Chip, { kind: 'purple', dot: true }, 'Yukari v1.4.0'),
             version === null ? null : h(Chip, { kind: 'brand', dot: true }, `dsh ${version}`),
             h(
               'button',
@@ -3341,7 +3592,9 @@ button.yk-itemTitle:hover {
                 ? h(RuntimeTab, { key: 'runtime', t })
                 : tab === 'sites'
                   ? h(SitesTab, { key: 'sites', t })
-                  : h(ProxyTab, { key: 'proxy', t }),
+                  : tab === 'proxy'
+                    ? h(ProxyTab, { key: 'proxy', t })
+                    : h(PurgeTab, { key: 'purge', t }),
         ),
 
         /* Secondary Confirmation Modal for Restart After Update */

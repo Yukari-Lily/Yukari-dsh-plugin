@@ -1,4 +1,4 @@
-# Yukari 6 组件配置：主面板 + 5 个独立子系统组件
+# Yukari 7 组件配置：主面板 + 6 个独立子系统组件
 - insert:
     - id: yukari
       name: yukari-dsh-plugin
@@ -41,3 +41,8 @@
         localPort: 17890
         bypass: localhost,127.0.0.1,::1
         autoStart: false
+
+    - id: yukari-purge
+      name: yukari-dsh-plugin/purge
+      config:
+        enabled: true
