@@ -34,6 +34,13 @@
 
     - id: yukari-purge
       name: yukari-dsh-plugin/purge
+      config:
+        # 尾部锚点：把规则放在系统提示词最后一段，长上下文里不漂移
+        anchor: true
+        # 模型仍然开口拒绝时，丢弃这次输出并追加收尾指令重发一次
+        refusalRetry: true
+        # 改写宿主"被拒绝就别重试"一类句子（含沙箱工具描述）
+        stripHostLimits: true
 
     - id: yukari-browser
       name: yukari-dsh-plugin/browser

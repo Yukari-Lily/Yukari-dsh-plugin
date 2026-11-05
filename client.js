@@ -234,7 +234,7 @@ window.__ModuleLoader__.load({
       pStateFile: '节点和密码保存在本地状态文件（权限 0600），重启后自动恢复。',
 
       gTitle: '无限制模式',
-      gDesc: '插件注册了一个独立的对话模式「无限制模式」。在对话输入框下方的模式菜单里选中它，下面的提示词才会注入；标准模式和其他模式完全不受影响。',
+      gDesc: '插件注册了一个独立的对话模式「无限制模式」：选中后注入首段契约与尾部锚点、改写宿主的劝退句，模型仍然拒绝时自动重发一次；标准模式和其他模式完全不受影响。',
       gPrompt: '系统提示词',
       gChars: '{n} 字',
       gCustom: '自定义',
@@ -245,6 +245,17 @@ window.__ModuleLoader__.load({
       gResetDone: '已恢复内置提示词',
       gPlaceholder: '输入要在无限制模式下注入的系统提示词…',
       gUnsaved: '有未保存的修改',
+      gAnchor: '尾部锚点',
+      gRetry: '拒绝重试',
+      gScrub: '劝退句改写',
+      gOn: '开',
+      gOff: '关',
+      gProbe: '自检注入',
+      gProbeOk: '命中：注入与锚点都在',
+      gProbeMiss: '未命中：这次装配没有带上注入',
+      gProbeFail: '自检不可用：{reason}',
+      gStats: '注入 {a} 次 · 改写 {b} 条 · 重试 {c} 次',
+      gStatsNone: '本进程还没有无限制模式的装配记录',
 
       rCheck: '检查更新',
       rLatestShort: '已是最新',
@@ -474,7 +485,7 @@ window.__ModuleLoader__.load({
       pStateFile: 'Nodes and passwords are kept in a local state file (mode 0600) and restored after a restart.',
 
       gTitle: 'Unrestricted mode',
-      gDesc: 'The plugin registers a separate chat mode, “Unrestricted”. The prompt below is injected only when you pick that mode in the menu under the chat input; the standard mode is untouched.',
+      gDesc: 'The plugin registers a separate chat mode, “Unrestricted”: picking it injects a head contract and a tail anchor, rewrites the host sentences that teach the model to give up, and retries once if it still refuses. Standard mode is untouched.',
       gPrompt: 'System prompt',
       gChars: '{n} chars',
       gCustom: 'Custom',
@@ -485,6 +496,17 @@ window.__ModuleLoader__.load({
       gResetDone: 'Built-in prompt restored',
       gPlaceholder: 'System prompt injected in unrestricted mode…',
       gUnsaved: 'Unsaved changes',
+      gAnchor: 'Tail anchor',
+      gRetry: 'Retry refusals',
+      gScrub: 'Host-sentence rewrite',
+      gOn: 'on',
+      gOff: 'off',
+      gProbe: 'Self-check',
+      gProbeOk: 'Hit: injection and anchor are both present',
+      gProbeMiss: 'Miss: this assembly carried no injection',
+      gProbeFail: 'Self-check unavailable: {reason}',
+      gStats: 'injected {a}× · rewritten {b} · retried {c}×',
+      gStatsNone: 'No unrestricted assembly recorded in this process yet',
 
       rCheck: 'Check for updates',
       rLatestShort: 'Up to date',
@@ -594,6 +616,10 @@ window.__ModuleLoader__.load({
 .yk-chip-ok { color: var(--dsw-alias-state-success-primary, #34a77b); background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #34a77b) 10%, transparent); }
 .yk-chip-warn { color: var(--dsw-alias-state-warning-primary, #c58a2b); background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #c58a2b) 10%, transparent); }
 .yk-chip-danger { color: var(--dsw-alias-state-error-primary); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); }
+.yk-toggleRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 10px 0 6px; }
+button.yk-chipBtn { appearance: none; border: 0; font: inherit; cursor: pointer; }
+button.yk-chipBtn[aria-pressed="false"] { opacity: .5; }
+button.yk-chipBtn:disabled { cursor: default; }
 .yk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .yk-card { background: var(--dsw-alias-bg-base); border: 1px solid var(--yk-line); border-radius: var(--dsw-radius-lg); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .yk-card-wide { grid-column: 1 / -1; }
@@ -2717,6 +2743,7 @@ window.__ModuleLoader__.load({
       const [flash, show] = useFlash()
       const [failure, setFailure] = React.useState(null)
       const [confirmReset, setConfirmReset] = React.useState(false)
+      const [probe, setProbe] = React.useState(null)
       const { signal, alive } = useAbortOnUnmount()
 
       const load = React.useCallback(async () => {
@@ -2768,7 +2795,69 @@ window.__ModuleLoader__.load({
           show('reset', t('gResetDone'))
         })
 
+      const flip = (key) =>
+        run(key, async () => {
+          const payload = await postJson(`${API.purge}/config`, { [key]: !(config.settings?.[key] ?? true) })
+          setConfig((current) => ({ ...current, settings: payload.settings, stats: payload.stats }))
+          setProbe(null)
+        })
+
+      const runProbe = () =>
+        run('probe', async () => {
+          setProbe(await getJson(`${API.purge}/probe`, signal))
+        })
+
       const dirty = config !== null && prompt !== (config.prompt ?? '')
+
+      const switches = config?.settings ?? {}
+      const stats = config?.stats
+      const capabilityRow = h(
+        'div',
+        { className: 'yk-toggleRow' },
+        [
+          ['anchor', t('gAnchor')],
+          ['refusalRetry', t('gRetry')],
+          ['stripHostLimits', t('gScrub')],
+        ].map(([key, label]) =>
+          h(
+            'button',
+            {
+              key,
+              type: 'button',
+              className: `yk-chip yk-chipBtn${switches[key] ? ' yk-chip-ok' : ''}`,
+              'aria-pressed': switches[key] ? 'true' : 'false',
+              disabled: busy !== '',
+              onClick: () => flip(key),
+            },
+            `${label} ${switches[key] ? t('gOn') : t('gOff')}`,
+          ),
+        ),
+        h('span', { className: 'yk-grow' }),
+        h(
+          'button',
+          { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: runProbe, disabled: busy !== '' },
+          busy === 'probe' ? h(Spinner) : t('gProbe'),
+        ),
+      )
+      const probeNote =
+        probe === null
+          ? null
+          : h(
+              'p',
+              { className: 'yk-cardNote' },
+              probe.ok === true
+                ? `${probe.hasInject && probe.hasAnchor ? t('gProbeOk') : t('gProbeMiss')} · ${probe.sessionId ?? '?'}`
+                : fill(t('gProbeFail'), { reason: probe.reason ?? 'unknown' }),
+            )
+      const statsNote = h(
+        'p',
+        { className: 'yk-cardNote' },
+        stats && stats.assembled > 0
+          ? `${fill(t('gStats'), { a: stats.assembled, b: (stats.scrubbed ?? 0) + (stats.tools ?? 0), c: stats.retried ?? 0 })}${
+              stats.lastAt ? ` · ${String(stats.lastAt).slice(11, 19)}` : ''
+            }`
+          : t('gStatsNone'),
+      )
 
       return h(
         'div',
@@ -2790,6 +2879,9 @@ window.__ModuleLoader__.load({
                 ),
               },
               h('p', { className: 'yk-cardText' }, t('gDesc')),
+              capabilityRow,
+              probeNote,
+              statsNote,
               h(
                 'div',
                 { className: 'yk-editorHead' },
