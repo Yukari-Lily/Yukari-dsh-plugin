@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { Writable } from 'node:stream'
 import os from 'node:os'
 import path from 'node:path'
@@ -155,6 +155,20 @@ test('listing never scans the session index, and roots are cached', async (t) =>
   await call(`/files/api/list?root=${encodeURIComponent(root)}&path=`)
   assert.equal(call.counters.registry, 1, 'the cached root list is reused')
   assert.equal(call.counters.sessions, 0, 'a directory listing does not touch the session index')
+})
+
+test('the preview anchor matches a session cwd that reaches the root through a symlink', async (t) => {
+  const root = await workspace(t)
+  const link = path.join(path.dirname(root), `${path.basename(root)}-link`)
+  await symlink(root, link, 'dir')
+  t.after(() => rm(link, { force: true }))
+
+  const call = await mount(root, {
+    sessions: [{ header: { id: 'linked', cwd: link, createdAt: 5 } }],
+  })
+  const res = await call(`/files/api/anchor?root=${encodeURIComponent(root)}`)
+  assert.equal(res.statusCode, 200)
+  assert.equal(res.json().sessionId, 'linked')
 })
 
 test('the preview anchor is resolved on demand and reports the newest chat', async (t) => {

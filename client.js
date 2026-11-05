@@ -24,40 +24,6 @@ window.__ModuleLoader__.load({
       browser: '/browser/api',
     }
 
-    /**
-     * A panel that the host unmounts while its own code is replaced (HMR on a
-     * plugin update) loses the sidebar's active-panel selection. This flag asks
-     * the next mount to come back to the same panel instead of the main view.
-     */
-    const RETURN_KEY = 'yukari-dsh-plugin:return'
-    const RETURN_WINDOW_MS = 5 * 60 * 1000
-
-    function markReturn() {
-      try {
-        window.sessionStorage.setItem(RETURN_KEY, String(Date.now()))
-      } catch { /* private mode: reopening is best effort */ }
-    }
-
-    function clearReturn() {
-      try {
-        window.sessionStorage.removeItem(RETURN_KEY)
-      } catch { /* ignore */ }
-    }
-
-    /**
-     * Whether a recent update or restart asked to come back here. The flag is
-     * only peeked: a reload that follows within seconds (HMR, then the restart)
-     * has to see it too, and `clearReturn` retires it once this panel is stable.
-     */
-    function shouldReturn() {
-      try {
-        const at = Number(window.sessionStorage.getItem(RETURN_KEY) ?? '0')
-        return Number.isFinite(at) && at > 0 && Date.now() - at < RETURN_WINDOW_MS
-      } catch {
-        return false
-      }
-    }
-
     /* ------------------------------------------------------------------ i18n */
 
     const zh = {
@@ -89,7 +55,6 @@ window.__ModuleLoader__.load({
       upFailed: '检查更新失败：{error}',
       upUpdateFailed: '更新失败：{error}',
       upManual: '这份安装无法自动更新，请在「插件」页重新安装',
-      upAutoRestart: '装好自动重启',
 
       refresh: '刷新',
       retry: '重试',
@@ -262,7 +227,6 @@ window.__ModuleLoader__.load({
       rChecking: '正在查询 npm…',
       rUpdateTo: '更新到 {version}',
       rUpdating: '正在安装…',
-      rAutoRestart: '装好后自动重启',
       rRestart: '重启 DSH',
       rConfirmRestart: '确认重启？',
       rPickVersion: '指定版本',
@@ -340,7 +304,6 @@ window.__ModuleLoader__.load({
       upFailed: 'Update check failed: {error}',
       upUpdateFailed: 'Update failed: {error}',
       upManual: 'This install cannot update itself; reinstall it from the Plugins page',
-      upAutoRestart: 'Restart when installed',
 
       refresh: 'Refresh',
       retry: 'Retry',
@@ -513,7 +476,6 @@ window.__ModuleLoader__.load({
       rChecking: 'Asking npm…',
       rUpdateTo: 'Update to {version}',
       rUpdating: 'Installing…',
-      rAutoRestart: 'Restart when installed',
       rRestart: 'Restart DSH',
       rConfirmRestart: 'Restart now?',
       rPickVersion: 'Pick version',
@@ -743,8 +705,6 @@ button.yk-chipBtn:disabled { cursor: default; }
 .yk-option-danger { color: var(--dsw-alias-state-error-primary); }
 .yk-optionText { display: flex; flex-direction: column; gap: 2px; }
 .yk-optionHint { font-size: 12px; color: var(--yk-muted); }
-.yk-heroActions .yk-option { align-items: center; font-size: 12px; color: var(--dsw-alias-label-secondary); }
-.yk-heroActions .yk-option input { margin: 0; }
 .yk-empty, .yk-overlay { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 48px 20px; color: var(--yk-muted); text-align: center; }
 .yk-emptyTitle, .yk-overlayTitle { font-size: 14px; font-weight: 500; color: var(--dsw-alias-label-primary); }
 .yk-emptyHint, .yk-overlayHint { font-size: 12px; max-width: 46ch; }
@@ -1278,8 +1238,6 @@ button.yk-chipBtn:disabled { cursor: default; }
     function RestartWatch({ t }) {
       const [phase, setPhase] = React.useState('waiting')
       React.useEffect(() => {
-        // The reload that follows has to land back in this panel.
-        markReturn()
         let count = 0
         let stopped = false
         // Give the old process time to go away before the first probe.
@@ -1316,9 +1274,8 @@ button.yk-chipBtn:disabled { cursor: default; }
       )
     }
 
-    /** Ask whichever restart endpoint is available; return to this panel after. */
+    /** Ask whichever restart endpoint is available. */
     async function requestRestart(components) {
-      markReturn()
       if (components?.runtime) {
         await postJson(`${API.runtime}/restart`, { delayMs: 600 })
       } else {
@@ -2183,6 +2140,7 @@ button.yk-chipBtn:disabled { cursor: default; }
       const [selected, setSelected] = React.useState([])
       const [busy, setBusy] = React.useState('')
       const [failure, setFailure] = React.useState(null)
+      const [flash, show] = useFlash()
       const { signal, alive } = useAbortOnUnmount()
 
       const root = roots === null ? null : roots.find((item) => item.id === rootId) ?? null
@@ -2226,14 +2184,25 @@ button.yk-chipBtn:disabled { cursor: default; }
       const toggle = (entry) => setSelected((current) =>
         current.includes(entry.path) ? current.filter((item) => item !== entry.path) : [...current, entry.path])
 
+      /** Preview needs a session in this workspace as the resource anchor; resolve it on demand. */
       const preview = async (entry) => {
         if (root === null || entry.type !== 'file') return
         try {
           const payload = await getJson(`${API.files}/anchor?root=${encodeURIComponent(root.id)}`, signal)
-          if (payload.sessionId === null || payload.sessionId === undefined) throw new Error(t('fNoSession'))
-          ui.openResource(payload.sessionId, entry.path)
+          if (payload.sessionId === null || payload.sessionId === undefined) {
+            show('preview', t('fNoSession'))
+            return
+          }
+          try {
+            ui.openResource(payload.sessionId, entry.path)
+          } catch {
+            // Nothing is mounted for that session yet: switch to it, then open.
+            ui.openSession(payload.sessionId)
+            await new Promise((resolve) => setTimeout(resolve, 400))
+            ui.openResource(payload.sessionId, entry.path)
+          }
         } catch (error) {
-          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+          if (alive.current && error?.name !== 'AbortError') show('preview', messageOf(error))
         }
       }
 
@@ -2334,6 +2303,7 @@ button.yk-chipBtn:disabled { cursor: default; }
             fill(packAsZip ? t('fZipN') : t('fDownloadFilesN'), { n: selected.length }),
           ),
         ),
+        h(FlashNote, { flash, keys: ['preview'] }),
         h(Failure, { t, name: 'files', error: failure, onRetry: load }),
 
         entries.length === 0 && busy !== 'load'
@@ -2395,7 +2365,7 @@ button.yk-chipBtn:disabled { cursor: default; }
                     { className: 'yk-itemActions' },
                     isDir
                       ? null
-                      : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => preview(entry), disabled: root?.sessionId == null }, t('fPreview')),
+                      : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => preview(entry) }, t('fPreview')),
                     isDir
                       ? null
                       : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm', title: t('fDownload'), 'aria-label': t('fDownload'), onClick: () => downloadOne(entry) }, h(DownloadIcon, { width: 14, height: 14 })),
@@ -2924,7 +2894,6 @@ button.yk-chipBtn:disabled { cursor: default; }
       const [failure, setFailure] = React.useState(null)
       const [flash, show] = useFlash()
       const [busy, setBusy] = React.useState('')
-      const [autoRestart, setAutoRestart] = React.useState(true)
       const [confirmRestart, setConfirmRestart] = React.useState(false)
       const [picking, setPicking] = React.useState(false)
       const [version, setVersion] = React.useState('')
@@ -2969,7 +2938,7 @@ button.yk-chipBtn:disabled { cursor: default; }
 
       const update = (target) =>
         run('update', async () => {
-          const payload = await postJson(`${API.runtime}/update`, { version: target, restart: autoRestart })
+          const payload = await postJson(`${API.runtime}/update`, { version: target, restart: true })
           if (payload.state !== undefined) setSnap(payload.state)
           show('update', payload.changed ? fill(t('rUpdated'), { version: payload.installed ?? '?' }) : fill(t('rUpdatedSame'), { version: payload.installed ?? '?' }))
           if (payload.restarted === true) onRestart()
@@ -2977,7 +2946,6 @@ button.yk-chipBtn:disabled { cursor: default; }
 
       const restart = () =>
         run('restart', async () => {
-          markReturn()
           await postJson(`${API.runtime}/restart`, { delayMs: 600 })
           onRestart()
         })
@@ -3017,12 +2985,7 @@ button.yk-chipBtn:disabled { cursor: default; }
                 { className: 'yk-heroActions' },
                 h(FlashNote, { flash, keys: ['update'] }),
                 feed?.available
-                  ? h(
-                      React.Fragment,
-                      null,
-                      h(Option, { checked: autoRestart, onChange: setAutoRestart, label: t('rAutoRestart') }),
-                      h('button', { type: 'button', className: 'yk-btn yk-btn-solid', onClick: () => update(undefined), disabled }, busy === 'update' ? h(Spinner) : h(DownloadIcon), busy === 'update' ? t('rUpdating') : fill(t('rUpdateTo'), { version: feed.latest })),
-                    )
+                  ? h('button', { type: 'button', className: 'yk-btn yk-btn-solid', onClick: () => update(undefined), disabled }, busy === 'update' ? h(Spinner) : h(DownloadIcon), busy === 'update' ? t('rUpdating') : fill(t('rUpdateTo'), { version: feed.latest }))
                   : h('button', { type: 'button', className: 'yk-btn', onClick: check, disabled }, busy === 'check' ? h(Spinner) : flash?.key === 'check' ? null : h(RefreshIcon), busy === 'check' ? t('rChecking') : flashed(flash, 'check', t('rCheck'))),
                 confirmRestart
                   ? h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: restart, disabled }, busy === 'restart' ? h(Spinner) : h(PowerIcon), t('rConfirmRestart'))
@@ -3080,7 +3043,6 @@ button.yk-chipBtn:disabled { cursor: default; }
       const [phase, setPhase] = React.useState('idle')
       const [info, setInfo] = React.useState(null)
       const [message, setMessage] = React.useState('')
-      const [autoRestart, setAutoRestart] = React.useState(true)
 
       React.useEffect(() => {
         if (phase !== 'latest') return undefined
@@ -3102,18 +3064,15 @@ button.yk-chipBtn:disabled { cursor: default; }
 
       const update = async () => {
         setPhase('updating')
-        markReturn()
         try {
-          const payload = await postJson(API.update, { restart: autoRestart })
+          const payload = await postJson(API.update, { restart: true })
           setInfo({ ...payload.update, installed: payload.installed ?? payload.update?.installed })
           if (payload.restarted === true) {
             onRestart()
             return
           }
           setPhase(payload.updated ? 'done' : 'latest')
-          if (!payload.updated) clearReturn()
         } catch (error) {
-          clearReturn()
           setMessage(fill(t('upUpdateFailed'), { error: messageOf(error) }))
           setPhase('error')
         }
@@ -3124,7 +3083,6 @@ button.yk-chipBtn:disabled { cursor: default; }
           await requestRestart(components)
           onRestart()
         } catch (error) {
-          clearReturn()
           setMessage(fill(t('upUpdateFailed'), { error: messageOf(error) }))
           setPhase('error')
         }
@@ -3146,9 +3104,6 @@ button.yk-chipBtn:disabled { cursor: default; }
       return h(
         'div',
         { className: 'yk-update', role: 'status', 'aria-live': 'polite' },
-        phase === 'available' || phase === 'updating'
-          ? h(Option, { checked: autoRestart, onChange: setAutoRestart, label: t('upAutoRestart') })
-          : null,
         h(
           clickable ? 'button' : 'div',
           {
@@ -3189,12 +3144,6 @@ button.yk-chipBtn:disabled { cursor: default; }
       React.useEffect(() => {
         loadOverview()
       }, [loadOverview])
-
-      // Stable again: stop re-opening this panel on the next unrelated reload.
-      React.useEffect(() => {
-        const timer = setTimeout(() => clearReturn(), 45000)
-        return () => clearTimeout(timer)
-      }, [])
 
       const components = overview?.components ?? null
       const tabs = TABS.filter((key) => key === 'overview' || components === null || Boolean(components[key]))
@@ -3320,33 +3269,33 @@ button.yk-chipBtn:disabled { cursor: default; }
     return {
       inject: ['slots', 'locale', 'uiWorkspace'],
       apply(ctx) {
-        // A plugin update or restart replaces this module; the host clears the
-        // sidebar's active panel on that unmount, so come straight back here.
-        if (shouldReturn()) {
-          const restore = (attempt = 0) => {
-            try {
-              const layout = (typeof ctx.get === 'function' ? ctx.get('layout') : undefined) ?? ctx.layout
-              if (layout !== undefined && layout !== null && typeof layout.selectPanel === 'function') {
-                layout.selectPanel(PANEL_ID)
-                return
-              }
-            } catch { /* layout not ready yet */ }
-            if (attempt < 15) setTimeout(() => restore(attempt + 1), 120)
-          }
-          setTimeout(() => restore(), 60)
-        }
         ctx.effect(() => ctx.locale.register(NS, 'en', en))
         ctx.effect(() => ctx.locale.register(NS, 'zh-CN', zh))
         ctx.effect(() => ctx.locale.register(NS, 'zh', zh))
         const t = ctx.locale.bind(NS)
         const ui = {
           /** Open a file in DSH's own preview by its resource address. */
+          /**
+           * Open a file in DSH's own preview.
+           *
+           * `openResourceIn` is a no-op for a session whose right sidebar is not
+           * mounted, and the panel usually shows another session — so try the
+           * mounted surface first and let the caller fall back to switching.
+           */
           openResource: (sessionId, relative) => {
             const right = (typeof ctx.get === 'function' ? ctx.get('sidebarRight') : undefined) ?? ctx.sidebarRight
-            if (right === undefined || right === null || typeof right.openResourceIn !== 'function') {
-              throw new Error(t('fNoPreview'))
+            if (right === undefined || right === null) throw new Error(t('fNoPreview'))
+            const address = resourceAddress(sessionId, relative)
+            if (typeof right.openResource === 'function') {
+              try {
+                right.openResource(address)
+                return
+              } catch {
+                /* no session surface is mounted: try the named session below */
+              }
             }
-            right.openResourceIn(sessionId, resourceAddress(sessionId, relative))
+            if (typeof right.openResourceIn !== 'function') throw new Error(t('fNoPreview'))
+            right.openResourceIn(sessionId, address)
           },
           openSession: (id) => {
             if (ctx.uiWorkspace === undefined || typeof ctx.uiWorkspace.openSession !== 'function') {

@@ -189,10 +189,34 @@ export function apply(ctx, config = {}) {
     } catch {
       return null
     }
-    const newest = records
-      .filter((record) => record.header?.cwd === rootId)
-      .sort((left, right) => (right.header.createdAt ?? 0) - (left.header.createdAt ?? 0))[0]
+    // Roots are published as realpaths while a session keeps the cwd it was
+    // started with, so compare filesystem identity rather than spelling.
+    const target = (await canonical(rootId)) ?? rootId
+    let newest = null
+    for (const record of records) {
+      const cwd = record.header?.cwd
+      if (typeof cwd !== 'string' || cwd === '') continue
+      if ((await canonical(cwd)) !== target) continue
+      if (newest === null || (record.header.createdAt ?? 0) > (newest.header.createdAt ?? 0)) newest = record
+    }
     return newest?.header?.id ?? null
+  }
+
+  /** Filesystem identity of one path, memoised: one probe per distinct session cwd. */
+  const canonicalCache = new Map()
+  async function canonical(value) {
+    if (typeof value !== 'string' || value === '') return null
+    const cached = canonicalCache.get(value)
+    if (cached !== undefined) return cached
+    let real = null
+    try {
+      real = await realpath(value)
+    } catch {
+      real = null
+    }
+    if (canonicalCache.size >= 500) canonicalCache.clear()
+    canonicalCache.set(value, real)
+    return real
   }
 
   /** Resolve the `root` query value against the allowed roots. */

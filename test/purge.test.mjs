@@ -12,7 +12,7 @@ import {
 } from '../host/purge/lib/rewriter.js'
 import { DEFAULT_PROMPT, ANCHOR_TEXT, CHILD_ANCHOR_TEXT, SENTINEL, RETRY_NUDGE, RETRY_MARKER } from '../host/purge/lib/prompts.js'
 import { getPresetDefinition, ensurePresetFiles, UNRESTRICTED_PRESET_ID } from '../host/purge/lib/preset.js'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -189,6 +189,27 @@ test('getPresetDefinition and installed JSON share one full definition', async (
     return row
   }
   assert.deepEqual(definition, resolve(disk))
+})
+
+test('ensurePresetFiles refreshes machine copies and leaves a hand-edited yml alone', async (t) => {
+  const home = await mkdtemp(path.join(os.tmpdir(), 'yukari-purge-refresh-'))
+  t.after(() => rm(home, { recursive: true, force: true }))
+  const dir = path.join(home, '.agent-presets/unrestricted')
+  await mkdir(dir, { recursive: true })
+  await writeFile(path.join(dir, 'preset.json'), '{"stale":true}')
+  await writeFile(path.join(dir, 'agent.cordis.yml'), '# hand edited\n- id: mine\n')
+
+  ensurePresetFiles(home)
+
+  const json = JSON.parse(await readFile(path.join(dir, 'preset.json'), 'utf8'))
+  assert.equal(json.name, '无限制模式', 'an upgrade never leaves a stale machine copy behind')
+  assert.equal(await readFile(path.join(dir, 'agent.cordis.yml'), 'utf8'), '# hand edited\n- id: mine\n')
+
+  await writeFile(path.join(dir, 'agent.cordis.yml'), '# managed-by: yukari-purge\n- id: old\n')
+  ensurePresetFiles(home)
+  const refreshed = await readFile(path.join(dir, 'agent.cordis.yml'), 'utf8')
+  assert.ok(refreshed.includes('managed-by: yukari-purge'))
+  assert.ok(!refreshed.includes('- id: old'))
 })
 
 test('registered definition and agent.cordis.yml describe the same tool set', async () => {

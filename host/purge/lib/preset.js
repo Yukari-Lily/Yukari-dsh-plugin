@@ -48,6 +48,9 @@ export function getPresetDefinition() {
 /** First-line marker of a preset file the plugin still owns and may refresh. */
 const MANAGED_MARKER = /^#\s*managed-by:/
 
+/** Files a user may edit by hand; the rest are machine-readable and always refreshed. */
+const GUARDED = new Set(['agent.cordis.yml'])
+
 /**
  * Ensure preset files are installed in $DSH_HOME/.agent-presets/unrestricted/.
  *
@@ -72,9 +75,12 @@ export function ensurePresetFiles(dshHome) {
       }
       const current = fs.readFileSync(dst, 'utf8')
       const bundled = fs.readFileSync(src, 'utf8')
-      if (current !== bundled && MANAGED_MARKER.test(current.split('\n', 1)[0] ?? '')) {
-        fs.writeFileSync(dst, bundled, 'utf8')
-      }
+      if (current === bundled) continue
+      // A file the user may hand-edit opts out by dropping its marker line;
+      // the machine-readable copies have no marker and are always refreshed,
+      // so an upgrade can never leave a stale definition behind.
+      if (GUARDED.has(file) && !MANAGED_MARKER.test(current.split('\n', 1)[0] ?? '')) continue
+      fs.writeFileSync(dst, bundled, 'utf8')
     }
   } catch {
     // Non-fatal if filesystem is read-only

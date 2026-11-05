@@ -181,28 +181,17 @@
       name: '@deepseek-ai/dsh-tool-subagent-control'
       disabled: false
 
-    - id: tool-subagent-list-agents
-      name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
-      disabled: false
-
     - id: tool-subagent
       name: '@deepseek-ai/dsh-tool-subagent'
       disabled: false
       config:
         provider: spawn
         toolName: subagent
-        modelSelectionSettings: true
-        backgroundMode: continuable
-        # 子智能体是角色执行者（信息收集/资产梳理/漏洞发现/漏洞利用/内网渗透），**必须是叶子节点**：
-        # 由 presets-plugin 将以下旧策略转换为原生子预设；父会话仍有完整工具。
-        # 子会话排除 subagent_fork / workflow / ralph；spawn 自身保留，由 maxDepth 限制。
-        # maxDepth 同时收成 1 作为二道保险（默认 3 层太深，会白吃并发预算与上下文）。
+        # 允许父会话为子会话挑模型（宿主当前用 modelSelection 这个键）。
+        modelSelection: true
+        # 子会话必须是叶子节点：maxDepth 1 就是这条约束，宿主已不再接受 toolFilter。
+        # 默认 3 层太深，会白吃并发预算与上下文。
         maxDepth: 1
-        toolFilter:
-          deny:
-            - subagent_fork
-            - workflow
-            - ralph
 
     # Fork omits model selection so provider/model stay equal to the parent and
     # the inherited history remains eligible for KV Cache reuse. This preset
@@ -214,7 +203,6 @@
       config:
         provider: fork
         toolName: subagent_fork
-        backgroundMode: continuable
 
     # Production dsh does not install these optional providers. Install the
     # matching Bundle in this Profile and restart the Host, then copy this
@@ -226,7 +214,6 @@
       config:
         provider: codex
         toolName: subagent_codex
-        backgroundMode: one-shot
         maxDepth: provider-managed
 
     - id: tool-subagent-claude-code
@@ -235,7 +222,6 @@
       config:
         provider: claude-code
         toolName: subagent_claude_code
-        backgroundMode: one-shot
         maxDepth: provider-managed
 
     - id: workflow-worker-thread
