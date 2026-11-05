@@ -442,7 +442,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
       try {
         await fs.rm(directory, { recursive: true, force: true, maxRetries: 2 })
       } catch (error) {
-        failed.push({ id, reason: messageOf(error) })
+        failed.push({ id, reason: 'io-error', detail: messageOf(error) })
         continue
       }
       deleted.push(id)
@@ -459,7 +459,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
       if (workspaceDir !== null) {
         const outcome = await removeWorkspaceDirectory(workspaceDir, [sessionRoot], fs)
         workspaceDirDeleted = outcome.removed
-        notes.push(outcome.note)
+        if (outcome.note) notes.push(outcome.note)
       }
       // Drop the registration so the sidebar forgets the workspace, unless its directory was kept by a failure.
       if (registered !== null && (workspaceDir === null || workspaceDirDeleted) && registry !== undefined && typeof registry.delete === 'function') {

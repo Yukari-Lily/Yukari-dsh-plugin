@@ -22,7 +22,7 @@ const TABLE = (() => {
 })()
 
 /** CRC-32 as the ZIP format stores it. */
-export function crc32(buffer) {
+function crc32(buffer) {
   let value = 0xffffffff
   for (const byte of buffer) value = TABLE[(value ^ byte) & 0xff] ^ (value >>> 8)
   return (value ^ 0xffffffff) >>> 0

@@ -120,6 +120,8 @@ test('workspace delete removes the registered directory and its registration', a
   assert.equal(await exists(f.ws), false)
   assert.equal(await exists(f.outside), true)
   assert.deepEqual(f.registry.deleted, ['ws-1'])
+  // The success flag already reports this, so no prose note repeats it.
+  assert.deepEqual(res.notes, [])
   await fs.rm(f.tmp, { recursive: true, force: true })
 })
 

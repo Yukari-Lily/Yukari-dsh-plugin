@@ -100,7 +100,7 @@ async function withPlugin(t) {
     await rm(home, { recursive: true, force: true })
   })
   const harness = createCtx()
-  apply(harness.ctx, {})
+  await apply(harness.ctx, {})
   return { home, ...harness }
 }
 
@@ -202,11 +202,16 @@ test('http: the probe assembles the most recent live session', async (t) => {
   const agent = { session: { id: 'session-abcdef123', agentPreset: 'unrestricted' } }
   ctx.agents = { get: (id) => (id === agent.session.id ? agent : undefined), list: () => [agent] }
 
+  const before = (await call(routes[0], 'GET', '/purge/api/config')).json.stats.assembled
   const { json } = await call(routes[0], 'GET', '/purge/api/probe', undefined)
   assert.equal(json.ok, true)
   assert.equal(json.hasInject, true)
   assert.equal(json.hasAnchor, true)
   assert.ok(json.sections.includes(PURGE_SECTION))
+
+  // The self-check assembles a real session; it must not move the numbers it reports.
+  const after = (await call(routes[0], 'GET', '/purge/api/config')).json.stats.assembled
+  assert.equal(after, before)
 })
 
 test('http: the probe explains itself when nothing is live', async (t) => {

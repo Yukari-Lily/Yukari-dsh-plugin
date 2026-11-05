@@ -59,7 +59,6 @@ window.__ModuleLoader__.load({
       refresh: '刷新',
       retry: '重试',
       cancel: '取消',
-      confirm: '确认',
       save: '保存',
       saved: '已保存',
       close: '关闭',
@@ -78,6 +77,10 @@ window.__ModuleLoader__.load({
       ovArchived: '已归档',
       ovReady: '已就绪',
       ovPurgeHow: '在对话输入框下方的模式菜单里选「无限制模式」',
+      ovFiles: '{n} 个工作区',
+      ovPurgeUsed: '已注入 {n} 次',
+      ovOff: '未启用 · 在「插件」页打开',
+      ovCount: '运行中的组件 {n} 个',
 
       cSearch: '搜索标题、ID 或路径',
       cFilter: '会话范围',
@@ -122,8 +125,9 @@ window.__ModuleLoader__.load({
       cLockedByParent: '随主会话一起选中，不能单独取消',
       cArchivedTag: '已归档',
       cEvents: '{n} 条事件',
-      cReason_live: '已加载在内存中，需勾选「包括已加载的会话」',
+      cReason_live: '还开着，删不掉（先切走或重启 dsh）',
       cReason_unknown: '找不到这个会话',
+      'cReason_io-error': '文件删不掉',
       'cReason_no-artifact': '没有落盘记录',
       'cReason_in-memory': '只存在于内存中',
       'cReason_unsafe-path': '路径不安全，已跳过',
@@ -139,6 +143,8 @@ window.__ModuleLoader__.load({
       sCountOne: '共 1 个站点',
       sEmpty: '还没有发布过站点',
       sEmptyHint: '让智能体调用 publish_site，或把构建产物放进发布目录。',
+      confirmUnpublish: '下线「{name}」？',
+      confirmUnpublishHint: '发布目录会被删除，链接立即失效。',
       sUnpublish: '下线',
       sPublished: '{time} 发布',
       sFiles: '{n} 个文件',
@@ -156,8 +162,6 @@ window.__ModuleLoader__.load({
       fZipN: '打包下载 {n} 项',
       fZipReason: '超过 {n} 个文件时自动改用打包，避免连续弹出下载框',
       fSelectAll: '全选',
-      fPick: '选择',
-      fUnpick: '取消',
       fSymlink: '符号链接',
       fEmpty: '这个目录是空的',
       fEmptyHint: '换一个工作区或返回上级目录。',
@@ -179,7 +183,8 @@ window.__ModuleLoader__.load({
       pTestAll: '全部测速',
       pTesting: '测速中…',
       pRemove: '删除',
-      pConfirmRemove: '确认删除',
+      confirmRemoveNode: '删除节点「{name}」？',
+      confirmRemoveNodeHint: '从列表里移除，节点密码一起删掉，可以重新导入。',
       pImport: '导入',
       pImportTitle: '导入节点',
       pImportPlaceholder: '粘贴一个或多个 ss:// 链接、Base64 订阅内容或 Clash 配置（proxies 列表）',
@@ -198,6 +203,7 @@ window.__ModuleLoader__.load({
       pStateFile: '节点和密码保存在本地状态文件（权限 0600），重启后自动恢复。',
 
       gTitle: '无限制模式',
+      gPresetUnrestricted: '无限制模式',
       gDesc: '插件注册了一个独立的对话模式「无限制模式」：选中后注入首段契约与尾部锚点、改写宿主的劝退句，模型仍然拒绝时自动重发一次；标准模式和其他模式完全不受影响。',
       gPrompt: '系统提示词',
       gChars: '{n} 字',
@@ -227,7 +233,9 @@ window.__ModuleLoader__.load({
       rUpdateTo: '更新到 {version}',
       rUpdating: '正在安装…',
       rRestart: '重启 DSH',
-      rConfirmRestart: '确认重启？',
+      confirmRestart: '现在重启 dsh？',
+      confirmRestartHint: '页面会断开几秒，服务回来后自动刷新。',
+      rPickVersionClose: '收起',
       rPickVersion: '指定版本',
       rVersionInput: '例如 0.2.1-rc.5',
       rInstall: '安装',
@@ -307,7 +315,6 @@ window.__ModuleLoader__.load({
       refresh: 'Refresh',
       retry: 'Retry',
       cancel: 'Cancel',
-      confirm: 'Confirm',
       save: 'Save',
       saved: 'Saved',
       close: 'Close',
@@ -326,6 +333,10 @@ window.__ModuleLoader__.load({
       ovArchived: 'Archived',
       ovReady: 'Ready',
       ovPurgeHow: 'Pick “Unrestricted” in the mode menu under the chat input',
+      ovFiles: '{n} workspaces',
+      ovPurgeUsed: 'injected {n}×',
+      ovOff: 'Off · enable it on the Plugins page',
+      ovCount: '{n} components running',
 
       cSearch: 'Search title, id or path',
       cFilter: 'Scope',
@@ -370,8 +381,9 @@ window.__ModuleLoader__.load({
       cLockedByParent: 'Selected with its parent chat and cannot be unticked alone',
       cArchivedTag: 'Archived',
       cEvents: '{n} events',
-      cReason_live: 'loaded in memory — tick “Include chats already loaded”',
+      cReason_live: 'still open, so it cannot be deleted (switch away or restart dsh)',
       cReason_unknown: 'not found',
+      'cReason_io-error': 'the files could not be removed',
       'cReason_no-artifact': 'nothing stored on disk',
       'cReason_in-memory': 'exists only in memory',
       'cReason_unsafe-path': 'unsafe path, skipped',
@@ -387,6 +399,8 @@ window.__ModuleLoader__.load({
       sCountOne: '1 site',
       sEmpty: 'No site published yet',
       sEmptyHint: 'Ask the agent to call publish_site, or drop a build into the publish root.',
+      confirmUnpublish: 'Take down “{name}”?',
+      confirmUnpublishHint: 'The published folder is deleted and the link stops working immediately.',
       sUnpublish: 'Unpublish',
       sPublished: 'published {time}',
       sFiles: '{n} files',
@@ -404,8 +418,6 @@ window.__ModuleLoader__.load({
       fZipN: 'Download {n} as ZIP',
       fZipReason: 'More than {n} files are packed into one ZIP to avoid a download prompt per file',
       fSelectAll: 'Select all',
-      fPick: 'Select',
-      fUnpick: 'Clear',
       fSymlink: 'symlink',
       fEmpty: 'This folder is empty',
       fEmptyHint: 'Pick another workspace or go up a level.',
@@ -427,7 +439,8 @@ window.__ModuleLoader__.load({
       pTestAll: 'Test all',
       pTesting: 'Testing…',
       pRemove: 'Remove',
-      pConfirmRemove: 'Confirm',
+      confirmRemoveNode: 'Delete node “{name}”?',
+      confirmRemoveNodeHint: 'It is removed from the list together with its password; you can import it again.',
       pImport: 'Import',
       pImportTitle: 'Import nodes',
       pImportPlaceholder: 'Paste one or more ss:// links, a base64 subscription, or a Clash config (proxies list)',
@@ -446,6 +459,7 @@ window.__ModuleLoader__.load({
       pStateFile: 'Nodes and passwords are kept in a local state file (mode 0600) and restored after a restart.',
 
       gTitle: 'Unrestricted mode',
+      gPresetUnrestricted: 'Unrestricted',
       gDesc: 'The plugin registers a separate chat mode, “Unrestricted”: picking it injects a head contract and a tail anchor, rewrites the host sentences that teach the model to give up, and retries once if it still refuses. Standard mode is untouched.',
       gPrompt: 'System prompt',
       gChars: '{n} chars',
@@ -475,7 +489,9 @@ window.__ModuleLoader__.load({
       rUpdateTo: 'Update to {version}',
       rUpdating: 'Installing…',
       rRestart: 'Restart DSH',
-      rConfirmRestart: 'Restart now?',
+      confirmRestart: 'Restart dsh now?',
+      confirmRestartHint: 'The page drops for a few seconds and reloads once the host is back.',
+      rPickVersionClose: 'Close',
       rPickVersion: 'Pick version',
       rVersionInput: 'e.g. 0.2.1-rc.5',
       rInstall: 'Install',
@@ -573,13 +589,17 @@ window.__ModuleLoader__.load({
 .yk-dangerHover:hover:not(:disabled) { color: var(--dsw-alias-state-error-primary); }
 .yk-chip { display: inline-flex; align-items: center; gap: 5px; min-height: 21px; padding: 1px 7px; border-radius: var(--dsw-radius-sm); font-size: 11px; font-weight: 500; line-height: 17px; background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-secondary); white-space: nowrap; }
 .yk-chip-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
-.yk-chip-ok { color: var(--dsw-alias-state-success-primary, #34a77b); background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #34a77b) 10%, transparent); }
-.yk-chip-warn { color: var(--dsw-alias-state-warning-primary, #c58a2b); background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #c58a2b) 10%, transparent); }
+.yk-chip-ok { color: var(--dsw-alias-state-success-primary); background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 10%, transparent); }
+.yk-chip-warn { color: var(--dsw-alias-state-warn-primary); background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 10%, transparent); }
+.yk-chip-accent { color: var(--yk-accent); background: color-mix(in srgb, var(--yk-accent) 10%, transparent); }
 .yk-chip-danger { color: var(--dsw-alias-state-error-primary); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); }
 .yk-toggleRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 10px 0 6px; }
-button.yk-chipBtn { appearance: none; border: 0; font: inherit; cursor: pointer; }
-button.yk-chipBtn[aria-pressed="false"] { opacity: .5; }
-button.yk-chipBtn:disabled { cursor: default; }
+.yk-chip-toggle { appearance: none; font: inherit; cursor: pointer; border: 1px solid var(--yk-line); background: transparent; color: var(--dsw-alias-label-secondary); }
+.yk-chip-toggle:hover:not(:disabled) { border-color: var(--dsw-alias-border-l3); color: var(--dsw-alias-label-primary); }
+.yk-chip-toggle[aria-pressed="true"] { border-color: color-mix(in srgb, var(--yk-accent) 45%, transparent); background: color-mix(in srgb, var(--yk-accent) 9%, transparent); color: var(--dsw-alias-label-primary); }
+.yk-chip-toggle[aria-pressed="true"] .yk-chip-dot { background: var(--yk-accent); }
+.yk-chip-toggle[aria-pressed="false"] .yk-chip-dot { background: transparent; box-shadow: inset 0 0 0 1px currentColor; }
+.yk-chip-toggle:disabled { opacity: .5; cursor: default; }
 .yk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .yk-card { background: var(--dsw-alias-bg-base); border: 1px solid var(--yk-line); border-radius: var(--dsw-radius-lg); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .yk-card-wide { grid-column: 1 / -1; }
@@ -587,12 +607,13 @@ button.yk-chipBtn:disabled { cursor: default; }
 .yk-cardHead { justify-content: space-between; }
 .yk-cardTitleWrap { color: var(--dsw-alias-label-secondary); }
 .yk-cardTitle { margin: 0; font-size: 14px; font-weight: 600; color: var(--dsw-alias-label-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.yk-cardNote { font-size: 12px; color: var(--yk-muted); }
+.yk-cardNote { margin: 0; font-size: 12px; color: var(--yk-muted); }
 .yk-cardAction { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; cursor: pointer; padding: 3px 0; }
 .yk-cardAction:hover { color: var(--yk-accent); }
 .yk-cardText { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 1.65; }
 .yk-cardHint, .yk-foot { color: var(--yk-muted); font-size: 12px; }
 .yk-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.yk-footDot { opacity: .45; }
 .yk-rows { display: flex; flex-direction: column; }
 .yk-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--dsw-alias-border-l1); font-size: 13px; }
 .yk-row:last-child { border-bottom: 0; }
@@ -602,8 +623,8 @@ button.yk-chipBtn:disabled { cursor: default; }
 .yk-rows-2col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
 .yk-hero { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 16px; border-radius: var(--dsw-radius-lg); border: 1px solid var(--yk-line); }
 .yk-heroDot { width: 7px; height: 7px; border-radius: 50%; background: var(--yk-muted); flex: none; }
-.yk-hero-on .yk-heroDot { background: var(--dsw-alias-state-success-primary, #34a77b); }
-.yk-hero-warn .yk-heroDot { background: var(--dsw-alias-state-warning-primary, #c58a2b); }
+.yk-hero-on .yk-heroDot { background: var(--dsw-alias-state-success-primary); }
+.yk-hero-warn .yk-heroDot { background: var(--dsw-alias-state-warn-primary); }
 .yk-heroMain { flex: 1 1 220px; min-width: 0; }
 .yk-heroTitle { font-size: 14px; font-weight: 600; }
 .yk-heroSub { font-size: 12px; color: var(--yk-muted); overflow-wrap: anywhere; }
@@ -611,6 +632,9 @@ button.yk-chipBtn:disabled { cursor: default; }
 .yk-serviceGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .yk-service { appearance: none; text-align: left; font: inherit; color: inherit; background: var(--dsw-alias-bg-base); border: 1px solid var(--yk-line); border-radius: var(--dsw-radius-lg); padding: 15px 16px; cursor: pointer; display: flex; flex-direction: column; gap: 10px; min-width: 0; transition: border-color .15s, background .15s; }
 .yk-service:hover { border-color: var(--dsw-alias-border-l3); background: var(--dsw-alias-interactive-bg-hover); }
+.yk-service-off { cursor: default; border-style: dashed; background: transparent; }
+.yk-service-off:hover { border-color: var(--yk-line); background: transparent; }
+.yk-service-off .yk-serviceTitle { color: var(--yk-muted); }
 .yk-serviceHead { display: flex; align-items: center; gap: 8px; color: var(--dsw-alias-label-secondary); }
 .yk-serviceTitle { font-size: 13px; font-weight: 600; color: var(--dsw-alias-label-primary); }
 .yk-serviceArrow { margin-left: auto; color: var(--yk-muted); }
@@ -685,13 +709,13 @@ button.yk-chipBtn:disabled { cursor: default; }
 .yk-settingRow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px 10px; }
 .yk-settingLabel { font-size: 13px; font-weight: 500; white-space: nowrap; }
 .yk-settingHint { grid-column: 1 / -1; font-size: 12px; color: var(--yk-muted); }
-.yk-settingWarn { color: var(--dsw-alias-state-warning-primary, #c58a2b); }
+.yk-settingWarn { color: var(--dsw-alias-state-warn-primary); }
 .yk-disclosure { display: flex; flex-direction: column; gap: 10px; }
 .yk-disclosureBtn { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 3px 0; align-self: flex-start; }
 .yk-disclosureBody { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--yk-line); border-radius: var(--dsw-radius-lg); }
 .yk-banner { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--dsw-radius-md); font-size: 12px; }
 .yk-bannerInfo { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-secondary); }
-.yk-bannerWarn { background: color-mix(in srgb, var(--dsw-alias-state-warning-primary, #c58a2b) 10%, transparent); color: var(--dsw-alias-state-warning-primary, #c58a2b); }
+.yk-bannerWarn { background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 10%, transparent); color: var(--dsw-alias-state-warn-primary); }
 .yk-bannerError { background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); color: var(--dsw-alias-state-error-primary); }
 .yk-confirm { display: flex; flex-direction: column; gap: 9px; padding: 14px; border-radius: var(--dsw-radius-lg); border: 1px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent); }
 .yk-confirmTitle { font-size: 14px; font-weight: 600; }
@@ -707,22 +731,22 @@ button.yk-chipBtn:disabled { cursor: default; }
 .yk-emptyTitle, .yk-overlayTitle { font-size: 14px; font-weight: 500; color: var(--dsw-alias-label-primary); }
 .yk-emptyHint, .yk-overlayHint { font-size: 12px; max-width: 46ch; }
 .yk-node { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--yk-line); border-radius: var(--dsw-radius-md); }
-.yk-node-active { border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary, #34a77b) 35%, transparent); }
+.yk-node-active { border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 35%, transparent); }
 .yk-nodeName { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .yk-radio { appearance: none; flex: none; width: 16px; height: 16px; border-radius: 50%; padding: 0; cursor: pointer; border: 1px solid var(--dsw-alias-border-l3); background: transparent; display: grid; place-items: center; }
-.yk-radio[aria-checked="true"] { border-color: var(--dsw-alias-state-success-primary, #34a77b); box-shadow: inset 0 0 0 4px var(--dsw-alias-state-success-primary, #34a77b); cursor: default; }
-.yk-mono { font-family: var(--ds-font-family-code, var(--dsw-font-mono, monospace)); font-size: 12px; }
+.yk-radio[aria-checked="true"] { border-color: var(--dsw-alias-state-success-primary); box-shadow: inset 0 0 0 4px var(--dsw-alias-state-success-primary); cursor: default; }
+.yk-mono { font-family: var(--ds-font-family-code, var(--dsw-font-mono, monospace)); }
 .yk-out { margin: 0; padding: 10px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-layer-3); color: var(--dsw-alias-label-secondary); font: 11px/1.5 var(--dsw-font-mono, monospace); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow: auto; }
 .yk-update, .yk-updatePill { display: inline-flex; align-items: center; gap: 7px; min-width: 0; }
 .yk-updatePill { appearance: none; font: inherit; min-height: 30px; padding: 0 10px; border-radius: var(--dsw-radius-md); font-size: 12px; border: 1px solid var(--yk-line); background: transparent; color: var(--dsw-alias-label-secondary); }
 .yk-updatePill-click { cursor: pointer; }
 .yk-updatePill-click:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
 .yk-updateText { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px; }
-.yk-update .yk-option { font-size: 12px; color: var(--dsw-alias-label-secondary); white-space: nowrap; }
-.yk-update .yk-option input { accent-color: var(--yk-accent); }
-.yk-updateStatus-ok { color: var(--dsw-alias-state-success-primary, #34a77b); }
-.yk-updateStatus-warn, .yk-updateStatus-error { color: var(--dsw-alias-state-warning-primary, #c58a2b); }
-.yk-flash, .yk-flashNote { display: inline-flex; align-items: center; gap: 5px; color: var(--dsw-alias-state-success-primary, #34a77b); }
+.yk-updateStatus-ok { color: var(--dsw-alias-state-success-primary); }
+.yk-updateStatus-warn { color: var(--dsw-alias-state-warn-primary); }
+.yk-updateStatus-error { color: var(--dsw-alias-state-error-primary); }
+.yk-flash, .yk-flashNote { display: inline-flex; align-items: center; gap: 5px; color: var(--dsw-alias-state-success-primary); }
+.yk-flashNote-error { color: var(--dsw-alias-state-error-primary); }
 .yk-flashNote { font-size: 12px; }
 .yk-grow { flex: 1; }
 .yk-progress { width: 100%; height: 4px; overflow: hidden; border-radius: 2px; background: var(--dsw-alias-interactive-bg-hover); }
@@ -918,6 +942,17 @@ button.yk-chipBtn:disabled { cursor: default; }
         ],
         props,
       )
+    /** A published page: a frame with a title bar, distinct from the globe used by the browser. */
+    const SitesIcon = (props) =>
+      glyph(
+        [
+          h('rect', { key: 'r', x: 3.6, y: 4.8, width: 16.8, height: 14.4, rx: 2.2, stroke: 'currentColor', strokeWidth: 1.75 }),
+          stroke('M3.6 9.2h16.8', { key: 'a' }),
+          stroke('M7.4 15.4h5.2', { key: 'b' }),
+        ],
+        props,
+      )
+
     const GlobeIcon = (props) =>
       glyph(
         [
@@ -1151,6 +1186,31 @@ button.yk-chipBtn:disabled { cursor: default; }
       runtime: 'compRuntime',
     }
 
+    /**
+     * The panel's one destructive confirmation: a title, one line of
+     * consequence, cancel, and the danger action. Rendered under the row it
+     * belongs to, so the trigger stays where the user found it.
+     */
+    function ConfirmStrip({ t, title, hint, confirmLabel, onCancel, onConfirm, busy }) {
+      return h(
+        'div',
+        { className: 'yk-confirm yk-confirmInline', role: 'alertdialog', 'aria-label': title },
+        h('div', { className: 'yk-confirmTitle' }, title),
+        hint ? h('div', { className: 'yk-confirmHint' }, hint) : null,
+        h(
+          'div',
+          { className: 'yk-confirmActions' },
+          h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: onCancel, disabled: busy === true }, t('cancel')),
+          h(
+            'button',
+            { type: 'button', className: 'yk-btn yk-btn-danger yk-btn-sm', onClick: onConfirm, disabled: busy === true },
+            busy === true ? h(Spinner, { size: 13 }) : null,
+            confirmLabel,
+          ),
+        ),
+      )
+    }
+
     /** Placeholder shown instead of an error when a component row is turned off. */
     function OffState({ t, name }) {
       const label = t(COMPONENT_LABEL[name] ?? name)
@@ -1209,10 +1269,15 @@ button.yk-chipBtn:disabled { cursor: default; }
     const flashed = (flash, key, content) =>
       flash?.key === key ? h('span', { className: 'yk-flash' }, h(CheckIcon, { width: 13, height: 13 }), flash.text) : content
 
-    /** Inline confirmation text next to an action. */
-    const FlashNote = ({ flash, keys }) =>
+    /** Inline result text next to an action: a check for success, plain red for a problem. */
+    const FlashNote = ({ flash, keys, kind }) =>
       flash !== null && keys.includes(flash.key) && flash.text
-        ? h('span', { className: 'yk-flashNote', role: 'status' }, h(CheckIcon, { width: 13, height: 13 }), flash.text)
+        ? h(
+            'span',
+            { className: kind === 'error' ? 'yk-flashNote yk-flashNote-error' : 'yk-flashNote', role: 'status' },
+            kind === 'error' ? null : h(CheckIcon, { width: 13, height: 13 }),
+            flash.text,
+          )
         : null
 
     /** Collapsible "advanced settings" section at the bottom of a tab. */
@@ -1316,37 +1381,104 @@ button.yk-chipBtn:disabled { cursor: default; }
 
     /* ---------------------------------------------------------------- overview */
 
+    /** Panel order for the overview grid: mounted components are buttons, the rest are greyed. */
+    const OVERVIEW_ORDER = ['chats', 'files', 'sites', 'proxy', 'browser', 'purge', 'runtime']
+
     function OverviewTab({ t, components, onGo }) {
-      const [state, setState] = React.useState({ chats: null, runtime: null, sites: null, proxy: null, browser: null })
+      const [state, setState] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const [busy, setBusy] = React.useState(false)
       const { signal, alive } = useAbortOnUnmount()
       const on = (name) => components === null || Boolean(components[name])
+
       const load = React.useCallback(async () => {
+        setBusy(true)
         const want = (name, url) => (on(name) ? getJson(url, signal) : Promise.resolve(null))
         const settled = await Promise.allSettled([
-          want('chats', `${API.chats}/state`), want('runtime', `${API.runtime}/state`),
-          want('sites', `${API.sites}/list`), want('proxy', `${API.proxy}/state`), want('browser', `${API.browser}/state`),
+          want('chats', `${API.chats}/state`),
+          want('runtime', `${API.runtime}/state`),
+          want('sites', `${API.sites}/list`),
+          want('proxy', `${API.proxy}/state`),
+          want('browser', `${API.browser}/state`),
+          want('files', `${API.files}/roots`),
+          want('purge', `${API.purge}/config`),
         ])
         if (!alive.current) return
-        const pick = (index) => settled[index].status === 'fulfilled' ? settled[index].value : null
-        setState({ chats: pick(0)?.state, runtime: pick(1)?.state, sites: pick(2), proxy: pick(3)?.state, browser: pick(4)?.state })
+        const pick = (index) => (settled[index].status === 'fulfilled' ? settled[index].value : null)
+        const broken = settled.find((item) => item.status === 'rejected' && item.reason?.name !== 'AbortError')
+        setState({
+          chats: pick(0)?.state ?? null,
+          runtime: pick(1)?.state ?? null,
+          sites: pick(2),
+          proxy: pick(3)?.state ?? null,
+          browser: pick(4)?.state ?? null,
+          files: pick(5),
+          purge: pick(6),
+        })
+        setFailure(broken === undefined ? null : failureOf(broken.reason))
+        setBusy(false)
       }, [components])
+
       React.useEffect(() => { load() }, [load])
-      const { chats, runtime, sites, proxy, browser } = state
+
+      const { chats, runtime, sites, proxy, browser, files, purge } = state ?? {}
       const activeNode = proxy?.nodes?.find((node) => node.active)
       const browserBusy = browser?.status === 'installing' || browser?.status === 'checking'
-      const services = [
-        on('chats') && { key: 'chats', icon: ChatIcon, value: chats ? fill(t('cTotal'), { n: chats.totals.all }) : '—', hint: chats ? `${chats.totals.archived} ${t('ovArchived')} · ${formatBytes(chats.totals.bytes)}` : t('loading') },
-        on('sites') && { key: 'sites', icon: GlobeIcon, value: sites ? counted(t, 'sCountOne', 'sCount', sites.sites.length) : '—', hint: sites?.sites?.[0]?.title ?? t('sEmpty') },
-        on('proxy') && { key: 'proxy', icon: RouteIcon, value: proxy ? (proxy.enabled ? t('pEnabled') : t('pDisabled')) : '—', hint: activeNode?.name ?? t('pNoNodes') },
-        on('purge') && { key: 'purge', icon: PurgeIcon, value: t('gTitle'), hint: t('ovPurgeHow') },
-        on('browser') && { key: 'browser', icon: OverviewIcon, value: browser?.status === 'ready' ? t('ovReady') : browserBusy ? t('bInstalling') : t('bAutomatic'), hint: browser?.version ?? `${components?.browser?.viewportWidth ?? 1280}×${components?.browser?.viewportHeight ?? 900}` },
-        on('runtime') && { key: 'runtime', icon: PowerIcon, value: `DSH ${runtime?.runtime?.version ?? '—'}`, hint: runtime?.disk?.stale ? t('rNeedsRestart') : runtime?.runtime?.uptime ?? t('rCheck') },
-      ].filter(Boolean)
-      return h('div', { className: 'yk-serviceGrid' }, services.map((service) => h(
-        'button', { type: 'button', className: 'yk-service', key: service.key, onClick: () => onGo(service.key) },
-        h('div', { className: 'yk-serviceHead' }, h(service.icon, { width: 16, height: 16 }), h('span', { className: 'yk-serviceTitle' }, t(COMPONENT_LABEL[service.key])), h('span', { className: 'yk-serviceArrow' }, '→')),
-        h('div', { className: 'yk-serviceValue' }, service.value), h('div', { className: 'yk-serviceHint' }, service.hint),
-      )))
+      const pending = busy ? t('loading') : ''
+
+      const detail = {
+        chats: [chats ? fill(t('cTotal'), { n: chats.totals.all }) : '—', chats ? `${chats.totals.archived} ${t('ovArchived')} · ${formatBytes(chats.totals.bytes)}` : pending],
+        files: [files?.roots ? fill(t('ovFiles'), { n: files.roots.length }) : '—', files?.roots?.[0]?.title ?? pending],
+        sites: [sites ? counted(t, 'sCountOne', 'sCount', sites.sites.length) : '—', sites?.sites?.[0]?.title ?? t('sEmpty')],
+        proxy: [proxy ? (proxy.enabled ? t('pEnabled') : t('pDisabled')) : '—', activeNode?.name ?? t('pNoNodes')],
+        browser: [
+          browser?.status === 'ready' ? t('ovReady') : browserBusy ? t('bInstalling') : t('bAutomatic'),
+          browser?.version ?? `${components?.browser?.viewportWidth ?? 1280}×${components?.browser?.viewportHeight ?? 900}`,
+        ],
+        purge: [
+          purge?.stats?.assembled > 0 ? fill(t('ovPurgeUsed'), { n: purge.stats.assembled }) : t('ovReady'),
+          t('ovPurgeHow'),
+        ],
+        runtime: [`DSH ${runtime?.runtime?.version ?? '—'}`, runtime?.disk?.stale ? t('rNeedsRestart') : runtime?.runtime?.uptime ?? t('rCheck')],
+      }
+      const icons = { chats: ChatIcon, files: FolderIcon, sites: SitesIcon, proxy: RouteIcon, browser: GlobeIcon, purge: PurgeIcon, runtime: PowerIcon }
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        h(Failure, { t, name: 'overview', error: failure, onRetry: load }),
+        h(
+          'div',
+          { className: 'yk-toolbar' },
+          h('span', { className: 'yk-foot' }, fill(t('ovCount'), { n: OVERVIEW_ORDER.filter(on).length })),
+          h('span', { className: 'yk-grow' }),
+          h(RefreshButton, { t, onClick: load, spinning: busy }),
+        ),
+        state === null && busy
+          ? h(Loading, { text: t('loading') })
+          : h(
+              'div',
+              { className: 'yk-serviceGrid' },
+              OVERVIEW_ORDER.map((key) => {
+                const [value, hint] = detail[key]
+                const Icon = icons[key]
+                return on(key)
+                  ? h(
+                      'button',
+                      { type: 'button', className: 'yk-service', key, onClick: () => onGo(key) },
+                      h('div', { className: 'yk-serviceHead' }, h(Icon, { width: 16, height: 16 }), h('span', { className: 'yk-serviceTitle' }, t(COMPONENT_LABEL[key])), h('span', { className: 'yk-serviceArrow' }, '→')),
+                      h('div', { className: 'yk-serviceValue' }, value),
+                      h('div', { className: 'yk-serviceHint' }, hint),
+                    )
+                  : h(
+                      'div',
+                      { className: 'yk-service yk-service-off', key, 'aria-disabled': 'true' },
+                      h('div', { className: 'yk-serviceHead' }, h(Icon, { width: 16, height: 16 }), h('span', { className: 'yk-serviceTitle' }, t(COMPONENT_LABEL[key]))),
+                      h('div', { className: 'yk-serviceHint' }, t('ovOff')),
+                    )
+              }),
+            ),
+      )
     }
 
     function BrowserTab({ t }) {
@@ -1558,12 +1690,19 @@ button.yk-chipBtn:disabled { cursor: default; }
           else if (payload.workspaceRemoved) parts.push(t('cWorkspaceRemoved'))
           show('delete', parts.join(' · '))
           const problems = [
+            // A reason with no translation is a raw message from the host: show
+            // it rather than the key that would have named it.
             ...(payload.failed ?? []).map((item) => {
               const row = rows.find((candidate) => candidate.id === item.id)
-              const reason = t(`cReason_${item.reason}`)
-              return `${row?.title ?? item.id}：${reason.startsWith('cReason_') ? reason : reason}`
+              const label = t(`cReason_${item.reason}`)
+              const text = label.startsWith('cReason_')
+                ? item.detail ?? item.reason
+                : item.detail
+                  ? `${label}（${item.detail}）`
+                  : label
+              return `${row?.title ?? item.id} · ${text}`
             }),
-            ...(payload.notes ?? []).filter((note) => !/^已(删除|清空)工作区目录/.test(note)),
+            ...(payload.notes ?? []),
           ]
           if (problems.length > 0) setFailure({ message: problems.slice(0, 6).join('；'), off: false })
         })
@@ -2031,49 +2170,68 @@ button.yk-chipBtn:disabled { cursor: default; }
             ? h(Loading, { text: t('loading') })
             : null
           : sites.length === 0
-            ? h(Empty, { icon: h(GlobeIcon, { width: 24, height: 24 }), title: t('sEmpty'), hint: t('sEmptyHint') })
+            ? h(Empty, { icon: h(SitesIcon, { width: 22, height: 22 }), title: t('sEmpty'), hint: t('sEmptyHint') })
             : visible.length === 0
-              ? h(Empty, { icon: h(SearchIcon, { width: 24, height: 24 }), title: t('sNoMatch') })
+              ? h(Empty, { icon: h(SearchIcon, { width: 22, height: 22 }), title: t('sNoMatch') })
               : h(
                   'div',
                   { className: 'yk-list' },
                   visible.map((site) => {
                     const href = linkOf(site)
+                    const asking = confirming === site.slug
                     return h(
                       'div',
-                      { className: 'yk-item', key: site.slug },
-                      h('span', { className: 'yk-itemIcon' }, h(GlobeIcon, { width: 18, height: 18 })),
+                      { className: 'yk-itemWrap', key: site.slug },
                       h(
                         'div',
-                        { className: 'yk-itemMain' },
+                        { className: 'yk-item' },
+                        h('span', { className: 'yk-itemIcon' }, h(GlobeIcon, { width: 18, height: 18 })),
                         h(
                           'div',
-                          { className: 'yk-itemTitleRow' },
-                          h('a', { className: 'yk-itemTitle', href, target: '_blank', rel: 'noreferrer noopener', title: href }, site.title),
-                          h(Chip, null, fill(t('sVersion'), { version: site.version })),
+                          { className: 'yk-itemMain' },
+                          h(
+                            'div',
+                            { className: 'yk-itemTitleRow' },
+                            h('a', { className: 'yk-itemTitle', href, target: '_blank', rel: 'noreferrer noopener', title: href }, site.title),
+                            h(Chip, null, fill(t('sVersion'), { version: site.version })),
+                          ),
+                          h(
+                            'div',
+                            { className: 'yk-itemMeta' },
+                            h('span', { className: 'yk-mono yk-link' }, href),
+                            h('span', null, fill(t('sPublished'), { time: relativeTime(site.publishedAt, t) })),
+                            h('span', null, `${fill(t('sFiles'), { n: site.files })} · ${formatBytes(site.bytes)}`),
+                          ),
                         ),
                         h(
                           'div',
-                          { className: 'yk-itemMeta' },
-                          h('span', { className: 'yk-mono yk-link' }, href),
-                          h('span', null, fill(t('sPublished'), { time: relativeTime(site.publishedAt, t) })),
-                          h('span', null, `${fill(t('sFiles'), { n: site.files })} · ${formatBytes(site.bytes)}`),
+                          { className: 'yk-itemActions' },
+                          h(CopyButton, { text: href, label: t('copy'), t }),
+                          h('a', { className: 'yk-btn yk-btn-ghost yk-iconBtn', href, target: '_blank', rel: 'noreferrer noopener', title: t('open'), 'aria-label': t('open') }, h(OpenIcon)),
+                          h(
+                            'button',
+                            {
+                              type: 'button',
+                              className: 'yk-btn yk-btn-ghost yk-dangerHover',
+                              'aria-expanded': asking ? 'true' : 'false',
+                              onClick: () => setConfirming(asking ? '' : site.slug),
+                              disabled: busy !== '',
+                            },
+                            t('sUnpublish'),
+                          ),
                         ),
                       ),
-                      h(
-                        'div',
-                        { className: 'yk-itemActions' },
-                        h(CopyButton, { text: href, label: t('copy'), t }),
-                        h('a', { className: 'yk-btn yk-btn-ghost yk-iconBtn', href, target: '_blank', rel: 'noreferrer noopener', title: t('open'), 'aria-label': t('open') }, h(OpenIcon)),
-                        confirming === site.slug
-                          ? h(
-                              React.Fragment,
-                              null,
-                              h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: () => remove(site.slug), disabled: busy !== '' }, busy === 'delete' ? h(Spinner) : null, t('confirm')),
-                              h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirming('') }, t('cancel')),
-                            )
-                          : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-dangerHover', onClick: () => setConfirming(site.slug) }, t('sUnpublish')),
-                      ),
+                      asking
+                        ? h(ConfirmStrip, {
+                            t,
+                            title: fill(t('confirmUnpublish'), { name: site.title }),
+                            hint: t('confirmUnpublishHint'),
+                            confirmLabel: t('sUnpublish'),
+                            busy: busy === 'delete',
+                            onCancel: () => setConfirming(''),
+                            onConfirm: () => remove(site.slug),
+                          })
+                        : null,
                     )
                   }),
                 ),
@@ -2305,11 +2463,13 @@ button.yk-chipBtn:disabled { cursor: default; }
             fill(packAsZip ? t('fZipN') : t('fDownloadFilesN'), { n: selected.length }),
           ),
         ),
-        h(FlashNote, { flash, keys: ['preview'] }),
+        h(FlashNote, { flash, keys: ['preview'], kind: 'error' }),
         h(Failure, { t, name: 'files', error: failure, onRetry: load }),
 
-        entries.length === 0 && busy !== 'load'
-          ? h(Empty, { icon: h(FolderIcon, { width: 22, height: 22 }), title: t('fEmpty'), hint: t('fEmptyHint') })
+        entries.length === 0
+          ? busy === 'load'
+            ? h(Loading, { text: t('loading') })
+            : h(Empty, { icon: h(FolderIcon, { width: 22, height: 22 }), title: t('fEmpty'), hint: t('fEmptyHint') })
           : h(
               'div',
               { className: 'yk-list' },
@@ -2367,13 +2527,10 @@ button.yk-chipBtn:disabled { cursor: default; }
                     { className: 'yk-itemActions' },
                     isDir
                       ? null
-                      : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => preview(entry) }, t('fPreview')),
+                      : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm', title: t('fPreview'), 'aria-label': t('fPreview'), onClick: () => preview(entry) }, h(OpenIcon, { width: 14, height: 14 })),
                     isDir
                       ? null
                       : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm', title: t('fDownload'), 'aria-label': t('fDownload'), onClick: () => downloadOne(entry) }, h(DownloadIcon, { width: 14, height: 14 })),
-                    isDir
-                      ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => toggle(entry) }, checked ? t('fUnpick') : t('fPick'))
-                      : null,
                   ),
                 )
               }),
@@ -2484,6 +2641,7 @@ button.yk-chipBtn:disabled { cursor: default; }
       const removeNode = (id) =>
         run(`remove:${id}`, async () => {
           adopt((await postJson(`${API.proxy}/remove`, { id })).state)
+          setRemoving('')
         })
 
       const reset = () =>
@@ -2548,7 +2706,7 @@ button.yk-chipBtn:disabled { cursor: default; }
           : null,
 
         h(Failure, { t, name: 'proxy', error: failure, onRetry: load }),
-        state?.lastError ? h(Banner, { kind: 'warn', text: `${t('pLastError')}：${state.lastError}` }) : null,
+        state?.lastError ? h(Banner, { kind: 'warn', text: `${t('pLastError')} · ${state.lastError}` }) : null,
         state === null && busy === 'load' ? h(Loading, { text: t('loading') }) : null,
 
         state !== null
@@ -2573,57 +2731,79 @@ button.yk-chipBtn:disabled { cursor: default; }
                 : h(
                     'div',
                     { className: 'yk-nodeList', role: 'radiogroup', 'aria-label': t('pNodes') },
-                    nodes.map((node) =>
-                      h(
+                    nodes.map((node) => {
+                      const asking = removing === node.id
+                      return h(
                         'div',
-                        { key: node.id, className: node.active ? 'yk-node yk-node-active' : 'yk-node' },
-                        h(
-                          'button',
-                          {
-                            type: 'button',
-                            role: 'radio',
-                            className: 'yk-radio',
-                            'aria-checked': node.active ? 'true' : 'false',
-                            'aria-label': `${t('pUse')} ${node.name}`,
-                            disabled: busy !== '' || node.active,
-                            onClick: () => select(node.id),
-                          },
-                          busy === `select:${node.id}` ? h(Spinner, { size: 12 }) : null,
-                        ),
+                        { key: node.id, className: 'yk-itemWrap' },
                         h(
                           'div',
-                          { className: 'yk-itemMain' },
-                          h(
-                            'div',
-                            { className: 'yk-itemTitleRow' },
-                            h('span', { className: 'yk-nodeName', title: node.name }, node.name),
-                            node.active ? h(Chip, { kind: 'ok', dot: true }, t('pInUse')) : null,
-                            latency(node),
-                          ),
-                          h('div', { className: 'yk-itemMeta' }, h('span', { className: 'yk-mono' }, `${node.server}:${node.port}`), h('span', { className: 'yk-mono' }, node.method)),
-                        ),
-                        h(
-                          'div',
-                          { className: 'yk-itemActions' },
+                          { className: node.active ? 'yk-node yk-node-active' : 'yk-node' },
                           h(
                             'button',
-                            { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => test(node.id), disabled: busy !== '' },
-                            busy === `test:${node.id}` || (busy === 'test-all') ? h(Spinner, { size: 13 }) : null,
-                            t('pTest'),
+                            {
+                              type: 'button',
+                              role: 'radio',
+                              className: 'yk-radio',
+                              'aria-checked': node.active ? 'true' : 'false',
+                              'aria-label': `${t('pUse')} ${node.name}`,
+                              disabled: busy !== '' || node.active,
+                              onClick: () => select(node.id),
+                            },
+                            busy === `select:${node.id}` ? h(Spinner, { size: 12 }) : null,
                           ),
-                          node.active
-                            ? null
-                            : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => select(node.id), disabled: busy !== '' }, t('pUse')),
-                          removing === node.id
-                            ? h('button', { type: 'button', className: 'yk-btn yk-btn-danger yk-btn-sm', onClick: () => removeNode(node.id), disabled: busy !== '' }, t('pConfirmRemove'))
-                            : h(
-                                'button',
-                                { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm yk-dangerHover', title: t('pRemove'), 'aria-label': t('pRemove'), onClick: () => setRemoving(node.id), disabled: busy !== '' },
-                                h(TrashIcon, { width: 14, height: 14 }),
-                              ),
+                          h(
+                            'div',
+                            { className: 'yk-itemMain' },
+                            h(
+                              'div',
+                              { className: 'yk-itemTitleRow' },
+                              h('span', { className: 'yk-nodeName', title: node.name }, node.name),
+                              node.active ? h(Chip, { kind: 'ok', dot: true }, t('pInUse')) : null,
+                              latency(node),
+                            ),
+                            h('div', { className: 'yk-itemMeta' }, h('span', { className: 'yk-mono' }, `${node.server}:${node.port}`), h('span', { className: 'yk-mono' }, node.method)),
+                          ),
+                          h(
+                            'div',
+                            { className: 'yk-itemActions' },
+                            h(
+                              'button',
+                              { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => test(node.id), disabled: busy !== '' },
+                              busy === `test:${node.id}` || (busy === 'test-all') ? h(Spinner, { size: 13 }) : null,
+                              t('pTest'),
+                            ),
+                            node.active
+                              ? null
+                              : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => select(node.id), disabled: busy !== '' }, t('pUse')),
+                            h(
+                              'button',
+                              {
+                                type: 'button',
+                                className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm yk-dangerHover',
+                                title: t('pRemove'),
+                                'aria-label': t('pRemove'),
+                                'aria-expanded': asking ? 'true' : 'false',
+                                onClick: () => setRemoving(asking ? '' : node.id),
+                                disabled: busy !== '',
+                              },
+                              h(TrashIcon, { width: 14, height: 14 }),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
+                        asking
+                          ? h(ConfirmStrip, {
+                              t,
+                              title: fill(t('confirmRemoveNode'), { name: node.name }),
+                              hint: t('confirmRemoveNodeHint'),
+                              confirmLabel: t('pRemove'),
+                              busy: busy === `remove:${node.id}`,
+                              onCancel: () => setRemoving(''),
+                              onConfirm: () => removeNode(node.id),
+                            })
+                          : null,
+                      )
+                    }),
                   ),
               h(
                 'div',
@@ -2796,34 +2976,36 @@ button.yk-chipBtn:disabled { cursor: default; }
             {
               key,
               type: 'button',
-              className: `yk-chip yk-chipBtn${switches[key] ? ' yk-chip-ok' : ''}`,
+              className: 'yk-chip yk-chip-toggle',
               'aria-pressed': switches[key] ? 'true' : 'false',
+              title: `${label}：${switches[key] ? t('gOn') : t('gOff')}`,
               disabled: busy !== '',
               onClick: () => flip(key),
             },
-            `${label} ${switches[key] ? t('gOn') : t('gOff')}`,
+            h('span', { className: 'yk-chip-dot', 'aria-hidden': true }),
+            label,
           ),
         ),
         h('span', { className: 'yk-grow' }),
         h(
           'button',
           { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: runProbe, disabled: busy !== '' },
-          busy === 'probe' ? h(Spinner) : t('gProbe'),
+          busy === 'probe' ? h(Spinner, { size: 13 }) : t('gProbe'),
         ),
       )
       const probeNote =
         probe === null
           ? null
           : h(
-              'p',
-              { className: 'yk-cardNote' },
+              'div',
+              { className: 'yk-foot' },
               probe.ok === true
                 ? `${probe.hasInject && probe.hasAnchor ? t('gProbeOk') : t('gProbeMiss')} · ${probe.sessionId ?? '?'}`
                 : fill(t('gProbeFail'), { reason: probe.reason ?? 'unknown' }),
             )
       const statsNote = h(
-        'p',
-        { className: 'yk-cardNote' },
+        'div',
+        { className: 'yk-foot' },
         stats && stats.assembled > 0
           ? `${fill(t('gStats'), { a: stats.assembled, b: (stats.scrubbed ?? 0) + (stats.tools ?? 0), c: stats.retried ?? 0 })}${
               stats.lastAt ? ` · ${String(stats.lastAt).slice(11, 19)}` : ''
@@ -2846,7 +3028,7 @@ button.yk-chipBtn:disabled { cursor: default; }
                 action: h(
                   'div',
                   { className: 'yk-cardTools' },
-                  h(Chip, { kind: 'ok', dot: true }, config.presetId ?? 'unrestricted'),
+                  h(Chip, { kind: 'accent', dot: true }, t('gPresetUnrestricted')),
                   h(Chip, { kind: config.isCustom ? 'warn' : undefined }, config.isCustom ? t('gCustom') : t('gDefault')),
                 ),
               },
@@ -2882,7 +3064,9 @@ button.yk-chipBtn:disabled { cursor: default; }
                       h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirmReset(false) }, t('cancel')),
                       h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: reset, disabled: busy !== '' }, t('gConfirmReset')),
                     )
-                  : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirmReset(true), disabled: busy !== '' || !config.isCustom }, t('gReset')),
+                  : config.isCustom
+                    ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirmReset(true), disabled: busy !== '' }, t('gReset'))
+                    : null,
               ),
             )
           : null,
@@ -2989,18 +3173,39 @@ button.yk-chipBtn:disabled { cursor: default; }
                 feed?.available
                   ? h('button', { type: 'button', className: 'yk-btn yk-btn-solid', onClick: () => update(undefined), disabled }, busy === 'update' ? h(Spinner) : h(DownloadIcon), busy === 'update' ? t('rUpdating') : fill(t('rUpdateTo'), { version: feed.latest }))
                   : h('button', { type: 'button', className: 'yk-btn', onClick: check, disabled }, busy === 'check' ? h(Spinner) : flash?.key === 'check' ? null : h(RefreshIcon), busy === 'check' ? t('rChecking') : flashed(flash, 'check', t('rCheck'))),
-                confirmRestart
-                  ? h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: restart, disabled }, busy === 'restart' ? h(Spinner) : h(PowerIcon), t('rConfirmRestart'))
-                  : h('button', { type: 'button', className: disk?.stale ? 'yk-btn yk-btn-solid' : 'yk-btn yk-btn-ghost', onClick: () => setConfirmRestart(true), disabled }, h(PowerIcon), t('rRestart')),
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: disk?.stale || confirmRestart ? 'yk-btn yk-btn-solid' : 'yk-btn yk-btn-ghost',
+                    'aria-expanded': confirmRestart ? 'true' : 'false',
+                    onClick: () => setConfirmRestart((value) => !value),
+                    disabled,
+                  },
+                  h(PowerIcon),
+                  t('rRestart'),
+                ),
               ),
             )
+          : null,
+
+        snap !== null && confirmRestart
+          ? h(ConfirmStrip, {
+              t,
+              title: t('confirmRestart'),
+              hint: t('confirmRestartHint'),
+              confirmLabel: t('rRestart'),
+              busy: busy === 'restart',
+              onCancel: () => setConfirmRestart(false),
+              onConfirm: restart,
+            })
           : null,
 
         h(Failure, { t, name: 'runtime', error: failure, onRetry: load }),
         snap === null && failure === null ? h(Loading, { text: t('loading') }) : null,
 
         snap !== null ? h('div', { className: 'yk-grid' },
-          h(Card, { title: t('rCardVersion'), icon: h(DownloadIcon, { width: 16, height: 16 }), action: h('button', { type: 'button', className: 'yk-cardAction', onClick: () => setPicking((value) => !value) }, t('rPickVersion')) },
+          h(Card, { title: t('rCardVersion'), icon: h(DownloadIcon, { width: 16, height: 16 }), action: h('button', { type: 'button', className: 'yk-cardAction', 'aria-expanded': picking ? 'true' : 'false', onClick: () => setPicking((value) => !value) }, picking ? t('rPickVersionClose') : t('rPickVersion')) },
             h('div', { className: 'yk-rows' },
               disk?.stale ? h(Row, { label: t('rOnDisk'), value: disk?.version ?? '—', mono: true }) : null,
               h(Row, { label: t('rChannel'), value: runtime?.channel ?? '—', mono: true }),
@@ -3188,7 +3393,7 @@ button.yk-chipBtn:disabled { cursor: default; }
             { className: 'yk-headBrand' },
             h('div', { className: 'yk-headLogo' }, h(PanelIcon, { size: 40, active: true })),
             h('h1', { className: 'yk-title' }, t('title')),
-            overview !== null ? h(Chip, { kind: 'purple' }, `v${overview.version}`) : null,
+            overview !== null ? h(Chip, { kind: 'accent' }, `v${overview.version}`) : null,
           ),
           h(UpdateControl, { t, components, onRestart }),
         ),
@@ -3210,7 +3415,7 @@ button.yk-chipBtn:disabled { cursor: default; }
                 onClick: () => select(key),
               },
               h(TAB_ICON[key], { width: 14, height: 14 }),
-              h('span', { className: 'yk-navTabLabel' }, t(TAB_LABEL[key])),
+              t(TAB_LABEL[key]),
             ),
           ),
         ),

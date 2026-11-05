@@ -256,7 +256,9 @@ export async function removeWorkspaceDirectory(directory, extraProtected = [], f
   const resolved = path.resolve(directory)
   try {
     await fs.rm(resolved, { recursive: true, force: true, maxRetries: 2 })
-    return { removed: true, note: `已删除工作区目录 ${resolved}` }
+    // The success flag already says this; an empty note keeps the response from
+    // repeating it in prose the caller would then have to recognise.
+    return { removed: true, note: '' }
   } catch (error) {
     if (error?.code === 'EBUSY' || error?.code === 'EPERM' || error?.code === 'EACCES') {
       // The children went first; only the directory entry itself was refused.

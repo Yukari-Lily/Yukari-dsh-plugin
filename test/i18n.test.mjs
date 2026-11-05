@@ -22,3 +22,14 @@ test('the two client dictionaries declare exactly the same keys', async () => {
   assert.deepEqual(zh.filter((key) => !en.includes(key)), [], 'keys missing from en')
   assert.deepEqual(en.filter((key) => !zh.includes(key)), [], 'keys missing from zh')
 })
+
+test('every delete-failure reason the host can report has an entry', async () => {
+  const text = await readFile(new URL('../client.js', import.meta.url), 'utf8')
+  const zh = keys(text, 'zh')
+  // Admin reasons plus the one the io-error path adds; an unknown reason would
+  // otherwise surface as the literal key "cReason_<reason>" in the panel.
+  const reasons = ['live', 'unknown', 'io-error', 'no-artifact', 'in-memory', 'unsafe-path']
+  for (const reason of reasons) {
+    assert.ok(zh.includes(`cReason_${reason}`), `missing cReason_${reason}`)
+  }
+})

@@ -25,7 +25,7 @@ import path from 'node:path'
 import { markMounted } from '../shared/mounted.js'
 import { BODY_LIMITS, guardRoute, readJsonBody, sendJson } from '../shared/http.js'
 import { ANCHOR_TEXT, CHILD_ANCHOR_TEXT, DEFAULT_PROMPT, SENTINEL } from './lib/prompts.js'
-import { ensurePresetFiles, registerPresetService, UNRESTRICTED_PRESET_ID } from './lib/preset.js'
+import { ensurePresetFiles, getPresetDefinition, UNRESTRICTED_PRESET_ID } from './lib/preset.js'
 import {
   ANCHOR_SECTION,
   CHILD_ANCHOR_CONTEXT,
@@ -40,7 +40,7 @@ import { installStreamRetry } from './lib/stream-retry.js'
 
 export const API_PATH = '/purge/api'
 /** Services this plugin needs */
-export const inject = ['systemPrompt', 'webServer', 'connection']
+export const inject = ['agentPresets', 'systemPrompt', 'webServer', 'connection']
 
 /** How many sessions the retry gate remembers. */
 const SESSION_CAP = 500
@@ -98,7 +98,7 @@ function installAssembleGuard(promptHost, rewriteFn) {
   }
 }
 
-export function apply(ctx, config = {}) {
+export async function apply(ctx, config = {}) {
   markMounted(ctx, 'purge')
 
   const dshHome = resolveDshHome()
@@ -136,8 +136,12 @@ export function apply(ctx, config = {}) {
   }
   /** Session ids seen by the rewriter; the retry gate only answers for these. */
   const sessions = new Map()
+  /** Set while the self-check runs its own assembly. */
+  let probing = false
 
   function noteSession(context) {
+    // A self-check assembles a real session; it must not move the numbers it reports.
+    if (probing) return
     const session = context?.agent?.session ?? context?.session
     const id = session?.id
     if (typeof id !== 'string' || id === '') return
@@ -210,9 +214,19 @@ export function apply(ctx, config = {}) {
   /* ---------------------------------------------------------------- preset + prompt */
 
   ensurePresetFiles(dshHome)
-  const unregisterPreset = registerPresetService(ctx)
-  if (typeof ctx.effect === 'function') {
-    ctx.effect(() => () => unregisterPreset(), 'yukari-purge:preset')
+  // `agentPresets` is declared in `inject`, so the registry exists by the time
+  // apply runs: register once and let the effect own the release.
+  let releasePreset = null
+  try {
+    releasePreset = await ctx.agentPresets.register(getPresetDefinition())
+    ctx.logger?.info?.('yukari-purge: 已注册预设 [无限制模式]')
+  } catch (error) {
+    const message = String(error?.message ?? error)
+    // A second mount (hot reload) reports the existing registration; not an error.
+    if (!/already|duplicate/i.test(message)) ctx.logger?.warn?.('yukari-purge: 注册预设失败: %s', message)
+  }
+  if (typeof releasePreset === 'function') {
+    ctx.effect(() => () => releasePreset(), 'yukari-purge:preset')
   }
 
   // Head section: the operator contract. Empty for every other preset.
@@ -358,21 +372,25 @@ export function apply(ctx, config = {}) {
     )
     if (!agent) return { ok: false, reason: 'not-live', sessionId: target }
 
+    let assembly = null
+    probing = true
     try {
-      const assembly = await ctx.systemPrompt.assemble({ agent })
-      const names = (assembly?.sections ?? []).map((section) => String(section?.name ?? ''))
-      const text = (assembly?.sections ?? []).map((section) => String(section?.text ?? '')).join('\n')
-      return {
-        ok: true,
-        sessionId: shortId(agent.session?.id ?? target),
-        hasInject: names.includes(PURGE_SECTION) && text.includes(SENTINEL),
-        hasAnchor: names.includes(ANCHOR_SECTION),
-        anchorBytes: settings.anchor ? ANCHOR_TEXT.length : 0,
-        sections: names.slice(0, 12),
-        tools: Array.isArray(assembly?.tools) ? assembly.tools.length : 0,
-      }
+      assembly = await ctx.systemPrompt.assemble({ agent })
     } catch (error) {
       return { ok: false, reason: String(error?.message ?? error) }
+    } finally {
+      probing = false
+    }
+    const names = (assembly?.sections ?? []).map((section) => String(section?.name ?? ''))
+    const text = (assembly?.sections ?? []).map((section) => String(section?.text ?? '')).join('\n')
+    return {
+      ok: true,
+      sessionId: shortId(agent.session?.id ?? target),
+      hasInject: names.includes(PURGE_SECTION) && text.includes(SENTINEL),
+      hasAnchor: names.includes(ANCHOR_SECTION),
+      anchorBytes: settings.anchor ? ANCHOR_TEXT.length : 0,
+      sections: names.slice(0, 12),
+      tools: Array.isArray(assembly?.tools) ? assembly.tools.length : 0,
     }
   }
 

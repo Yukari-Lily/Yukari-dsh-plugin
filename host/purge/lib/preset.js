@@ -1,9 +1,10 @@
 /**
  * Preset registration for Unrestricted Mode (无限制模式).
  *
- * Provides dual registration:
+ * Two halves:
  * 1. Disk installation: copies preset.yml and agent.cordis.yml to $DSH_HOME/.agent-presets/unrestricted/
- * 2. In-memory registration: calls ctx.agentPresets.register(definition) once the registry service is ready.
+ * 2. In-memory registration: `index.js` calls `ctx.agentPresets.register(definition)`, which the
+ *    plugin's `inject` list guarantees is available before `apply()` runs.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -84,64 +85,5 @@ export function ensurePresetFiles(dshHome) {
     }
   } catch {
     // Non-fatal if filesystem is read-only
-  }
-}
-
-/**
- * Register the preset into Cordis agentPresets registry when available.
- */
-export function registerPresetService(ctx) {
-  let release = null
-  let stopped = false
-  let tries = 0
-  const maxTries = 40
-
-  const getRegistry = () => {
-    try {
-      const p = ctx.agentPresets
-      if (p && typeof p.register === 'function') return p
-    } catch {}
-    try {
-      const g = ctx.get?.('agentPresets')
-      if (g && typeof g.register === 'function') return g
-    } catch {}
-    return null
-  }
-
-  const declare = async () => {
-    if (stopped) return
-    const reg = getRegistry()
-    if (!reg) {
-      if (tries++ < maxTries) setTimeout(declare, 500)
-      return
-    }
-
-    try {
-      const definition = getPresetDefinition()
-      release = await reg.register(definition)
-      if (stopped) {
-        if (typeof release === 'function') await release()
-        release = null
-        return
-      }
-      ctx.logger?.info?.('yukari-purge: 已成功注册预设 [无限制模式]')
-    } catch (err) {
-      const msg = String(err?.message || err)
-      if (!/already|duplicate/i.test(msg)) {
-        ctx.logger?.warn?.('yukari-purge: 注册预设失败: %s', msg)
-        if (tries++ < maxTries) setTimeout(declare, 1000)
-      }
-    }
-  }
-
-  declare()
-
-  return () => {
-    stopped = true
-    if (typeof release === 'function') {
-      try {
-        release()
-      } catch {}
-    }
   }
 }

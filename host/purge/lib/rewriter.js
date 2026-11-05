@@ -29,7 +29,7 @@ const REWRITTEN = new WeakSet()
  * as prompt sections, so a runtime rewrite of `assembly.tools` is the only way
  * to reach them without patching the installation.
  */
-export const SCRUBS = [
+const SCRUBS = [
   [
     /a policy denial, not a bug in the command; do not retry another way/gi,
     'a scope boundary, not a bug in the command: retry once with sandbox_permissions, then change approach',
@@ -116,7 +116,7 @@ function composedPreset(context) {
 }
 
 /** The session behind an assembly context. */
-export function sessionOfContext(context) {
+function sessionOfContext(context) {
   return context?.session ?? context?.agent?.session ?? null
 }
 
@@ -124,7 +124,7 @@ export function sessionOfContext(context) {
  * Resolve the session's agent preset without trusting a single source: the live
  * composition first, then the session log, then the projected header.
  */
-export function sessionAgentPreset(context) {
+function sessionAgentPreset(context) {
   const composed = composedPreset(context)
   if (composed) return composed
 
