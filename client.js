@@ -212,6 +212,7 @@ window.__ModuleLoader__.load({
       cNoMatchHint: '换一个关键词，或切换范围。',
       cNoChats: '还没有会话',
       cDeleted: '已删除 {n} 个会话',
+      cDeletedOne: '已删除 1 个会话',
       cFilesDeleted: '清理了 {n} 个文件',
       cDirDeleted: '工作区及目录已删除',
       cWorkspaceRemoved: '工作区已移除（目录保留）',
@@ -258,6 +259,7 @@ window.__ModuleLoader__.load({
       fPreview: '预览',
       fDownload: '下载',
       fDownloadFilesN: '下载 {n} 个文件',
+      fDownloadFilesOne: '下载 1 个文件',
       fZipN: '打包下载 {n} 项',
       fZipReason: '超过 {n} 个文件时自动改用打包，避免连续弹出下载框',
       fSelectAll: '全选',
@@ -301,6 +303,8 @@ window.__ModuleLoader__.load({
       pLastError: '上次错误',
       pStateFile: '节点和密码保存在本地状态文件（权限 0600），重启后自动恢复。',
 
+      ghNoState: '服务器没有返回 Github 状态',
+      ghNoRepo: '服务器没有返回仓库信息',
       gTitle: '无限制模式',
       gPresetUnrestricted: '无限制模式',
       gDesc: '插件注册了一个独立的对话模式「无限制模式」：选中后注入首段契约与尾部锚点、改写宿主的劝退句，模型仍然拒绝时自动重发一次；标准模式和其他模式完全不受影响。',
@@ -668,6 +672,7 @@ window.__ModuleLoader__.load({
       cNoMatchHint: 'Try another keyword or scope.',
       cNoChats: 'No chats yet',
       cDeleted: 'Deleted {n} chats',
+      cDeletedOne: 'Deleted 1 chat',
       cFilesDeleted: 'removed {n} files',
       cDirDeleted: 'workspace and its directory deleted',
       cWorkspaceRemoved: 'workspace removed (directory kept)',
@@ -714,6 +719,7 @@ window.__ModuleLoader__.load({
       fPreview: 'Preview',
       fDownload: 'Download',
       fDownloadFilesN: 'Download {n} files',
+      fDownloadFilesOne: 'Download 1 file',
       fZipN: 'Download {n} as ZIP',
       fZipReason: 'More than {n} files are packed into one ZIP to avoid a download prompt per file',
       fSelectAll: 'Select all',
@@ -757,6 +763,8 @@ window.__ModuleLoader__.load({
       pLastError: 'Last error',
       pStateFile: 'Nodes and passwords are kept in a local state file (mode 0600) and restored after a restart.',
 
+      ghNoState: 'The server returned no GitHub status',
+      ghNoRepo: 'The server returned no repository details',
       gTitle: 'Unrestricted mode',
       gPresetUnrestricted: 'Unrestricted',
       gDesc: 'The plugin registers a separate chat mode, “Unrestricted”: picking it injects a head contract and a tail anchor, rewrites the host sentences that teach the model to give up, and retries once if it still refuses. Standard mode is untouched.',
@@ -1594,9 +1602,20 @@ window.__ModuleLoader__.load({
     }
 
     function Segmented({ value, items, onChange, label }) {
+      const onKeyDown = (event) => {
+        const step = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0
+        if (step === 0) return
+        event.preventDefault()
+        const index = items.findIndex((item) => item.key === value)
+        const next = items[(index + step + items.length) % items.length]
+        if (next === undefined) return
+        onChange(next.key)
+        const buttons = event.currentTarget.querySelectorAll('[role="radio"]')
+        buttons[(index + step + items.length) % items.length]?.focus()
+      }
       return h(
         'div',
-        { className: 'yk-seg', role: 'radiogroup', 'aria-label': label },
+        { className: 'yk-seg', role: 'radiogroup', 'aria-label': label, onKeyDown },
         items.map((item) =>
           h(
             'button',
@@ -1666,6 +1685,17 @@ window.__ModuleLoader__.load({
      * belongs to, so the trigger stays where the user found it.
      */
     function ConfirmStrip({ t, title, hint, confirmLabel, onCancel, onConfirm, busy }) {
+      const cancelRef = React.useRef(null)
+      React.useEffect(() => {
+        cancelRef.current?.focus()
+      }, [])
+      React.useEffect(() => {
+        const onKey = (event) => {
+          if (event.key === 'Escape') onCancel()
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+      }, [onCancel])
       return h(
         'div',
         { className: 'yk-confirm yk-confirmInline', role: 'alertdialog', 'aria-label': title },
@@ -1674,7 +1704,7 @@ window.__ModuleLoader__.load({
         h(
           'div',
           { className: 'yk-confirmActions' },
-          h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: onCancel, disabled: busy === true }, t('cancel')),
+          h('button', { ref: cancelRef, type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: onCancel, disabled: busy === true }, t('cancel')),
           h(
             'button',
             { type: 'button', className: 'yk-btn yk-btn-danger yk-btn-sm', onClick: onConfirm, disabled: busy === true },
@@ -1997,6 +2027,8 @@ window.__ModuleLoader__.load({
       const retry = async () => { try { setFailure(null); setState((await postJson(`${API.browser}/install/retry`, {})).state) } catch (error) { setFailure(failureOf(error)) } }
       if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'browser' }))
       const busy = status === 'installing' || status === 'checking'
+      // The runtime reports `progress.percent`; reading `state.percent` left the bar at 5%.
+      const percent = Number.isFinite(state?.progress?.percent) ? state.progress.percent : null
       return h('div', { className: 'yk-body' },
         h(Failure, { t, name: 'browser', error: failure, onRetry: load }),
         h(Card, { title: t('compBrowser'), icon: h(GlobeIcon, { width: 16, height: 16 }), action: h(RefreshButton, { t, onClick: load, spinning: busy }) },
@@ -2032,7 +2064,13 @@ window.__ModuleLoader__.load({
                       : null,
                   )
               : null,
-            busy ? h('div', { className: 'yk-progress', role: 'progressbar', 'aria-valuenow': state?.percent ?? 0 }, h('div', { className: 'yk-progressBar', style: { width: `${state?.percent ?? 5}%` } })) : null,
+            busy
+              ? h(
+                  'div',
+                  { className: 'yk-progress', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': percent ?? 0 },
+                  h('div', { className: 'yk-progressBar', style: { width: `${percent ?? 5}%` } }),
+                )
+              : null,
             status === 'error' ? h(Banner, { kind: 'error', text: state.error }) : null,
             !busy ? h('div', null, h('button', { type: 'button', className: 'yk-btn', onClick: retry }, h(DownloadIcon), status === 'ready' ? t('bVerify') : t('bInstall'))) : null,
           ),
@@ -2115,6 +2153,8 @@ window.__ModuleLoader__.load({
         return [row.title ?? '', row.id, row.cwd ?? '', row.workspaceTitle ?? ''].join('\n').toLowerCase().includes(needle)
       })
 
+      const visibleIds = new Set(visible.map((row) => row.id))
+
       const groups = (() => {
         if (groupBy !== 'workspace') return null
         const map = new Map()
@@ -2122,7 +2162,9 @@ window.__ModuleLoader__.load({
           map.set(ws.id, { id: ws.id, registered: true, title: ws.title || ws.path || ws.id, path: ws.path || '', rows: [] })
         }
         const loose = { id: '__none__', registered: false, title: t('cWorkspaceUnassigned'), path: '', rows: [] }
-        for (const row of visible) {
+        // Everything, not just the filtered rows: deleting a workspace or a parent
+        // must not leave the chats a search happens to hide behind.
+        for (const row of rows) {
           if (row.workspaceId && map.has(row.workspaceId)) {
             map.get(row.workspaceId).rows.push(row)
           } else if (row.cwd) {
@@ -2182,7 +2224,7 @@ window.__ModuleLoader__.load({
           setSelected((current) => current.filter((id) => !payload.ids.includes(id)))
           setConfirming(null)
           setRowConfirm(null)
-          const parts = [fill(t('cDeleted'), { n: payload.deleted ?? 0 })]
+          const parts = [counted(t, 'cDeletedOne', 'cDeleted', payload.deleted ?? 0)]
           if (payload.filesDeleted > 0) parts.push(fill(t('cFilesDeleted'), { n: payload.filesDeleted }))
           if (payload.workspaceDirDeleted) parts.push(t('cDirDeleted'))
           else if (payload.workspaceRemoved) parts.push(t('cWorkspaceRemoved'))
@@ -2237,15 +2279,17 @@ window.__ModuleLoader__.load({
           ? ''
           : confirming.workspace !== undefined
             ? fill(t('cConfirmWorkspace'), { name: confirming.workspace.title, n: confirming.ids.length })
-            : fill(t('cConfirm'), { n: confirming.ids.length })
+            : confirming.ids.length === 1
+              ? t('cDeleteOne')
+              : fill(t('cConfirm'), { n: confirming.ids.length })
 
-      /** Children of one chat inside the current (already filtered) group. */
-      const childrenOf = (group, id) => group.rows.filter((row) => row.parentSession === id)
+      /** Children of one chat that the current filter actually shows. */
+      const childrenOf = (group, id) => group.rows.filter((row) => row.parentSession === id && visibleIds.has(row.id))
 
-      /** Every descendant id of one chat, depth first. */
+      /** Every descendant id of one chat, depth first — hidden ones included. */
       const descendantsOf = (group, id) => {
         const found = []
-        for (const child of childrenOf(group, id)) {
+        for (const child of group.rows.filter((row) => row.parentSession === id)) {
           found.push(child.id, ...descendantsOf(group, child.id))
         }
         return found
@@ -2407,9 +2451,10 @@ window.__ModuleLoader__.load({
       const renderGroup = (group) => {
         const isCollapsed = collapsed.includes(group.id)
         const ids = group.rows.map((row) => row.id)
+        const shown = group.rows.filter((row) => visibleIds.has(row.id))
         const picked = ids.filter((id) => selected.includes(id)).length
         const allPicked = ids.length > 0 && picked === ids.length
-        const roots = group.rows.filter((row) => !row.parentSession || !group.rows.some((candidate) => candidate.id === row.parentSession))
+        const roots = shown.filter((row) => !row.parentSession || !shown.some((candidate) => candidate.id === row.parentSession))
         return h(
           'section',
           { className: 'yk-wsGroup', key: group.id },
@@ -2572,7 +2617,7 @@ window.__ModuleLoader__.load({
             : groups !== null
               ? h('div', { className: 'yk-groups' }, groups.map(renderGroup))
               : h('div', { className: 'yk-list' }, (() => {
-                  const flat = { id: '__flat__', rows: visible }
+                  const flat = { id: '__flat__', rows }
                   const roots = visible.filter((row) => !row.parentSession || !visible.some((candidate) => candidate.id === row.parentSession))
                   return roots.map((row) => renderRow(row, flat))
                 })()),
@@ -2803,21 +2848,26 @@ window.__ModuleLoader__.load({
 
       const root = roots === null ? null : roots.find((item) => item.id === rootId) ?? null
 
-      React.useEffect(() => {
-        (async () => {
-          try {
-            const payload = await getJson(`${API.files}/roots`, signal)
-            if (!alive.current) return
-            setRoots(payload.roots ?? [])
-            setRootId((current) => (current !== '' ? current : payload.roots?.[0]?.id ?? ''))
-          } catch (error) {
-            if (alive.current) setFailure(failureOf(error))
-          }
-        })()
+      const loadRoots = React.useCallback(async () => {
+        try {
+          const payload = await getJson(`${API.files}/roots`, signal)
+          if (!alive.current) return
+          setRoots(payload.roots ?? [])
+          setFailure(null)
+          setRootId((current) => (current !== '' ? current : payload.roots?.[0]?.id ?? ''))
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        }
       }, [])
 
+      React.useEffect(() => { void loadRoots() }, [loadRoots])
+
       const load = React.useCallback(async () => {
-        if (rootId === '') return
+        // Without roots there is nothing to list: retry the roots request, not the path.
+        if (rootId === '') {
+          await loadRoots()
+          return
+        }
         setBusy('load')
         try {
           const query = `?root=${encodeURIComponent(rootId)}&path=${encodeURIComponent(path)}`
@@ -2958,7 +3008,7 @@ window.__ModuleLoader__.load({
               title: !packAsZip || hasDirectory ? undefined : fill(t('fZipReason'), { n: 10 }),
             },
             busy === 'archive' ? h(Spinner) : h(DownloadIcon),
-            fill(packAsZip ? t('fZipN') : t('fDownloadFilesN'), { n: selected.length }),
+            packAsZip ? fill(t('fZipN'), { n: selected.length }) : counted(t, 'fDownloadFilesOne', 'fDownloadFilesN', selected.length),
           ),
         ),
         h(FlashNote, { flash, keys: ['preview'], kind: 'error' }),
@@ -3084,8 +3134,10 @@ window.__ModuleLoader__.load({
         try {
           await operation()
         } catch (error) {
-          if (error?.state !== undefined) adopt(error.state)
           setFailure(failureOf(error))
+          // A failed test or switch is what makes the host fail closed, and that
+          // decision is not in the error body: re-read the state instead.
+          void load()
         } finally {
           setBusy('')
           setRemoving('')
@@ -3437,7 +3489,7 @@ window.__ModuleLoader__.load({
             error.status = response.status
             throw error
           }
-          if (!payload?.state) throw new Error('服务器没有返回 Github 状态')
+          if (!payload?.state) throw new Error(t('ghNoState'))
           if (!alive.current) return
           setState(payload.state)
           setToken('')
@@ -3457,7 +3509,7 @@ window.__ModuleLoader__.load({
         setFailure(null)
         try {
           const payload = await postJson(`${API.github}/verify`, {})
-          if (!payload?.state) throw new Error('服务器没有返回 Github 状态')
+          if (!payload?.state) throw new Error(t('ghNoState'))
           if (!alive.current) return
           setState(payload.state)
           show('verify', t('ghVerified'))
@@ -3473,7 +3525,7 @@ window.__ModuleLoader__.load({
         setFailure(null)
         try {
           const payload = await postJson(`${API.github}/install`, {})
-          if (!payload?.state) throw new Error('服务器没有返回 Github 状态')
+          if (!payload?.state) throw new Error(t('ghNoState'))
           if (!alive.current) return
           setState(payload.state)
           show('repair', t('ghRepaired'))
@@ -3489,7 +3541,7 @@ window.__ModuleLoader__.load({
         setFailure(null)
         try {
           const payload = await postJson(`${API.github}/clear`, {})
-          if (!payload?.state) throw new Error('服务器没有返回 Github 状态')
+          if (!payload?.state) throw new Error(t('ghNoState'))
           if (!alive.current) return
           setState(payload.state)
           setConfirmClear(false)
@@ -3511,7 +3563,7 @@ window.__ModuleLoader__.load({
         setRepoFailure(null)
         try {
           const payload = await postJson(`${API.github}/repo`, { repo: value })
-          if (!payload?.repo) throw new Error('服务器没有返回仓库信息')
+          if (!payload?.repo) throw new Error(t('ghNoRepo'))
           if (!alive.current) return
           setRepoResult(payload.repo)
         } catch (error) {
