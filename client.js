@@ -388,7 +388,6 @@ window.__ModuleLoader__.load({
       ghAccount: '账号',
       ghLogin: '登录名',
       ghTokenType: '令牌类型',
-      ghScopes: '权限范围',
       ghExpiry: '有效期',
       ghExpired: '已过期',
       ghNeverExpires: '不过期',
@@ -849,7 +848,6 @@ window.__ModuleLoader__.load({
       ghAccount: 'Account',
       ghLogin: 'Login',
       ghTokenType: 'Token type',
-      ghScopes: 'Scopes',
       ghExpiry: 'Expiry',
       ghExpired: 'Expired',
       ghNeverExpires: 'No expiry',
@@ -3687,7 +3685,6 @@ window.__ModuleLoader__.load({
                     { className: 'yk-rows' },
                     h(Row, { label: t('ghLogin'), value: account?.login ?? '—', mono: true }),
                     h(Row, { label: t('ghTokenType'), value: typeLabel }),
-                    h(Row, { label: t('ghScopes'), value: account?.scopes?.length ? account.scopes.join(', ') : '—' }),
                     h(Row, {
                       label: t('ghExpiry'),
                       value: expiry,
