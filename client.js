@@ -976,8 +976,11 @@ window.__ModuleLoader__.load({
 .yk-headLogo { width: 32px; height: 32px; flex: none; display: grid; place-items: center; }
 .yk-title { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
 .yk-logoFallback { display: grid; place-items: center; border-radius: var(--dsw-radius-md); font-weight: 650; background: var(--yk-soft); color: var(--yk-accent); }
-.yk-navBar { display: flex; align-items: center; gap: 2px; padding: 3px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--yk-line); }
+.yk-navBar { --yk-navFadeL: 0px; --yk-navFadeR: 0px; display: flex; align-items: center; gap: 2px; padding: 3px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; border-bottom: 1px solid var(--yk-line); -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--yk-navFadeL), #000 calc(100% - var(--yk-navFadeR)), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 var(--yk-navFadeL), #000 calc(100% - var(--yk-navFadeR)), transparent 100%); }
 .yk-navBar::-webkit-scrollbar { display: none; }
+.yk-navBar[data-scrollable="true"] { cursor: grab; }
+.yk-navBar[data-dragging="true"] { cursor: grabbing; user-select: none; }
+.yk-navBar[data-dragging="true"] .yk-navTab { pointer-events: none; }
 .yk-navTab { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 13px; font-weight: 500; height: 36px; padding: 0 13px; border-radius: var(--dsw-radius-md); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; flex: 0 0 auto; transition: color .15s, background .15s; }
 .yk-navTab:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
 .yk-navTab[aria-selected="true"] { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-active); }
@@ -5490,6 +5493,103 @@ window.__ModuleLoader__.load({
       const tabs = TABS.filter((key) => key === 'overview' || components === null || Boolean(components[key]))
       const current = tabs.includes(tab) ? tab : 'overview'
 
+      /* The tab strip is wider than the panel: the wheel and a left-button drag
+         scroll it sideways, and the fade masks only show on the side that still
+         has tabs hidden. */
+      React.useEffect(() => {
+        const bar = tabsRef.current
+        if (!bar) return undefined
+
+        const maxScroll = () => bar.scrollWidth - bar.clientWidth
+        const syncFade = () => {
+          const max = maxScroll()
+          bar.dataset.scrollable = max > 1 ? 'true' : 'false'
+          bar.style.setProperty('--yk-navFadeL', bar.scrollLeft > 1 ? '22px' : '0px')
+          bar.style.setProperty('--yk-navFadeR', bar.scrollLeft < max - 1 ? '22px' : '0px')
+        }
+
+        const onWheel = (event) => {
+          if (event.ctrlKey) return
+          /* Horizontal deltas already scroll natively; only convert the vertical wheel. */
+          if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+          const max = maxScroll()
+          if (max <= 1) return
+          const step = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaMode === 2 ? event.deltaY * bar.clientWidth : event.deltaY
+          const next = Math.min(max, Math.max(0, bar.scrollLeft + step))
+          /* At either end let the page keep its own scrolling. */
+          if (next === bar.scrollLeft) return
+          bar.scrollLeft = next
+          event.preventDefault()
+          syncFade()
+        }
+
+        /* Drag-to-pan with the left button; a real drag swallows the click so the
+           tab under the cursor is not selected by accident. */
+        let drag = null
+        let swallowClick = false
+
+        const onPointerDown = (event) => {
+          if (event.pointerType !== 'mouse' || event.button !== 0) return
+          if (maxScroll() <= 1) return
+          drag = { id: event.pointerId, x: event.clientX, left: bar.scrollLeft, moved: false }
+        }
+
+        const onPointerMove = (event) => {
+          if (!drag || event.pointerId !== drag.id) return
+          const dx = event.clientX - drag.x
+          if (!drag.moved) {
+            if (Math.abs(dx) < 4) return
+            drag.moved = true
+            bar.dataset.dragging = 'true'
+            bar.setPointerCapture?.(event.pointerId)
+          }
+          event.preventDefault()
+          bar.scrollLeft = drag.left - dx
+          syncFade()
+        }
+
+        const onClickCapture = (event) => {
+          if (!swallowClick) return
+          swallowClick = false
+          event.preventDefault()
+          event.stopPropagation()
+        }
+
+        const endDrag = (event) => {
+          if (!drag) return
+          const moved = drag.moved
+          drag = null
+          delete bar.dataset.dragging
+          if (bar.hasPointerCapture?.(event.pointerId)) bar.releasePointerCapture?.(event.pointerId)
+          if (moved) swallowClick = true
+        }
+
+        bar.addEventListener('wheel', onWheel, { passive: false })
+        bar.addEventListener('pointerdown', onPointerDown)
+        bar.addEventListener('pointermove', onPointerMove)
+        bar.addEventListener('pointerup', endDrag)
+        bar.addEventListener('pointercancel', endDrag)
+        bar.addEventListener('click', onClickCapture, true)
+        bar.addEventListener('scroll', syncFade, { passive: true })
+        window.addEventListener('resize', syncFade)
+        /* The panel lives in a resizable sidebar, so the viewport resizes are not
+           enough: watch the strip itself for width changes. */
+        const watcher = typeof ResizeObserver === 'function' ? new ResizeObserver(syncFade) : null
+        watcher?.observe(bar)
+        syncFade()
+        return () => {
+          watcher?.disconnect()
+          bar.removeEventListener('wheel', onWheel)
+          bar.removeEventListener('pointerdown', onPointerDown)
+          bar.removeEventListener('pointermove', onPointerMove)
+          bar.removeEventListener('pointerup', endDrag)
+          bar.removeEventListener('pointercancel', endDrag)
+          bar.removeEventListener('click', onClickCapture, true)
+          bar.removeEventListener('scroll', syncFade)
+          window.removeEventListener('resize', syncFade)
+        }
+      }, [tabs.length])
+
       const select = React.useCallback((next) => {
         setTab(next)
         try {
@@ -5514,6 +5614,17 @@ window.__ModuleLoader__.load({
       }
 
       const onRestart = () => setRestarting(true)
+
+      /* Keep the active tab inside the visible strip (click, keyboard or restore). */
+      React.useEffect(() => {
+        const bar = tabsRef.current
+        const tabEl = bar?.querySelector(`[data-tab="${current}"]`)
+        if (!bar || !tabEl) return
+        const outer = bar.getBoundingClientRect()
+        const inner = tabEl.getBoundingClientRect()
+        if (inner.left < outer.left) bar.scrollLeft -= outer.left - inner.left + 10
+        else if (inner.right > outer.right) bar.scrollLeft += inner.right - outer.right + 10
+      }, [current, tabs.length])
 
       return h(
         'div',
@@ -5543,6 +5654,7 @@ window.__ModuleLoader__.load({
                 role: 'tab',
                 className: 'yk-navTab',
                 id: `yukari-tab-${key}`,
+                'data-tab': key,
                 'aria-selected': key === current ? 'true' : 'false',
                 'aria-controls': `yukari-panel-${key}`,
                 tabIndex: key === current ? 0 : -1,
