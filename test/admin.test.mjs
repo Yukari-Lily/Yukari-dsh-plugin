@@ -184,3 +184,29 @@ test('snapshot: a chat is listed as stored and dated from its artifact', async (
   assert.ok(row.updatedAt >= row.createdAt)
   await fs.rm(f.tmp, { recursive: true, force: true })
 })
+
+test('archive finds workspaceRegistry per call, not when the row loads', async () => {
+  // The workspace row initializes after this one; capturing the service at load
+  // time left archiving broken for the whole process.
+  const archived = new Set()
+  const registry = {
+    get archivedSessionIds() { return [...archived] },
+    async archiveSession(id) { archived.add(id) },
+    async unarchiveSession(id) { archived.delete(id) },
+  }
+  const ctx = { sessionQuery: { listSessions: async () => [] } }
+  const admin = createAdmin({ ctx, config: {} })
+  assert.equal((await admin.snapshot()).canArchive, false)
+  ctx.workspaceRegistry = registry
+  const result = await admin.setArchived({ id: 's1', archived: true })
+  assert.equal(result.archived, true)
+  assert.deepEqual([...archived], ['s1'])
+  assert.equal((await admin.snapshot()).canArchive, true)
+})
+
+test('a composition without the registry says so instead of pretending to archive', async () => {
+  const admin = createAdmin({ ctx: { sessionQuery: { listSessions: async () => [] } }, config: {} })
+  const snapshot = await admin.snapshot()
+  assert.equal(snapshot.canArchive, false)
+  await assert.rejects(admin.setArchived({ id: 's1', archived: true }), /没有提供归档能力/)
+})

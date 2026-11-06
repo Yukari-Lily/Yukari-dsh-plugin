@@ -2161,6 +2161,9 @@ window.__ModuleLoader__.load({
       if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'chats' }))
 
       const rows = data === null ? [] : data.sessions
+      // Archiving needs the host's workspace registry; a composition without it
+      // hides the control instead of letting the click fail.
+      const canArchive = data?.canArchive !== false
       const needle = query.trim().toLowerCase()
       const visible = rows.filter((row) => {
         if (filter === 'active' && row.archived) return false
@@ -2430,18 +2433,20 @@ window.__ModuleLoader__.load({
               'div',
               { className: 'yk-itemActions' },
               h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn', onClick: () => openSession(row.id), title: t('open'), 'aria-label': t('open') }, h(OpenIcon)),
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: 'yk-btn yk-btn-ghost yk-iconBtn',
-                  onClick: () => archive(row),
-                  disabled: busy !== '',
-                  title: row.archived ? t('cUnarchive') : t('cArchive'),
-                  'aria-label': row.archived ? t('cUnarchive') : t('cArchive'),
-                },
-                h(ArchiveIcon),
-              ),
+              canArchive
+                ? h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'yk-btn yk-btn-ghost yk-iconBtn',
+                      onClick: () => archive(row),
+                      disabled: busy !== '',
+                      title: row.archived ? t('cUnarchive') : t('cArchive'),
+                      'aria-label': row.archived ? t('cUnarchive') : t('cArchive'),
+                    },
+                    h(ArchiveIcon),
+                  )
+                : null,
               h(
                 'button',
                 {

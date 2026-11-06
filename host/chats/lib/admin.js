@@ -96,11 +96,13 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
   if (query === undefined || typeof query.listSessions !== 'function') {
     throw new Error('chat-manager: sessionQuery is required')
   }
-  const registry = optionalService(ctx, 'workspaceRegistry')
-  const store = optionalService(ctx, 'sessions')
-  const agents = optionalService(ctx, 'agents')
-  const titles = optionalService(ctx, 'sessionTitle')
-  const projectionCache = optionalService(ctx, 'sessionProjectionCache')
+  /**
+   * Optional services are resolved per call, never captured once: a Service that
+   * is still initializing while this row loads reads as undefined here and is
+   * present a moment later. Capturing that undefined disabled archiving for the
+   * whole process ("这个组合里没有 workspaceRegistry").
+   */
+  const optional = (name) => optionalService(ctx, name)
 
   const titleBudget = Number.isFinite(Number(config.titleBudget)) && Number(config.titleBudget) >= 0
     ? Math.floor(Number(config.titleBudget))
@@ -116,9 +118,10 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
 
   /** Cached title of one cold Session, without re-reading its log. */
   function cachedTitle(header) {
-    if (projectionCache === undefined || typeof projectionCache.cachedSnapshot !== 'function') return null
+    const cache = optional('sessionProjectionCache')
+    if (cache === undefined || typeof cache.cachedSnapshot !== 'function') return null
     try {
-      const snapshot = projectionCache.cachedSnapshot(header, ['title'])
+      const snapshot = cache.cachedSnapshot(header, ['title'])
       const value = snapshot?.values?.title
       return typeof value === 'string' && value !== '' ? value : null
     } catch {
@@ -128,9 +131,10 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
 
   /** Latest title of one live Session. */
   function liveTitle(session) {
-    if (session === undefined || titles === undefined || typeof titles.get !== 'function') return null
+    const titleService = optional('sessionTitle')
+    if (session === undefined || titleService === undefined || typeof titleService.get !== 'function') return null
     try {
-      const snapshot = titles.get(session)
+      const snapshot = titleService.get(session)
       return typeof snapshot?.title === 'string' && snapshot.title !== '' ? snapshot.title : null
     } catch {
       return null
@@ -139,7 +143,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
 
   function archivedSet() {
     try {
-      return new Set(registry?.archivedSessionIds ?? [])
+      return new Set(optional('workspaceRegistry')?.archivedSessionIds ?? [])
     } catch {
       return new Set()
     }
@@ -147,13 +151,14 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
 
   function pinnedSet() {
     try {
-      return new Set(registry?.pinnedSessionIds ?? [])
+      return new Set(optional('workspaceRegistry')?.pinnedSessionIds ?? [])
     } catch {
       return new Set()
     }
   }
 
   function workspaceList() {
+    const registry = optional('workspaceRegistry')
     if (registry === undefined || typeof registry.list !== 'function') return []
     try {
       return registry.list().map((workspace) => ({
@@ -219,6 +224,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
    */
   async function snapshot() {
     const warnings = []
+    const store = optional('sessions')
     const records = await query.listSessions()
 
     const durable = new Map()
@@ -246,6 +252,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
       const id = String(header.id)
       const session = store !== undefined && typeof store.get === 'function' ? store.get(id) : undefined
       const live = session !== undefined || record.live === true
+      const agents = optional('agents')
       const running = agents !== undefined && typeof agents.get === 'function'
         ? agents.get(id)?.status === 'running'
         : false
@@ -322,11 +329,15 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
       workspaces,
       totals,
       warnings,
+      // Whether archive/unarchive can work here at all; the panel hides the
+      // control instead of letting a click fail.
+      canArchive: typeof optional('workspaceRegistry')?.archiveSession === 'function',
     }
   }
 
   /** Drop one id from the registry's accounting, archive, and pin bookkeeping. */
   async function forget(id, notes) {
+    const registry = optional('workspaceRegistry')
     if (registry === undefined) return
     if (typeof registry.list === 'function') {
       let entities = []
@@ -416,6 +427,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
     const deleted = []
     const failed = []
     const notes = []
+    const store = optional('sessions')
     let filesDeleted = 0
 
     for (const id of ids) {
@@ -477,6 +489,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
         if (outcome.note) notes.push(outcome.note)
       }
       // Drop the registration so the sidebar forgets the workspace, unless its directory was kept by a failure.
+      const registry = optional('workspaceRegistry')
       if (registered !== null && (workspaceDir === null || workspaceDirDeleted) && registry !== undefined && typeof registry.delete === 'function') {
         try {
           workspaceRemoved = (await registry.delete(registered.id)) !== false
@@ -505,7 +518,10 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
    * @returns the accepted state.
    */
   async function setArchived(request = {}) {
-    if (registry === undefined) throw new Error('这个组合里没有 workspaceRegistry，无法归档')
+    const registry = optional('workspaceRegistry')
+    if (registry === undefined || typeof registry.archiveSession !== 'function') {
+      throw new Error('这个组合没有提供归档能力（缺少 workspaceRegistry 服务），归档和取消归档都用不了')
+    }
     const id = typeof request.id === 'string' ? request.id.trim() : ''
     if (id === '') throw new Error('没有指定会话')
     const archived = request.archived === true
