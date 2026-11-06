@@ -33,8 +33,8 @@ const WATCHDOG_INTERVAL_MS = 60000
 /** Retry schedule for the reconnect a restart performs on its own behalf. */
 const RESTORE_RETRY_MS = [0, 2000, 8000, 20000]
 
-/** Failed checks in a row before an enabled route closes itself. */
-const WATCHDOG_FAILURES = 2
+/** Failed checks in a row before an enabled route closes itself; one reset is not a verdict. */
+const WATCHDOG_FAILURES = 3
 
 /** Proxy variables a previous process may have left behind. */
 const EGRESS_NAMES = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy']
@@ -94,6 +94,10 @@ export class ProxyController {
   #probeThroughOverride = null
   #watchdogTimer = null
   #watchdogFailures = 0
+  /** Set while the listener forwards straight out instead of through the node. */
+  #direct = false
+  /** Why the listener could not bind, when it could not. */
+  #listenerError = null
   /** The reconnect a restart started on its own; null when none is running. */
   #restoring = null
   /** Set by `dispose`: in-flight retries stop instead of holding the process. */
@@ -183,7 +187,14 @@ export class ProxyController {
     this.#clearInheritedEgress()
     if (migrated) await this.#persist()
     if (!this.#state.enabled && this.#state.autoStart) this.#state.enabled = true
-    if (!this.#state.enabled) return
+    if (!this.#state.enabled) {
+      // The route is off, but a host may still pin child processes to this port
+      // (its proxy environment was captured at boot). Listening in direct mode
+      // turns those into plain requests instead of connection failures.
+      this.#direct = true
+      await this.#ensureListener().catch((error) => this.#log(`direct listener unavailable: ${messageOf(error)}`))
+      return
+    }
     if (!this.#nodeReady()) {
       await this.#failClosed('the saved node is missing its password or server; enter a valid node and enable again')
       return
@@ -297,7 +308,8 @@ export class ProxyController {
       this.#lastError = `proxy disabled automatically: ${reason}`
       this.#log(this.#lastError)
       try {
-        await this.#teardown()
+        // Keep the listener: direct mode is what a child pinned to this port needs.
+        await this.#goDirect()
       } finally {
         this.#state.enabled = false
         await this.#persist()
@@ -312,7 +324,7 @@ export class ProxyController {
 
   /** A live tunnel failed; only its own current generation may shut the route down. */
   async #proxyFailed(generation, error) {
-    if (generation !== this.#proxyGeneration || this.#proxy === null || !this.#state.enabled) return
+    if (this.#direct || generation !== this.#proxyGeneration || this.#proxy === null || !this.#state.enabled) return
     await this.#failClosed(messageOf(error))
   }
 
@@ -397,7 +409,10 @@ export class ProxyController {
     const active = this.#active()
     return {
       enabled: this.#state.enabled,
-      running: this.#proxy !== null,
+      running: this.#proxy !== null && !this.#direct,
+      // A listener that forwards straight out: the port is up, the node is not used.
+      direct: this.#proxy !== null && this.#direct,
+      listenerError: this.#listenerError,
       localPort: this.#state.localPort,
       node:
         active === null
@@ -619,28 +634,12 @@ export class ProxyController {
         const probe = await this.#probeThrough(node, parseTestTarget(DEFAULT_TEST_TARGET))
         if (probe?.ok !== true) throw new Error(`node probe returned HTTP ${probe?.status ?? 0}`)
       }
-      if (this.#proxy === null) {
-        const generation = ++this.#proxyGeneration
-        const proxy = new LocalProxy({
-          resolveNode: () => {
-            const active = this.#active()
-            if (!this.#nodeReady(active)) throw new Error('Shadowsocks node is not configured')
-            return active
-          },
-          log: (message) => this.#log(message),
-          onFailure: (error) => this.#proxyFailed(generation, error),
-        })
-        try {
-          await proxy.listen(this.#state.localPort)
-        } catch (error) {
-          throw new Error(`cannot listen on 127.0.0.1:${this.#state.localPort} — ${error.message}`)
-        }
-        this.#proxy = proxy
-      }
+      await this.#ensureListener()
       // Reinstall on every enable so a changed bypass list reaches NO_PROXY at once;
       // disposing first restores the pre-proxy environment the new install captures.
       if (this.#egress !== null) await this.#egress.dispose()
       this.#egress = await installEgress({ port: this.#proxy.port ?? this.#state.localPort, bypass: this.#state.bypass })
+      this.#direct = false
       this.#state.enabled = true
       this.#startedAt = new Date().toISOString()
       this.#startWatchdog()
@@ -650,7 +649,7 @@ export class ProxyController {
       if (keepIntent) {
         // Leave nothing half-installed, but keep `enabled` so the next attempt
         // or the next restart can still resume it.
-        await this.#teardown()
+        await this.#goDirect()
         throw error
       }
       await this.#failClosed(messageOf(error))
@@ -660,10 +659,54 @@ export class ProxyController {
 
   /** Turn the proxy off and restore direct egress. */
   async disable() {
-    await this.#teardown()
+    await this.#goDirect()
     this.#state.enabled = false
     await this.#persist()
     return this.state()
+  }
+
+  /**
+   * Bring the local listener up, in whichever mode the route is in.
+   *
+   * The listener stays up while the route is off: a host pins its children to
+   * `HTTP_PROXY` at boot, so a closed port here means every child loses its
+   * network instead of falling back to direct egress.
+   * @throws when the port cannot be bound.
+   */
+  async #ensureListener() {
+    if (this.#proxy !== null) return
+    const generation = ++this.#proxyGeneration
+    const proxy = new LocalProxy({
+      resolveNode: () => {
+        if (this.#direct) return null
+        const active = this.#active()
+        if (!this.#nodeReady(active)) throw new Error('Shadowsocks node is not configured')
+        return active
+      },
+      log: (message) => this.#log(message),
+      onFailure: (error) => this.#proxyFailed(generation, error),
+    })
+    try {
+      await proxy.listen(this.#state.localPort)
+    } catch (error) {
+      this.#listenerError = `cannot listen on 127.0.0.1:${this.#state.localPort} — ${error.message}`
+      throw new Error(`cannot listen on 127.0.0.1:${this.#state.localPort} — ${error.message}`)
+    }
+    this.#listenerError = null
+    this.#proxy = proxy
+  }
+
+  /** Route the listener straight out and give the Host's own egress back. */
+  async #goDirect() {
+    this.#stopWatchdog()
+    if (this.#egress !== null) {
+      const egress = this.#egress
+      this.#egress = null
+      await egress.dispose()
+    }
+    this.#direct = true
+    this.#startedAt = null
+    this.#clearInheritedEgress()
   }
 
   /** Stop both halves without touching the persisted `enabled` flag. */
@@ -679,6 +722,7 @@ export class ProxyController {
       this.#proxy = null
       await proxy.close()
     }
+    this.#direct = false
     this.#startedAt = null
     // Disposing the egress restores whatever was there before, but a variable
     // that points at our own port is dead either way: leaving it behind sends

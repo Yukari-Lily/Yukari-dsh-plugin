@@ -155,7 +155,7 @@ export class LocalProxy {
   #onFailure
 
   /**
-   * @param options.resolveNode - returns the current Shadowsocks node, or throws when not configured.
+   * @param options.resolveNode - returns the current Shadowsocks node; `null` forwards directly, and it may throw when not configured.
    * @param options.log - optional diagnostic sink.
    * @param options.onFailure - reports an upstream node/tunnel failure to the lifecycle owner.
    */
@@ -163,6 +163,29 @@ export class LocalProxy {
     this.#resolveNode = resolveNode
     this.#log = log
     this.#onFailure = onFailure
+  }
+
+  /**
+   * Open the upstream for one destination: inside the tunnel, or straight out.
+   *
+   * Direct mode exists because a host can pin its children to `HTTP_PROXY`
+   * pointing at this port even while the route is off; refusing the connection
+   * would then take the whole machine offline instead of going direct.
+   */
+  #open(node, target) {
+    if (node !== null) return openTunnel(node, target)
+    return new Promise((resolve, reject) => {
+      const socket = net.connect({ host: target.host, port: target.port })
+      const fail = (error) => {
+        socket.destroy()
+        reject(error)
+      }
+      socket.once('error', fail)
+      socket.once('connect', () => {
+        socket.off('error', fail)
+        resolve(socket)
+      })
+    })
   }
 
   /** Report an upstream failure without letting a callback break the socket path. */
@@ -201,6 +224,9 @@ export class LocalProxy {
         resolve()
       })
     })
+    // A listener must not be the reason a process cannot exit; the Host has its
+    // own handles, and a test that forgets to dispose would otherwise hang.
+    server.unref()
     this.#server = server
     return this.port
   }
@@ -262,8 +288,8 @@ export class LocalProxy {
     if (String(method).toUpperCase() === 'CONNECT') {
       const { host, port } = splitHostPort(target, 443)
       if (!validPort(port)) throw new Error(`invalid CONNECT target "${target}"`)
-      const tunnel = await openTunnel(node, { host, port }).catch((error) => {
-        this.#upstreamFailed(error)
+      const tunnel = await this.#open(node, { host, port }).catch((error) => {
+        if (node !== null) this.#upstreamFailed(error)
         throw error
       })
       socket.write('HTTP/1.1 200 Connection Established\r\n\r\n')
@@ -278,8 +304,8 @@ export class LocalProxy {
       throw new Error(`unsupported proxy request target "${target}"`)
     }
     const port = Number(url.port || (url.protocol === 'https:' ? 443 : 80))
-    const tunnel = await openTunnel(node, { host: url.hostname, port }).catch((error) => {
-      this.#upstreamFailed(error)
+    const tunnel = await this.#open(node, { host: url.hostname, port }).catch((error) => {
+      if (node !== null) this.#upstreamFailed(error)
       throw error
     })
     const forwarded = [`${method} ${url.pathname}${url.search} ${version}`, ...headers.filter((line) => !/^proxy-connection\s*:/i.test(line)), '', '']
@@ -325,11 +351,11 @@ export class LocalProxy {
     const node = this.#resolveNode()
     let tunnel
     try {
-      tunnel = await openTunnel(node, { host, port })
+      tunnel = await this.#open(node, { host, port })
     } catch (error) {
       this.#stats.failures += 1
       this.#log(`SOCKS5 connect ${host}:${port} failed: ${error.message}`)
-      this.#upstreamFailed(error)
+      if (node !== null) this.#upstreamFailed(error)
       socket.write(Buffer.from([0x05, SOCKS_REFUSED, 0x00, 0x01, 0, 0, 0, 0, 0, 0]))
       socket.end()
       return

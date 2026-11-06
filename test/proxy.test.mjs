@@ -6,6 +6,7 @@ import { register } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
 import net from 'node:net'
+import http from 'node:http'
 import { parseNodeInput, parseNodesInput } from '../host/proxy/lib/ss-uri.js'
 import { METHOD_NAMES } from '../host/proxy/lib/shadowsocks.js'
 
@@ -22,6 +23,7 @@ try {
   register(`data:text/javascript,${encodeURIComponent(hooks)}`)
 }
 const { ProxyController } = await import('../host/proxy/lib/controller.js')
+const { LocalProxy } = await import('../host/proxy/lib/local-proxy.js')
 
 const b64 = (text) => Buffer.from(text, 'utf8').toString('base64')
 const b64url = (text) => b64(text).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
@@ -544,4 +546,72 @@ test('controller: turning the route off clears proxy variables for our own port'
 
   for (const name of names) assert.equal(process.env[name], undefined, `${name} would send children into a dead port`)
   assert.equal(process.env.NODE_USE_ENV_PROXY, undefined)
+})
+
+/** Ask a local HTTP server for one page through a proxy port. */
+async function through(proxyPort, targetPort, targetPath = '/hello') {
+  return new Promise((resolve, reject) => {
+    const socket = net.connect({ host: '127.0.0.1', port: proxyPort }, () => {
+      socket.write(`GET http://127.0.0.1:${targetPort}${targetPath} HTTP/1.1\r\nHost: 127.0.0.1:${targetPort}\r\nConnection: close\r\n\r\n`)
+    })
+    let text = ''
+    socket.setEncoding('latin1')
+    socket.on('data', (chunk) => { text += chunk })
+    socket.on('end', () => resolve(text))
+    socket.on('error', reject)
+  })
+}
+
+/** One loopback HTTP server for the direct-forwarding cases. */
+async function loopbackServer(t) {
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'content-type': 'text/plain' })
+    res.end(`seen ${req.url}`)
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => new Promise((resolve) => server.close(resolve)))
+  return server.address().port
+}
+
+test('local proxy: direct mode forwards without a node', async (t) => {
+  const target = await loopbackServer(t)
+  const proxy = new LocalProxy({ resolveNode: () => null })
+  const port = await proxy.listen(0)
+  t.after(() => proxy.close())
+  const reply = await through(port, target)
+  assert.match(reply, /seen \/hello/)
+})
+
+test('controller: a route that is off still answers on its port, directly', async (t) => {
+  // A host pins its children to HTTP_PROXY at boot. With nothing listening the
+  // child loses its network; a direct listener keeps it working.
+  const target = await loopbackServer(t)
+  const stateFile = await tempStateFile(t)
+  const localPort = await unusedPort()
+  await writeFile(stateFile, JSON.stringify({ enabled: false, localPort, nodes: [], activeId: null }))
+  const controller = new ProxyController({ config: { stateFile } })
+  await controller.init()
+  t.after(() => controller.dispose())
+  assert.equal(controller.state().enabled, false)
+  assert.equal(controller.state().running, false, 'no node is in use')
+  assert.equal(controller.state().direct, true, 'but the port forwards directly')
+  assert.match(await through(localPort, target), /seen \/hello/)
+})
+
+test('controller: turning the route off returns to direct forwarding', async (t) => {
+  const stateFile = await tempStateFile(t)
+  const localPort = await unusedPort()
+  const controller = new ProxyController({
+    config: { stateFile, localPort },
+    probeThrough: async () => healthyProbe(),
+  })
+  t.after(() => controller.dispose())
+  await controller.importNodes(SIP002)
+  await controller.enable()
+  assert.equal(controller.state().running, true)
+  assert.equal(controller.state().direct, false)
+  await controller.disable()
+  assert.equal(controller.state().enabled, false)
+  assert.equal(controller.state().direct, true)
+  assert.equal(controller.state().egress, null, 'the Host itself goes direct again')
 })
