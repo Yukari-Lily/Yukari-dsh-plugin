@@ -92,7 +92,7 @@ function installAssembleGuard(promptHost, rewriteFn) {
   }
 }
 
-export async function apply(ctx, config = {}) {
+export function apply(ctx, config = {}) {
   markMounted(ctx, 'purge')
 
   const dshHome = resolveDshHome()
@@ -117,6 +117,9 @@ export async function apply(ctx, config = {}) {
 
   /* ----------------------------------------------------------- observability */
 
+  /** Why the preset could not be registered, when it could not. */
+  let presetError = null
+  let presetRegistered = false
   const stats = {
     assembled: 0,
     injected: 0,
@@ -208,20 +211,6 @@ export async function apply(ctx, config = {}) {
   /* ---------------------------------------------------------------- preset + prompt */
 
   ensurePresetFiles(dshHome)
-  // `agentPresets` is declared in `inject`, so the registry exists by the time
-  // apply runs: register once and let the effect own the release.
-  let releasePreset = null
-  try {
-    releasePreset = await ctx.agentPresets.register(getPresetDefinition())
-    ctx.logger?.info?.('yukari-purge: 已注册预设 [无限制模式]')
-  } catch (error) {
-    const message = String(error?.message ?? error)
-    // A second mount (hot reload) reports the existing registration; not an error.
-    if (!/already|duplicate/i.test(message)) ctx.logger?.warn?.('yukari-purge: 注册预设失败: %s', message)
-  }
-  if (typeof releasePreset === 'function') {
-    ctx.effect(() => () => releasePreset(), 'yukari-purge:preset')
-  }
 
   // Head section: the operator contract. Empty for every other preset.
   try {
@@ -238,8 +227,9 @@ export async function apply(ctx, config = {}) {
     ctx.logger?.warn?.('yukari-purge: 注入段注册失败: %s', error?.message ?? error)
   }
 
-  // Tail section: 10250 sits above every host section (highest is 10200), so it
-  // is the last thing the model reads before the tool declarations.
+  // Tail section: 10250 clears every host section (highest is 10200). The rules
+  // component puts its own tail reminder at 10400 on top of this, which is the
+  // intended order: the operator's own last word outranks the mode's anchor.
   try {
     const dispose = ctx.systemPrompt?.section?.({
       name: ANCHOR_SECTION,
@@ -395,6 +385,8 @@ export async function apply(ctx, config = {}) {
       ok: true,
       presetId: UNRESTRICTED_PRESET_ID,
       presetName: '无限制模式',
+      presetRegistered,
+      presetError,
       isCustom,
       prompt: promptText,
       defaultPrompt: DEFAULT_PROMPT,
@@ -478,4 +470,53 @@ export async function apply(ctx, config = {}) {
       }),
     `yukari: ${API_PATH}/*`,
   )
+
+  // Registered last and deliberately not awaited: `register()` mounts the
+  // preset's whole row list, and the loader waits for every plugin body to
+  // settle at boot. Awaiting it here would put that mount on the boot path —
+  // and one slow row would hold the Host's settle open. The seams above are
+  // already mounted synchronously, so the mode appears a tick later instead.
+  ctx.effect(() => {
+    let release = null
+    let disposed = false
+    const warn = (error) => {
+      const message = String(error?.message ?? error)
+      // A second mount (hot reload) reports the existing registration; not an error.
+      if (/already|duplicate/i.test(message)) {
+        presetRegistered = true
+        presetError = null
+        return
+      }
+      presetError = message
+      ctx.logger?.warn?.('yukari-purge: 注册预设失败: %s', message)
+    }
+    void Promise.resolve()
+      .then(() => ctx.agentPresets.register(getPresetDefinition()))
+      .then(
+        (disposer) => {
+          if (disposed) {
+            void disposer?.()
+            return
+          }
+          release = disposer
+          presetRegistered = true
+          presetError = null
+          ctx.logger?.info?.('yukari-purge: 已注册预设 [无限制模式]')
+        },
+        warn,
+      )
+      .catch(warn)
+    return () => {
+      disposed = true
+      const disposer = release
+      release = null
+      if (typeof disposer === 'function') {
+        try {
+          void disposer()
+        } catch (error) {
+          warn(error)
+        }
+      }
+    }
+  }, 'yukari-purge:preset')
 }

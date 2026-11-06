@@ -16,7 +16,9 @@ function toolPair(callId, name, args, text) {
   ]
 }
 
-async function fixture() {
+async function fixture(options = {}) {
+  /** A workspace with no chat living in it: the only case a folder-only delete applies to. */
+  const empty = options.empty === true
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'yk-admin-'))
   const ws = path.join(tmp, 'workspace', 'proj1')
   const sessions = path.join(tmp, 'sessions')
@@ -43,7 +45,7 @@ async function fixture() {
   const header = { id, cwd: ws, createdAt }
   const persistence = {
     root: sessions,
-    list: async () => [{ header, sizeBytes: 100, eventCount: events.length }],
+    list: async () => (empty ? [] : [{ header, sizeBytes: 100, eventCount: events.length, location: { path: path.join(artifact, 'session.v3.jsonl.zstd') } }]),
     locate: () => ({ path: path.join(artifact, 'session.v3.jsonl.zstd') }),
     open: async () => ({ read: async () => ({ events }), close: async () => {} }),
   }
@@ -60,7 +62,7 @@ async function fixture() {
     unpinSession: async () => {},
   }
   const ctx = {
-    sessionQuery: { listSessions: async () => [{ header, live: false }] },
+    sessionQuery: { listSessions: async () => (empty ? [] : [{ header, live: false }]) },
     sessionPersistence: persistence,
     workspaceRegistry: registry,
   }
@@ -136,7 +138,7 @@ test('workspace delete without the folder keeps the directory but drops the regi
 })
 
 test('an empty registered workspace can be deleted with its folder', async () => {
-  const f = await fixture()
+  const f = await fixture({ empty: true })
   const res = await f.admin.remove({ ids: [], deleteWorkspaceDir: true, workspaceId: 'ws-1' })
   assert.equal(res.workspaceDirDeleted, true)
   assert.equal(await exists(f.ws), false)
@@ -157,4 +159,28 @@ test('unsafeDirectoryReason protects system directories and their ancestors', ()
   assert.notEqual(unsafeDirectoryReason(os.homedir()), null)
   assert.notEqual(unsafeDirectoryReason(path.dirname(os.homedir())), null)
   assert.equal(unsafeDirectoryReason(path.join(os.tmpdir(), 'yk-some-project')), null)
+})
+
+test('a folder delete is refused while chats in it were not selected', async () => {
+  const f = await fixture()
+  await assert.rejects(
+    () => f.admin.remove({ ids: [], deleteWorkspaceDir: true, workspaceId: 'ws-1' }),
+    /没被选中/,
+  )
+  assert.equal(await exists(f.ws), true, 'the folder survives')
+  await fs.rm(f.tmp, { recursive: true, force: true })
+})
+
+test('snapshot: a chat is listed as stored and dated from its artifact', async () => {
+  const f = await fixture()
+  const state = await f.admin.snapshot()
+  assert.equal(state.sessions.length, 1)
+  const [row] = state.sessions
+  assert.equal(row.stored, true)
+  assert.equal(row.workspaceId, 'ws-1')
+  assert.equal(row.bytes, 100)
+  assert.equal(row.events, f.events.length)
+  // The artifact file was written just now, so activity cannot precede creation.
+  assert.ok(row.updatedAt >= row.createdAt)
+  await fs.rm(f.tmp, { recursive: true, force: true })
 })

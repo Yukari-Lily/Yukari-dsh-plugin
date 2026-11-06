@@ -84,6 +84,10 @@ export async function writeZip(response, entries, options = {}) {
   let offset = 0
   let total = 0
 
+  // Preflight before the first byte: a limit hit halfway through would already
+  // have sent a 200 and a partial archive, which the client cannot tell from a
+  // truncated one it should not have received.
+  const planned = []
   for (const entry of entries) {
     const info = await stat(entry.path)
     if (!info.isFile()) continue
@@ -94,40 +98,51 @@ export async function writeZip(response, entries, options = {}) {
     if (total > maxTotalBytes) {
       throw new Error(`the archive would exceed the ${Math.round(maxTotalBytes / 1048576)} MB limit`)
     }
-
-    const chunks = []
-    for await (const chunk of createReadStream(entry.path)) chunks.push(chunk)
-    const content = Buffer.concat(chunks)
-    const compressed = deflateRawSync(content, { level: 6 })
-    const useDeflate = compressed.length < content.length
-    const payload = useDeflate ? compressed : content
-    const record = {
-      name: entry.name,
-      method: useDeflate ? 8 : 0,
-      crc: crc32(content),
-      size: content.length,
-      compressedSize: payload.length,
-      offset,
-    }
-    const { header, name } = localHeader(record)
-    response.write(header)
-    response.write(name)
-    response.write(payload)
-    offset += header.length + name.length + payload.length
-    written.push(record)
+    planned.push(entry)
   }
 
-  const directory = Buffer.concat(written.flatMap((record) => {
-    const { header, name } = centralHeader(record)
-    return [header, name]
-  }))
-  const end = Buffer.alloc(22)
-  end.writeUInt32LE(0x06054b50, 0)
-  end.writeUInt16LE(written.length, 8)
-  end.writeUInt16LE(written.length, 10)
-  end.writeUInt32LE(directory.length, 12)
-  end.writeUInt32LE(offset, 16)
-  response.write(directory)
-  response.write(end)
-  return { files: written.length, bytes: total }
+  try {
+    for (const entry of planned) {
+      const chunks = []
+      for await (const chunk of createReadStream(entry.path)) chunks.push(chunk)
+      const content = Buffer.concat(chunks)
+      const compressed = deflateRawSync(content, { level: 6 })
+      const useDeflate = compressed.length < content.length
+      const payload = useDeflate ? compressed : content
+      const record = {
+        name: entry.name,
+        method: useDeflate ? 8 : 0,
+        crc: crc32(content),
+        size: content.length,
+        compressedSize: payload.length,
+        offset,
+      }
+      const { header, name } = localHeader(record)
+      response.write(header)
+      response.write(name)
+      response.write(payload)
+      offset += header.length + name.length + payload.length
+      written.push(record)
+    }
+
+    const directory = Buffer.concat(written.flatMap((record) => {
+      const { header, name } = centralHeader(record)
+      return [header, name]
+    }))
+    const end = Buffer.alloc(22)
+    end.writeUInt32LE(0x06054b50, 0)
+    end.writeUInt16LE(written.length, 8)
+    end.writeUInt16LE(written.length, 10)
+    end.writeUInt32LE(directory.length, 12)
+    end.writeUInt32LE(offset, 16)
+    response.write(directory)
+    response.write(end)
+    return { files: written.length, bytes: total }
+  } catch (error) {
+    // Bytes are already on the wire, so the failure cannot be reported in-band:
+    // drop the connection so the client fails the download instead of keeping a
+    // corrupt archive.
+    if (typeof response.destroy === 'function') response.destroy(error)
+    throw error
+  }
 }

@@ -392,7 +392,7 @@ export async function apply(ctx) {
             }
           }
 
-          throw new Error(`未知的操作：${req.method} ${action === '' ? '/' : action}`)
+          sendJson(res, 404, { ok: false, error: `未知的操作：${req.method} ${action === '' ? '/' : action}` })
         }),
       }),
     'yukari-presets: routes',

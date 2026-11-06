@@ -506,7 +506,7 @@ test('a broken store blocks writes but not declared edits', async (t) => {
 test('routing: an unknown action is refused', async (t) => {
   const plugin = await withPlugin(t)
   const response = await call(plugin.routes[0], 'POST', '/presets/api/nope', {})
-  assert.equal(response.status, 400)
+  assert.equal(response.status, 404)
   assert.match(response.json.error, /未知的操作/u)
 })
 

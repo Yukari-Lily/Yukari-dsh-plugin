@@ -18,7 +18,9 @@ import { guardRoute, sendJson, messageOf } from '../shared/http.js'
 export const API_PATH = '/browser/api'
 /** Register connection-guarded runtime status and retry routes. */
 export function registerRuntimeApi(ctx, runtime, details = {}) {
-  ctx.webServer.register({
+  // Owned by the row's fiber: a later apply (row re-enabled, hot reload) would
+  // otherwise collide on the duplicate prefix and leave the old closure serving.
+  ctx.effect(() => ctx.webServer.register({
     kind: 'prefix', path: API_PATH,
     handler: guardRoute(ctx, async (req, res) => {
       const action = new URL(String(req.url), 'http://localhost').pathname.slice(API_PATH.length).replace(/^\/+|\/+$/g, '')
@@ -34,7 +36,7 @@ export function registerRuntimeApi(ctx, runtime, details = {}) {
       }
       return sendJson(res, 404, { ok: false, error: `unknown browser action "${action}"` })
     }),
-  })
+  }), 'browser: api')
 }
 
 /** Read one positive number from the plugin row config. */

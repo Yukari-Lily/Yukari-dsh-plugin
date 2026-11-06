@@ -301,6 +301,15 @@ export class SiteStore {
       await this.relax(stage)
       await this.sanitize(stage)
 
+      // The pre-copy walk enforces the limits on the source; what actually ships
+      // is the staged copy after sanitize drops source maps, so measure that.
+      let servedFiles = 0
+      let servedBytes = 0
+      for await (const entry of walk(stage)) {
+        servedFiles += 1
+        servedBytes += entry.size
+      }
+
       const previous = await this.readManifest(resolvedSlug)
       const nextTitle = (title && title.trim()) || (await this.titleOf(stage)) || resolvedSlug
       const existing = await lstat(target).catch(() => null)
@@ -316,8 +325,8 @@ export class SiteStore {
         slug: resolvedSlug,
         title: nextTitle,
         url: this.urlOf(resolvedSlug),
-        bytes,
-        files,
+        bytes: servedBytes,
+        files: servedFiles,
         version: (Number(previous?.version) || 0) + 1,
         publishedAt: new Date().toISOString(),
         source: from,
@@ -356,6 +365,9 @@ export class SiteStore {
     if (info === null || !info.isDirectory()) return { slug: resolved, deleted: false }
     await rename(target, await uniquePath(this.trashDir, `${resolved}.${stamp()}`))
     await rm(path.join(this.sitesDir, `${resolved}.json`), { force: true })
+    // Publish rotates the trash; without the same call here, publishing and
+    // deleting the same site over and over grows full copies forever.
+    await this.rotate(resolved)
     return { slug: resolved, deleted: true }
   }
 

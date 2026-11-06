@@ -61,3 +61,21 @@ test('the guard turns a thrown failure into the shared error shape', async () =>
   assert.equal(res.statusCode, 400)
   assert.deepEqual(res.json, { ok: false, error: 'kaboom' })
 })
+
+test('the error boundary keeps client mistakes at 400 and host failures at 500', async () => {
+  const ctx = { connection: { requestRejection: () => undefined } }
+  const run = async (error) => {
+    const res = recorder()
+    await guardRoute(ctx, async () => { throw error })({ url: '/x', method: 'GET' }, res)
+    return res
+  }
+
+  const plain = await run(new Error('未知的工作区'))
+  assert.equal(plain.statusCode, 400)
+
+  const coded = await run(Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' }))
+  assert.equal(coded.statusCode, 500)
+
+  const explicit = await run(Object.assign(new Error('not found'), { status: 404 }))
+  assert.equal(explicit.statusCode, 404)
+})

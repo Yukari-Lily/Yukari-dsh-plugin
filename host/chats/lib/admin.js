@@ -182,11 +182,11 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
    * Read one artifact directory's own metadata.
    * @returns byte size and last-modified instant, when the directory exists.
    */
-  async function directoryStat(directory) {
-    if (directory === null) return null
+  async function pathStat(target) {
+    if (target === null) return null
     try {
-      const info = await fs.stat(directory)
-      return { mtimeMs: Number(info.mtimeMs), isDirectory: info.isDirectory() }
+      const info = await fs.stat(target)
+      return { mtimeMs: Number(info.mtimeMs), isDirectory: info.isDirectory(), isFile: info.isFile() }
     } catch {
       return null
     }
@@ -254,6 +254,9 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
       const workspace = byMember.get(id) ?? (header.cwd === undefined ? undefined : byPath.get(header.cwd))
       const directory = directoryOf(header)
       const item = durable.get(id)
+      // The store names the artifact it actually reads; the directory only dates
+      // creation and rotation, so activity has to come from the file itself.
+      const artifact = typeof item?.location?.path === 'string' && item.location.path !== '' ? item.location.path : null
       rows.push({
         id,
         title,
@@ -261,7 +264,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
         workspaceId: workspace !== undefined ? workspace.id : null,
         workspaceTitle: workspace !== undefined ? workspace.title : null,
         createdAt: header.createdAt,
-        persistedAt: null,
+        artifact,
         bytes: typeof item?.sizeBytes === 'number' ? item.sizeBytes : null,
         events: typeof item?.eventCount === 'number' ? item.eventCount : null,
         live,
@@ -288,11 +291,11 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
         const row = rows[cursor]
         cursor += 1
         if (row.title === null) row.title = found.get(row.id) ?? null
-        const info = await directoryStat(row.directory)
-        row.stored = info !== null && info.isDirectory
+        const info = await pathStat(row.artifact ?? row.directory)
+        row.stored = info !== null && (info.isFile || info.isDirectory)
         row.updatedAt = Math.max(row.createdAt, info?.mtimeMs ?? 0)
+        delete row.artifact
         delete row.directory
-        delete row.persistedAt
       }
     }
     await Promise.all(Array.from({ length: Math.min(STAT_CONCURRENCY, rows.length) }, worker))
@@ -397,6 +400,18 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
         throw new Error('找不到要删除的工作区目录')
       }
     }
+    if (workspaceDir !== null) {
+      // Removing the folder takes every chat living in it, so refuse when some of
+      // them were not part of this request: the caller can select them and retry.
+      const target = path.resolve(workspaceDir)
+      const survivors = records.filter((record) => {
+        const cwd = record.header?.cwd
+        return typeof cwd === 'string' && path.resolve(cwd) === target && !ids.includes(String(record.header.id))
+      })
+      if (survivors.length > 0) {
+        throw new Error(`这个目录里还有 ${survivors.length} 个没被选中的会话，先把它们一起选中再删目录`)
+      }
+    }
 
     const deleted = []
     const failed = []
@@ -417,7 +432,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
         continue
       }
       const directory = directoryOf(header)
-      const info = directory === null ? null : await directoryStat(directory)
+      const info = directory === null ? null : await pathStat(directory)
       if (info === null) {
         /* A created-but-never-materialized Session has no artifact to remove. */
         failed.push({ id, reason: session !== undefined ? 'in-memory' : 'no-artifact' })

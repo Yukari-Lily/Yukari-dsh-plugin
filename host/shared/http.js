@@ -76,8 +76,16 @@ export function guardRoute(ctx, handler) {
     try {
       await handler(req, res)
     } catch (error) {
-      if (!res.headersSent) sendJson(res, 400, { ok: false, error: messageOf(error) })
-      else res.end()
+      if (res.headersSent) {
+        res.end()
+        return
+      }
+      // An explicit status wins; a thrown filesystem/pnpm/git failure carries a
+      // code and is the host's problem, not the caller's. Everything we reject
+      // ourselves is a plain Error and stays a 400 the panel can show verbatim.
+      const explicit = Number.isInteger(error?.status) ? error.status : null
+      const coded = typeof error?.code === 'string' && error.code !== ''
+      sendJson(res, explicit ?? (coded ? 500 : 400), { ok: false, error: messageOf(error) })
     }
   }
 }

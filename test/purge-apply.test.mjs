@@ -90,7 +90,7 @@ function call(route, method, url, body) {
   }))
 }
 
-async function withPlugin(t) {
+async function withPlugin(t, configure) {
   const home = await mkdtemp(path.join(os.tmpdir(), 'yukari-purge-apply-'))
   const previous = process.env.DSH_HOME
   process.env.DSH_HOME = home
@@ -100,6 +100,7 @@ async function withPlugin(t) {
     await rm(home, { recursive: true, force: true })
   })
   const harness = createCtx()
+  if (typeof configure === 'function') configure(harness.ctx)
   await apply(harness.ctx, {})
   return { home, ...harness }
 }
@@ -220,4 +221,17 @@ test('http: the probe explains itself when nothing is live', async (t) => {
   const { json } = await call(routes[0], 'GET', '/purge/api/probe?sessionId=nope', undefined)
   assert.equal(json.ok, false)
   assert.equal(json.reason, 'not-live')
+})
+
+test('apply: a hanging preset registration cannot hold up the seams', async (t) => {
+  // The loader waits for every plugin body at boot, so the registration must
+  // stay off that path: a registry that never answers cannot delay the route,
+  // the sections or the retry listener.
+  const { sections, routes, contexts } = await withPlugin(t, (ctx) => {
+    ctx.agentPresets = { register: () => new Promise(() => {}) }
+  })
+  assert.ok(sections.get(PURGE_SECTION))
+  assert.ok(sections.get(ANCHOR_SECTION))
+  assert.ok(contexts.get(CHILD_ANCHOR_CONTEXT))
+  assert.equal(routes.length, 1)
 })
