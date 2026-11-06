@@ -235,3 +235,48 @@ test('store: one broken entry does not hide the healthy ones', async (t) => {
   assert.match(byId.get('dup').problem, /重复/u)
   assert.match(byId.get('bad').problem, /缺少 name/u)
 })
+
+test('readDefinition: a persona prefix with a malformed {{...}} is refused', () => {
+  // The Host interpolates persona text; `{{MINIMUM_WORD_COUNT 20000}}` makes
+  // every turn of a chat using this preset fail with "malformed prompt variable".
+  const bad = {
+    id: 'mine',
+    name: 'Mine',
+    plugins: [
+      row('persona', '@deepseek-ai/dsh-persona', {
+        config: { prefix: 'Responses must be {{MINIMUM_WORD_COUNT 20000}} words.' },
+      }),
+    ],
+  }
+  assert.throws(() => readDefinition(bad, { requireName: true }), /MINIMUM_WORD_COUNT 20000/)
+  assert.throws(() => readDefinition(bad, { requireName: true }), /花括号/)
+})
+
+test('readDefinition: valid variables and unpaired braces stay allowed', () => {
+  const ok = {
+    id: 'mine',
+    name: 'Mine',
+    plugins: [
+      row('persona', '@deepseek-ai/dsh-persona', {
+        config: {
+          prefix: '你在 {{cwd}} 里工作，{{model}} 就是你自己。结尾一个没有配对的 {{ 会被原样保留。',
+          suffix: '{ {MINIMUM_WORD_COUNT 20000} }',
+        },
+      }),
+    ],
+  }
+  const { definition } = readDefinition(ok, { requireName: true })
+  assert.equal(definition.id, 'mine')
+  assert.match(definition.plugins[0].config.prefix, /\{\{cwd\}\}/)
+})
+
+test('readDefinition: prompt text outside a persona row is not scanned', () => {
+  // Only rows that feed the system prompt are the Host's business; a tool config
+  // that merely contains braces must not be rejected.
+  const { definition } = readDefinition({
+    id: 'mine',
+    name: 'Mine',
+    plugins: [row('other', '@example/other', { config: { template: '{{a b}}' } })],
+  }, { requireName: true })
+  assert.equal(definition.plugins[0].config.template, '{{a b}}')
+})

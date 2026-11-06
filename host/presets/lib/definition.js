@@ -133,6 +133,52 @@ export function normalizeRows(rows) {
   return { plugins: normalizeList(rows, notes), notes }
 }
 
+/** A prompt variable name the Host accepts inside `{{...}}`. */
+const VARIABLE_NAME = /^[a-z][a-z0-9_]*$/
+
+/** Row fields that become system-prompt text, where `{{...}}` is a variable. */
+const PROMPT_TEXT_FIELDS = { '@deepseek-ai/dsh-persona': ['prefix', 'suffix'] }
+
+/**
+ * First `{{...}}` group in a string that the Host will refuse to interpolate.
+ * @param text - one prompt-text value.
+ * @returns the offending `{{...}}` token, or null when the text is usable.
+ */
+function malformedVariable(text) {
+  const source = String(text ?? '')
+  for (let open = source.indexOf('{{'); open >= 0; open = source.indexOf('{{', open + 2)) {
+    const close = source.indexOf('}}', open + 2)
+    // An opening pair without a closing one is copied verbatim by the Host.
+    if (close < 0) continue
+    const name = source.slice(open + 2, close)
+    if (!VARIABLE_NAME.test(name)) return `{{${name}}}`
+  }
+  return null
+}
+
+/**
+ * Refuse prompt text the Host cannot assemble, before it is saved.
+ *
+ * A literal `{{MINIMUM_WORD_COUNT 20000}}` in a persona prefix makes every turn
+ * fail with "malformed prompt variable reference"; catching it at save time
+ * keeps the failure where the text is, not in the conversation.
+ * @param rows - normalized composition.
+ * @returns a human-facing complaint, or undefined when the rows are fine.
+ */
+function promptTextProblem(rows) {
+  for (const [index, row] of rows.entries()) {
+    const fields = PROMPT_TEXT_FIELDS[row?.name]
+    if (fields === undefined || row.config === null || typeof row.config !== 'object') continue
+    for (const field of fields) {
+      const token = malformedVariable(row.config[field])
+      if (token === null) continue
+      return `第 ${index + 1} 行（${row.id ?? row.name}）的 ${field} 里有 ${token}：系统提示词把 {{…}} 当变量占位符，`
+        + '名字只能是小写字母、数字和下划线。想原样保留这段文字，就把这对花括号拆开写（例如 { {MINIMUM_WORD_COUNT 20000} }）或删掉一个。'
+    }
+  }
+  return undefined
+}
+
 /** Trimmed string, or undefined for a value that carries no text. */
 function text(value) {
   if (typeof value !== 'string') return undefined
@@ -197,6 +243,8 @@ export function readDefinition(raw, options = {}) {
   if (plugins.length > MAX_ROWS) throw new Error(`一个预设最多 ${MAX_ROWS} 行`)
   const problem = entryListProblem(plugins)
   if (problem !== undefined) throw new Error(problem)
+  const promptProblem = promptTextProblem(plugins)
+  if (promptProblem !== undefined) throw new Error(promptProblem)
   const definition = { id, plugins }
   if (name !== undefined) definition.name = name
   if (description !== undefined) definition.description = description
