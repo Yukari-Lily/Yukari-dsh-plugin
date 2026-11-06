@@ -606,6 +606,10 @@ export class ProxyController {
       await proxy.close()
     }
     this.#startedAt = null
+    // Disposing the egress restores whatever was there before, but a variable
+    // that points at our own port is dead either way: leaving it behind sends
+    // every child process (git, pnpm, Chromium) into a socket nobody listens on.
+    this.#clearInheritedEgress()
   }
 
   /**

@@ -6,7 +6,7 @@
  * half-finished interactions.
  * @module @local/browser-control/browser
  */
-import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readlinkSync, realpathSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -22,6 +22,52 @@ import {
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const PACKAGE_DIR = path.resolve(HERE, '..')
 const RUNTIME_DIR = path.join(PACKAGE_DIR, 'runtime')
+
+/** Budget for reconnecting to a browser that is already running. */
+const ADOPT_TIMEOUT_MS = 5000
+
+/**
+ * Read the DevTools endpoint Chrome published inside a profile.
+ * @param userDataDir - profile directory.
+ * @returns `{ endpoint }` or null when nothing usable is there.
+ */
+function readActivePort(userDataDir) {
+  try {
+    const [port, pathname] = readFileSync(path.join(userDataDir, 'DevToolsActivePort'), 'utf8').split('\n')
+    const number = Number(port)
+    const wsPath = String(pathname ?? '').trim()
+    if (!Number.isInteger(number) || number <= 0) return null
+    if (!wsPath.startsWith('/devtools/browser/')) return null
+    return { endpoint: `ws://127.0.0.1:${number}${wsPath}` }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * PID encoded in Chrome's profile lock (`<host>-<pid>`), or null.
+ * @param userDataDir - profile directory.
+ */
+function singletonPid(userDataDir) {
+  for (const name of ['SingletonLock', 'SingletonSocket']) {
+    try {
+      const target = readlinkSync(path.join(userDataDir, name))
+      const pid = Number(target.slice(target.lastIndexOf('-') + 1))
+      if (Number.isInteger(pid) && pid > 0) return pid
+    } catch { /* try the next one */ }
+  }
+  return null
+}
+
+/** Whether a pid is still alive. */
+function isAlive(pid) {
+  try {
+    process.kill(pid, 0)
+    return true
+  } catch (error) {
+    return error?.code === 'EPERM'
+  }
+}
 
 /** Virtual key codes for the special keys a tool may press. */
 const KEYS = {
@@ -203,6 +249,18 @@ export class BrowserManager {
 
   async #launch() {
     const config = this.#config
+    const userDataDir = config.userDataDir ?? path.join(tmpdir(), `dsh-browser-profile-${process.pid}`)
+    // A browser started earlier can outlive its DevTools socket. Reconnecting to
+    // it keeps the profile and its tabs; spawning a second one on the same
+    // profile would abort on Chrome's ProcessSingleton lock instead.
+    const adopted = await this.#adopt(userDataDir)
+    if (adopted !== null) {
+      this.#process = adopted.process
+      this.#client = adopted.client
+      this.#track(adopted.client)
+      return adopted.client
+    }
+    await this.#reapStale(userDataDir)
     let runtime
     try {
       runtime = resolveRuntime(config)
@@ -229,7 +287,6 @@ export class BrowserManager {
         if (typeof value === 'string') env[key] = value
       }
     }
-    const userDataDir = config.userDataDir ?? path.join(tmpdir(), `dsh-browser-profile-${process.pid}`)
     try { mkdirSync(userDataDir, { recursive: true }) } catch { /* the browser reports a real failure */ }
     // Chrome's crash handler needs a writable HOME of its own; inheriting the
     // operator's home is both fragile and unnecessary.
@@ -269,6 +326,12 @@ export class BrowserManager {
     this.#process = launched
     const client = await CdpClient.connect(launched.endpoint, config.startTimeoutMs)
     this.#client = client
+    this.#track(client)
+    return client
+  }
+
+  /** Follow the target bookkeeping events of one connection. */
+  #track(client) {
     client.onEvent((method, params, sessionId) => {
       if (method === 'Target.detachedFromTarget' && params.targetId) this.#pages.delete(params.targetId)
       if (method === 'Target.targetDestroyed' && params.targetId) {
@@ -280,7 +343,63 @@ export class BrowserManager {
         void params
       }
     })
-    return client
+  }
+
+  /**
+   * Reconnect to the browser that still owns this profile.
+   * @param userDataDir - profile directory of this manager.
+   * @returns the adopted handle and connection, or null when nothing answers.
+   */
+  async #adopt(userDataDir) {
+    const published = readActivePort(userDataDir)
+    if (published === null) return null
+    let client
+    try {
+      client = await CdpClient.connect(published.endpoint, ADOPT_TIMEOUT_MS)
+    } catch {
+      return null
+    }
+    const pid = singletonPid(userDataDir)
+    return {
+      client,
+      process: {
+        endpoint: published.endpoint,
+        adopted: true,
+        stop: () => this.#killOwned(pid, userDataDir),
+      },
+    }
+  }
+
+  /**
+   * Clear a browser that still holds the profile but no longer answers.
+   * @param userDataDir - profile directory about to be reused.
+   */
+  async #reapStale(userDataDir) {
+    await this.#killOwned(singletonPid(userDataDir), userDataDir)
+  }
+
+  /**
+   * Stop the process recorded for this profile, and only if the profile flag
+   * proves it is ours: a recycled pid must never be killed by mistake.
+   * @param pid - candidate process.
+   * @param userDataDir - profile directory it has to be running with.
+   * @returns whether a process was stopped.
+   */
+  async #killOwned(pid, userDataDir) {
+    if (pid === null || pid === process.pid) return false
+    let cmdline = ''
+    try {
+      cmdline = readFileSync(`/proc/${pid}/cmdline`, 'utf8')
+    } catch {
+      return false
+    }
+    if (!cmdline.split('\0').includes(`--user-data-dir=${userDataDir}`)) return false
+    try { process.kill(pid, 'SIGTERM') } catch { return false }
+    for (let i = 0; i < 30 && isAlive(pid); i++) await sleep(100)
+    if (isAlive(pid)) {
+      try { process.kill(pid, 'SIGKILL') } catch { /* it exited on its own */ }
+    }
+    return true
   }
 
   /** Attach to a page target and configure its viewport. */

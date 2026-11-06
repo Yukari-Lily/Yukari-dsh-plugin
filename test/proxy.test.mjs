@@ -469,3 +469,25 @@ test('egress: dispose restores direct access instead of a self-referential proxy
   assert.equal(process.env.HTTP_PROXY, undefined, 'restoring a dead self-route would break every request')
   assert.equal(process.env.http_proxy, undefined)
 })
+
+test('controller: turning the route off clears proxy variables for our own port', async (t) => {
+  const stateFile = await tempStateFile(t)
+  const controller = new ProxyController({ config: { stateFile } })
+  await controller.init()
+  const port = controller.state().localPort
+  const names = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy']
+  const saved = new Map([...names, 'NODE_USE_ENV_PROXY'].map((name) => [name, process.env[name]]))
+  t.after(() => {
+    for (const [name, value] of saved) {
+      if (value === undefined) Reflect.deleteProperty(process.env, name)
+      else process.env[name] = value
+    }
+  })
+  for (const name of names) process.env[name] = `http://127.0.0.1:${port}`
+  process.env.NODE_USE_ENV_PROXY = '1'
+
+  await controller.disable()
+
+  for (const name of names) assert.equal(process.env[name], undefined, `${name} would send children into a dead port`)
+  assert.equal(process.env.NODE_USE_ENV_PROXY, undefined)
+})
