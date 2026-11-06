@@ -1,7 +1,7 @@
 /**
  * The preset store: the only file this component owns.
  *
- * `$DSH_HOME/yukari-presets.json` holds every preset the panel created, so a
+ * `$DSH_HOME/presets.json` holds every preset the panel created, so a
  * restart re-registers them without touching the profile's own patch layer.
  * Reads never throw and never repair: a file this module cannot parse is
  * reported as an error, and every write is then refused — silently rewriting
@@ -16,7 +16,7 @@ import { clone, entryListProblem, MAX_PRESETS } from './definition.js'
 export const STORE_VERSION = 1
 
 /** File name inside `$DSH_HOME`. */
-export const STORE_FILE = 'yukari-presets.json'
+export const STORE_FILE = 'presets.json'
 
 /**
  * Absolute path of the store.

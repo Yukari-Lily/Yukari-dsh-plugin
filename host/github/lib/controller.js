@@ -6,6 +6,7 @@
  * to call GitHub or install the helper, and never returns it.
  * @module yukari-dsh-plugin/github/controller
  */
+import { existsSync } from 'node:fs'
 import { resolveDshHome } from '../../shared/home.js'
 import { getRepo, getUser, parseRepoInput } from './api.js'
 import { GitCredential } from './git.js'
@@ -107,6 +108,12 @@ export class GitHubController {
         await this.#git.uninstall()
         this.#gitError = null
         return
+      }
+      // The directory rename moved the include file; drop the pointer an older
+      // version left in ~/.gitconfig once that file is really gone.
+      const legacy = this.#store.paths.legacyIncludeFile
+      if (legacy !== this.#store.paths.includeFile && !existsSync(legacy)) {
+        await this.#git.removeInclude(legacy)
       }
       const result = await this.#git.install()
       this.#gitError = result.ok ? null : result.error

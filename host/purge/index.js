@@ -23,6 +23,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { markMounted } from '../shared/mounted.js'
 import { resolveDshHome } from '../shared/home.js'
+import { migratePath } from '../shared/migrate.js'
 import { BODY_LIMITS, guardRoute, readJsonBody, sendJson } from '../shared/http.js'
 import { ANCHOR_TEXT, CHILD_ANCHOR_TEXT, DEFAULT_PROMPT, SENTINEL } from './lib/prompts.js'
 import { ensurePresetFiles, getPresetDefinition, UNRESTRICTED_PRESET_ID } from './lib/preset.js'
@@ -96,8 +97,12 @@ export function apply(ctx, config = {}) {
   markMounted(ctx, 'purge')
 
   const dshHome = resolveDshHome()
-  const promptFile = path.join(dshHome, 'yukari-purge-prompt.md')
-  const settingsFile = path.join(dshHome, 'yukari-purge-settings.json')
+  const promptFile = path.join(dshHome, 'purge-prompt.md')
+  const settingsFile = path.join(dshHome, 'purge-settings.json')
+  // Older versions prefixed every file with `yukari-`; move them once so an
+  // upgrade keeps the edited prompt and the switches.
+  migratePath(path.join(dshHome, 'yukari-purge-prompt.md'), promptFile)
+  migratePath(path.join(dshHome, 'yukari-purge-settings.json'), settingsFile)
 
   let settings = readSettings(settingsFile, config)
   let promptText = DEFAULT_PROMPT

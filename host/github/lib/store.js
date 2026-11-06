@@ -4,7 +4,7 @@
  * The token is the only secret, and it is deliberately a separate file: the
  * git credential helper reads it directly, while the panel only ever sees the
  * non-secret metadata in `state.json`. Everything lives under
- * `$DSH_HOME/yukari-github/` so the directory can be locked to 0700 and the
+ * `$DSH_HOME/github/` so the directory can be locked to 0700 and the
  * token to 0600.
  * @module yukari-dsh-plugin/github/store
  */
@@ -12,7 +12,10 @@ import { chmod, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/pro
 import path from 'node:path'
 
 /** Directory under DSH_HOME. */
-const DIRECTORY = 'yukari-github'
+const DIRECTORY = 'github'
+
+/** The directory an older version used, migrated once on boot. */
+export const LEGACY_DIRECTORY = 'yukari-github'
 
 /** File names inside that directory. */
 const TOKEN_FILE = 'token'
@@ -40,6 +43,8 @@ export class GitHubStore {
       metaFile: path.join(directory, META_FILE),
       helperFile: path.join(directory, HELPER_FILE),
       includeFile: path.join(directory, INCLUDE_FILE),
+      // The entry an older version added to ~/.gitconfig, dropped once its file is gone.
+      legacyIncludeFile: path.join(home, LEGACY_DIRECTORY, INCLUDE_FILE),
     }
   }
 

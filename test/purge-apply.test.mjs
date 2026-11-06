@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { apply } from '../host/purge/index.js'
@@ -178,14 +178,14 @@ test('http: a switch is persisted to the plugin settings file', async (t) => {
   const { routes, home } = await withPlugin(t)
   const { json } = await call(routes[0], 'POST', '/purge/api/config', { anchor: false })
   assert.equal(json.settings.anchor, false)
-  const saved = JSON.parse(await readFile(path.join(home, 'yukari-purge-settings.json'), 'utf8'))
+  const saved = JSON.parse(await readFile(path.join(home, 'purge-settings.json'), 'utf8'))
   assert.equal(saved.anchor, false)
 })
 
 test('http: the prompt editor stores the custom prompt and reset restores the default', async (t) => {
   const { routes, home, systemPrompt } = await withPlugin(t)
   await call(routes[0], 'POST', '/purge/api/config', { prompt: 'CUSTOM RULES' })
-  assert.equal(await readFile(path.join(home, 'yukari-purge-prompt.md'), 'utf8'), 'CUSTOM RULES')
+  assert.equal(await readFile(path.join(home, 'purge-prompt.md'), 'utf8'), 'CUSTOM RULES')
 
   const assembly = await systemPrompt.assemble(unrestricted)
   assert.equal(assembly.sections[0].text, 'CUSTOM RULES')
@@ -234,4 +234,25 @@ test('apply: a hanging preset registration cannot hold up the seams', async (t) 
   assert.ok(sections.get(ANCHOR_SECTION))
   assert.ok(contexts.get(CHILD_ANCHOR_CONTEXT))
   assert.equal(routes.length, 1)
+})
+
+test('apply: a prefixed prompt file from an older version is picked up once', async (t) => {
+  const home = await mkdtemp(path.join(os.tmpdir(), 'yukari-purge-legacy-'))
+  const previous = process.env.DSH_HOME
+  process.env.DSH_HOME = home
+  t.after(async () => {
+    if (previous === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = previous
+    await rm(home, { recursive: true, force: true })
+  })
+  await writeFile(path.join(home, 'yukari-purge-prompt.md'), 'LEGACY RULES')
+
+  const harness = createCtx()
+  await apply(harness.ctx, {})
+
+  const config = await call(harness.routes[0], 'GET', '/purge/api/config')
+  assert.equal(config.json.prompt, 'LEGACY RULES')
+  assert.equal(config.json.isCustom, true)
+  const kept = JSON.parse(await readFile(path.join(home, 'purge-settings.json'), 'utf8').catch(() => 'null'))
+  assert.equal(kept, null, 'settings stay untouched until something is saved')
 })

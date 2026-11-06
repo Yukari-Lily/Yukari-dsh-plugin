@@ -5,7 +5,7 @@
  * component is deliberately just a caretaker of its own definitions:
  *
  * - presets it created are registered here and persisted to
- *   `$DSH_HOME/yukari-presets.json`;
+ *   `$DSH_HOME/presets.json`;
  * - presets a bundle or the profile patch declares are edited through
  *   `configEditor` (never by writing the profile patch ourselves, and never
  *   deleted);
@@ -19,6 +19,7 @@
 import path from 'node:path'
 import { markMounted } from '../shared/mounted.js'
 import { resolveDshHome } from '../shared/home.js'
+import { legacySibling, migratePath } from '../shared/migrate.js'
 import { guardRoute, messageOf, readJsonBody, sendJson } from '../shared/http.js'
 import {
   BUILTIN_PRESETS,
@@ -77,6 +78,8 @@ export async function apply(ctx) {
 
   const dshHome = resolveDshHome()
   const file = storePath(dshHome)
+  // Older versions wrote `yukari-presets.json`.
+  migratePath(legacySibling(file, 'yukari-presets.json'), file)
 
   let store = readStore(file)
   /** id → disposer returned by the registry. */

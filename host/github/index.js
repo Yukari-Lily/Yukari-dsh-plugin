@@ -7,7 +7,11 @@
  * include this component adds to the global git config.
  * @module yukari-dsh-plugin/github
  */
+import path from 'node:path'
 import { markMounted } from '../shared/mounted.js'
+import { resolveDshHome } from '../shared/home.js'
+import { migratePath } from '../shared/migrate.js'
+import { LEGACY_DIRECTORY } from './lib/store.js'
 import { GitHubController } from './lib/controller.js'
 import { BODY_LIMITS, guardRoute, readJsonBody, sendJson } from '../shared/http.js'
 
@@ -37,6 +41,10 @@ export function apply(ctx) {
       // A missing logger must not break the component.
     }
   }
+  // Older versions kept this state under `yukari-github/`. Move it before the
+  // controller resolves its paths, so a working token survives the rename.
+  const dshHome = resolveDshHome()
+  migratePath(path.join(dshHome, LEGACY_DIRECTORY), path.join(dshHome, 'github'))
   const controller = new GitHubController({ log })
 
   ctx.effect(

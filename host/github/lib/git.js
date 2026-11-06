@@ -207,8 +207,17 @@ export class GitCredential {
 
   /** Remove every include entry that points at our managed file. */
   async #removeInclude() {
+    return this.removeInclude(this.#paths.includeFile)
+  }
+
+  /**
+   * Remove include entries pointing at one file, whoever owns it.
+   * Used to drop the entry an older version left behind when its directory moved.
+   * @param file - absolute include path to drop.
+   */
+  async removeInclude(file) {
     try {
-      await this.#run(['config', '--global', '--fixed-value', '--unset-all', 'include.path', this.#paths.includeFile])
+      await this.#run(['config', '--global', '--fixed-value', '--unset-all', 'include.path', file])
       return
     } catch (error) {
       const code = Number(error?.code)
@@ -217,7 +226,7 @@ export class GitCredential {
       // Older git has no --fixed-value. Fall back to an anchored exact regex;
       // the include path is plugin-owned, so this cannot remove user entries.
       if (/fixed-value|unknown option/i.test(stderr) || code === 129) {
-        const pattern = this.#paths.includeFile.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const pattern = file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
         await this.#allow(['config', '--global', '--unset-all', 'include.path', `^${pattern}$`], [1, 5])
         return
       }
