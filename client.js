@@ -479,6 +479,7 @@ window.__ModuleLoader__.load({
       bLaunchFail: '无法启动',
       bLaunchFailHint: '浏览器已下载，但当前系统缺少运行库，使用时才会失败。按提示安装依赖或设置 browser libraryPath。',
       bAutomatic: '自动准备',
+      bRetrying: '宿主还会自动重试几次（0 / 15 / 45 秒），成功后会自己变绿；也可以点下面的按钮立刻重试。',
       bInstalling: '正在准备浏览器…',
       bInstall: '安装或重试',
       bVerify: '检查安装',
@@ -939,6 +940,7 @@ window.__ModuleLoader__.load({
       bLaunchFail: 'Cannot launch',
       bLaunchFailHint: 'The browser downloaded but this host lacks its runtime libraries; it will fail on first use. Install them or set browser libraryPath.',
       bAutomatic: 'Automatic setup',
+      bRetrying: 'The host retries on its own (0 / 15 / 45s) and turns green when it succeeds; you can also retry now with the button below.',
       bInstalling: 'Preparing browser…',
       bInstall: 'Install or retry',
       bVerify: 'Verify installation',
@@ -2019,9 +2021,21 @@ window.__ModuleLoader__.load({
       }, [])
       React.useEffect(() => { load() }, [load])
       const status = state?.status
+      // Keep polling through `error` too: the host retries provisioning on its own
+      // (0/15/45s), so a first-boot failure that already succeeded by the time you
+      // open the tab must not require a page refresh to disappear. The tick budget
+      // covers that window and then stops.
       React.useEffect(() => {
-        if (status !== 'installing' && status !== 'checking') return undefined
-        const timer = setInterval(() => load(true), 1500)
+        if (status !== 'installing' && status !== 'checking' && status !== 'error') return undefined
+        let ticks = 0
+        const timer = setInterval(() => {
+          ticks += 1
+          if (ticks > 60) {
+            clearInterval(timer)
+            return
+          }
+          load(true)
+        }, 1500)
         return () => clearInterval(timer)
       }, [status, load])
       const retry = async () => { try { setFailure(null); setState((await postJson(`${API.browser}/install/retry`, {})).state) } catch (error) { setFailure(failureOf(error)) } }
@@ -2072,6 +2086,7 @@ window.__ModuleLoader__.load({
                 )
               : null,
             status === 'error' ? h(Banner, { kind: 'error', text: state.error }) : null,
+            status === 'error' ? h('div', { className: 'yk-cardHint' }, t('bRetrying')) : null,
             !busy ? h('div', null, h('button', { type: 'button', className: 'yk-btn', onClick: retry }, h(DownloadIcon), status === 'ready' ? t('bVerify') : t('bInstall'))) : null,
           ),
         ),
