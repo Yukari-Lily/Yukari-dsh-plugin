@@ -357,7 +357,9 @@ export function apply(ctx, config, dependencies = {}) {
   // Provisioning races the network (and this deployment's egress route): the
   // first fetch can fail while the route is still coming up, so a bounded
   // retry keeps the runtime from parking in a permanent error state.
-  const PROVISION_BACKOFF_MS = [0, 15000, 45000]
+  // The last attempt is deliberately late: a restart can spend ~30s reconnecting
+  // the proxy route, and a download that starts before it is up fails at once.
+  const PROVISION_BACKOFF_MS = [0, 15000, 45000, 120000]
   let retryTimer = null
   const provisioning = (async () => {
     let lastError = null

@@ -30,6 +30,9 @@ const TEST_CONCURRENCY = 4
 /** How often an enabled route re-checks the active node on its own. */
 const WATCHDOG_INTERVAL_MS = 60000
 
+/** Retry schedule for the reconnect a restart performs on its own behalf. */
+const RESTORE_RETRY_MS = [0, 2000, 8000, 20000]
+
 /** Failed checks in a row before an enabled route closes itself. */
 const WATCHDOG_FAILURES = 2
 
@@ -91,6 +94,13 @@ export class ProxyController {
   #probeThroughOverride = null
   #watchdogTimer = null
   #watchdogFailures = 0
+  /** The reconnect a restart started on its own; null when none is running. */
+  #restoring = null
+  /** Set by `dispose`: in-flight retries stop instead of holding the process. */
+  #closed = false
+  /** Wakes the retry loop early so a restart is not held by a pending timer. */
+  #abortWaiters = new Set()
+  #restoreRetryMs = RESTORE_RETRY_MS
   #watchdogInterval = WATCHDOG_INTERVAL_MS
 
   /**
@@ -98,9 +108,11 @@ export class ProxyController {
    * @param options.log - diagnostic sink.
    * @param options.probeThrough - optional test override for the real tunnel probe.
    * @param options.watchdogIntervalMs - optional health-check interval override.
+   * @param options.restoreRetryMs - optional startup reconnect schedule override.
    */
-  constructor({ config = {}, log = () => {}, probeThrough, watchdogIntervalMs } = {}) {
+  constructor({ config = {}, log = () => {}, probeThrough, watchdogIntervalMs, restoreRetryMs } = {}) {
     this.#log = log
+    if (Array.isArray(restoreRetryMs) && restoreRetryMs.length > 0) this.#restoreRetryMs = restoreRetryMs.map(Number)
     this.#probeThroughOverride = typeof probeThrough === 'function' ? probeThrough : null
     const interval = Number(watchdogIntervalMs)
     if (Number.isFinite(interval) && interval > 0) this.#watchdogInterval = interval
@@ -176,15 +188,61 @@ export class ProxyController {
       await this.#failClosed('the saved node is missing its password or server; enter a valid node and enable again')
       return
     }
-    try {
-      await this.enable()
-    } catch (error) {
-      await this.#failClosed(`reconnect at startup failed: ${messageOf(error)}`)
+    // A restart's reconnect races the network and the node itself; one reset is
+    // not a decision. Keep the saved intent and retry in the background, so boot
+    // neither waits for the probe nor turns the route off behind the user's back.
+    this.#restoring = this.#restore()
+  }
+
+  /**
+   * Retry the startup reconnect, keeping `enabled` whatever happens.
+   * @returns whether the route came back.
+   */
+  async #restore() {
+    let lastError = null
+    for (const delay of this.#restoreRetryMs) {
+      if (this.#closed) return false
+      if (delay > 0) await this.#pause(delay)
+      if (this.#closed) return false
+      try {
+        await this.#enableRoute({ keepIntent: true })
+        this.#lastError = null
+        return true
+      } catch (error) {
+        lastError = error
+        this.#log(`reconnect attempt failed: ${messageOf(error)}`)
+      }
     }
+    this.#lastError = `启动时重连失败，已保留启用状态（${messageOf(lastError)}）；可在面板重试`
+    await this.#persist()
+    return false
+  }
+
+  /** A delay that ends early when the component is disposed. */
+  #pause(ms) {
+    return new Promise((resolve) => {
+      const finish = () => {
+        clearTimeout(timer)
+        this.#abortWaiters.delete(finish)
+        resolve()
+      }
+      const timer = setTimeout(finish, ms)
+      if (this.#closed) finish()
+      else this.#abortWaiters.add(finish)
+    })
+  }
+
+  /** Wait for the reconnect a restart started on its own. */
+  async settle() {
+    if (this.#restoring === null) return this.#proxy !== null
+    return this.#restoring
   }
 
   /** Stop the proxy and restore the previous egress route. */
   async dispose() {
+    this.#closed = true
+    for (const wake of [...this.#abortWaiters]) wake()
+    await this.#restoring?.catch(() => undefined)
     await this.#teardown()
   }
 
@@ -540,6 +598,16 @@ export class ProxyController {
 
   /** Turn the proxy on for the whole process, routed through the active node. */
   async enable() {
+    return this.#enableRoute({ keepIntent: false })
+  }
+
+  /**
+   * Bring the route up.
+   * @param options.keepIntent - a failure must not clear the saved "enabled":
+   *   the user asked for the route, and one reset from the node is no reason to
+   *   forget that. Only a reconnect at startup passes true.
+   */
+  async #enableRoute({ keepIntent }) {
     const node = this.#active()
     if (node === null) throw new Error('add a Shadowsocks node first')
     if (!this.#nodeReady(node)) throw new Error('fill in the Shadowsocks server, port and password first')
@@ -579,6 +647,12 @@ export class ProxyController {
       await this.#persist()
       return this.state()
     } catch (error) {
+      if (keepIntent) {
+        // Leave nothing half-installed, but keep `enabled` so the next attempt
+        // or the next restart can still resume it.
+        await this.#teardown()
+        throw error
+      }
       await this.#failClosed(messageOf(error))
       throw error
     }

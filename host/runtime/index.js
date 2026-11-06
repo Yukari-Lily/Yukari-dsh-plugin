@@ -87,9 +87,12 @@ export function apply(ctx, config = {}) {
   /** Set while a restart is scheduled but has not fired yet. */
   let restartPending = false
 
+/** What the lock holder is doing, in the panel's words. */
+const BUSY_LABELS = { check: '检查更新', update: '安装更新' }
+
   /** Run one operation under the single-operation lock. */
   async function exclusive(name, work) {
-    if (busy !== null) throw new Error(`${busy} is still running; wait for it to finish`)
+    if (busy !== null) throw new Error(`正在${BUSY_LABELS[busy] ?? busy}，等它跑完再试`)
     busy = name
     try {
       return await work()

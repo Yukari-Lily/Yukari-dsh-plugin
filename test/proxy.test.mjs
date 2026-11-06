@@ -318,6 +318,60 @@ test('controller: startup with an incomplete saved node turns the saved route of
   assert.equal(JSON.parse(await readFile(stateFile, 'utf8')).enabled, false)
 })
 
+test('controller: a failed reconnect at startup keeps the saved intent', async (t) => {
+  // A restart races the network: one ECONNRESET used to clear `enabled` and leave
+  // every later request direct (which in this deployment means none at all).
+  const stateFile = await tempStateFile(t)
+  const localPort = await unusedPort()
+  await writeFile(stateFile, JSON.stringify({
+    enabled: true,
+    activeId: 'n1',
+    localPort,
+    nodes: [{ id: 'n1', server: 'node.example', port: 8388, method: 'aes-256-gcm', password: 'secret' }],
+  }))
+  const controller = new ProxyController({
+    config: { stateFile },
+    restoreRetryMs: [0, 20, 20],
+    probeThrough: async () => { throw new Error('read ECONNRESET') },
+  })
+  t.after(() => controller.dispose())
+  await controller.init()
+  assert.equal(await controller.settle(), false, 'every attempt failed')
+  assert.equal(controller.state().enabled, true, 'the saved intent survives a transient failure')
+  assert.equal(controller.state().running, false)
+  assert.equal(controller.state().egress, null)
+  assert.match(controller.state().lastError, /已保留启用状态/)
+  assert.equal(JSON.parse(await readFile(stateFile, 'utf8')).enabled, true)
+})
+
+test('controller: the startup reconnect recovers on a later attempt', async (t) => {
+  const stateFile = await tempStateFile(t)
+  const localPort = await unusedPort()
+  await writeFile(stateFile, JSON.stringify({
+    enabled: true,
+    activeId: 'n1',
+    localPort,
+    nodes: [{ id: 'n1', server: 'node.example', port: 8388, method: 'aes-256-gcm', password: 'secret' }],
+  }))
+  let attempts = 0
+  const controller = new ProxyController({
+    config: { stateFile },
+    restoreRetryMs: [0, 20, 20],
+    probeThrough: async () => {
+      attempts += 1
+      if (attempts === 1) throw new Error('read ECONNRESET')
+      return healthyProbe()
+    },
+  })
+  t.after(() => controller.dispose())
+  await controller.init()
+  assert.equal(await controller.settle(), true)
+  assert.equal(controller.state().running, true)
+  assert.equal(controller.state().enabled, true)
+  await controller.dispose()
+  assert.equal(controller.state().running, false)
+})
+
 test('controller: an active probe failure closes the route; another node does not', async (t) => {
   const stateFile = await tempStateFile(t)
   const localPort = await unusedPort()
