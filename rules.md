@@ -14,7 +14,7 @@
 ## 二、改动流程
 
 - 一次改动一个提交，`package.json` 的版本号加一（仅面板文案也算发版）。
-- 提交标题：`type: vX.Y.Z — 一句中文说明`，type 用 `feat` / `fix` / `refactor` / `docs`。
+- 提交标题：`type: vX.Y.Z — short English summary`，type 用 `feat` / `fix` / `refactor` / `docs`；标题一律英文、一句话、能多短就多短。正文可以中文。
 - 提交正文写清三件事：原来是什么问题、现在怎么改、怎么验证的。
 - 提交前 `node --test test/*.test.mjs` 必须全绿。仓库**没有** `npm test`，别写它。
 - 改完只**提交并推送**（凭据助手已就位，这是已授权的），到此为止；然后提醒"重启后生效"。
