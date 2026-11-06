@@ -152,14 +152,26 @@ export class LocalProxy {
   #stats = { active: 0, total: 0, bytesUp: 0, bytesDown: 0, failures: 0 }
   #resolveNode
   #log
+  #onFailure
 
   /**
    * @param options.resolveNode - returns the current Shadowsocks node, or throws when not configured.
    * @param options.log - optional diagnostic sink.
+   * @param options.onFailure - reports an upstream node/tunnel failure to the lifecycle owner.
    */
-  constructor({ resolveNode, log = () => {} }) {
+  constructor({ resolveNode, log = () => {}, onFailure = () => {} }) {
     this.#resolveNode = resolveNode
     this.#log = log
+    this.#onFailure = onFailure
+  }
+
+  /** Report an upstream failure without letting a callback break the socket path. */
+  #upstreamFailed(error) {
+    try {
+      Promise.resolve(this.#onFailure(error)).catch((callbackError) => this.#log(`proxy failure handler failed: ${callbackError.message}`))
+    } catch (callbackError) {
+      this.#log(`proxy failure handler failed: ${callbackError.message}`)
+    }
   }
 
   /** Current connection counters. */
@@ -250,7 +262,10 @@ export class LocalProxy {
     if (String(method).toUpperCase() === 'CONNECT') {
       const { host, port } = splitHostPort(target, 443)
       if (!validPort(port)) throw new Error(`invalid CONNECT target "${target}"`)
-      const tunnel = await openTunnel(node, { host, port })
+      const tunnel = await openTunnel(node, { host, port }).catch((error) => {
+        this.#upstreamFailed(error)
+        throw error
+      })
       socket.write('HTTP/1.1 200 Connection Established\r\n\r\n')
       this.#relay(socket, reader, tunnel)
       return
@@ -263,7 +278,10 @@ export class LocalProxy {
       throw new Error(`unsupported proxy request target "${target}"`)
     }
     const port = Number(url.port || (url.protocol === 'https:' ? 443 : 80))
-    const tunnel = await openTunnel(node, { host: url.hostname, port })
+    const tunnel = await openTunnel(node, { host: url.hostname, port }).catch((error) => {
+      this.#upstreamFailed(error)
+      throw error
+    })
     const forwarded = [`${method} ${url.pathname}${url.search} ${version}`, ...headers.filter((line) => !/^proxy-connection\s*:/i.test(line)), '', '']
     tunnel.write(Buffer.from(forwarded.join('\r\n'), 'latin1'))
     this.#relay(socket, reader, tunnel)
@@ -311,6 +329,7 @@ export class LocalProxy {
     } catch (error) {
       this.#stats.failures += 1
       this.#log(`SOCKS5 connect ${host}:${port} failed: ${error.message}`)
+      this.#upstreamFailed(error)
       socket.write(Buffer.from([0x05, SOCKS_REFUSED, 0x00, 0x01, 0, 0, 0, 0, 0, 0]))
       socket.end()
       return
@@ -335,6 +354,7 @@ export class LocalProxy {
     tunnel.on('error', (error) => {
       this.#stats.failures += 1
       this.#log(`tunnel failed: ${error.message}`)
+      this.#upstreamFailed(error)
       socket.destroy()
     })
     tunnel.on('close', () => socket.destroy())

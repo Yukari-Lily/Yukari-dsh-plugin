@@ -1,9 +1,11 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import { register } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
+import net from 'node:net'
 import { parseNodeInput, parseNodesInput } from '../host/proxy/lib/ss-uri.js'
 import { METHOD_NAMES } from '../host/proxy/lib/shadowsocks.js'
 
@@ -258,4 +260,212 @@ test('controller: state() never carries passwords', async (t) => {
   const text = JSON.stringify([result, controller.state()])
   for (const secret of ['pass/one+', 'legacy', 'p@ss']) assert.equal(text.includes(`"${secret}"`), false)
   assert.equal(/"password"/.test(text), false)
+})
+
+/** Reserve an unused loopback port, then release it for the controller. */
+async function unusedPort() {
+  const server = net.createServer()
+  await new Promise((resolve, reject) => server.listen(0, '127.0.0.1', resolve).once('error', reject))
+  const { port } = server.address()
+  await new Promise((resolve) => server.close(resolve))
+  return port
+}
+
+const healthyProbe = async () => ({ ok: true, status: 204, ms: 1, at: new Date().toISOString() })
+
+/** Poll until `check()` is true, or fail the test after `timeoutMs`. */
+async function waitFor(check, timeoutMs = 3000) {
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    if (check()) return
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  assert.fail('condition did not become true in time')
+}
+
+test('controller: a failed enable restores direct egress and persists off', async (t) => {
+  const stateFile = await tempStateFile(t)
+  const localPort = await unusedPort()
+  const controller = new ProxyController({
+    config: { stateFile, localPort },
+    probeThrough: async () => { throw new Error('bad node credentials') },
+  })
+  t.after(() => controller.dispose())
+  await controller.importNodes(SIP002)
+  await assert.rejects(controller.enable(), /bad node credentials/)
+  assert.equal(controller.state().enabled, false)
+  assert.equal(controller.state().running, false)
+  assert.equal(controller.state().egress, null)
+  assert.match(controller.state().lastError, /disabled automatically.*bad node credentials/)
+  assert.equal(JSON.parse(await readFile(stateFile, 'utf8')).enabled, false)
+  await controller.dispose()
+})
+
+test('controller: startup with an incomplete saved node turns the saved route off', async (t) => {
+  const stateFile = await tempStateFile(t)
+  await writeFile(stateFile, JSON.stringify({
+    enabled: true,
+    activeId: 'broken',
+    nodes: [{ id: 'broken', server: 'node.example', port: 8388, method: 'aes-256-gcm', password: '' }],
+  }))
+  const controller = new ProxyController({ config: { stateFile } })
+  await controller.init()
+  t.after(() => controller.dispose())
+  assert.equal(controller.state().enabled, false)
+  assert.equal(controller.state().running, false)
+  assert.equal(controller.state().egress, null)
+  assert.match(controller.state().lastError, /disabled automatically/)
+  assert.equal(JSON.parse(await readFile(stateFile, 'utf8')).enabled, false)
+})
+
+test('controller: an active probe failure closes the route; another node does not', async (t) => {
+  const stateFile = await tempStateFile(t)
+  const localPort = await unusedPort()
+  let fail = false
+  const controller = new ProxyController({
+    config: { stateFile, localPort },
+    probeThrough: async () => {
+      if (fail) throw new Error('upstream unavailable')
+      return healthyProbe()
+    },
+  })
+  t.after(() => controller.dispose())
+  const { state } = await controller.importNodes(`${SIP002}\n${LEGACY}`)
+  const [active, other] = state.nodes.map((node) => node.id)
+  await controller.enable()
+  assert.equal(controller.state().running, true)
+  fail = true
+  await assert.rejects(controller.test(undefined, other), /upstream unavailable/)
+  assert.equal(controller.state().enabled, true, 'a standby node failure leaves the active route alone')
+  assert.equal(controller.state().running, true)
+  await assert.rejects(controller.test(undefined, active), /upstream unavailable/)
+  assert.equal(controller.state().enabled, false)
+  assert.equal(controller.state().running, false)
+  assert.equal(controller.state().egress, null)
+})
+
+test('controller: a running upstream failure closes the route and a stale error is ignored', async (t) => {
+  const stateFile = await tempStateFile(t)
+  const localPort = await unusedPort()
+  const controller = new ProxyController({ config: { stateFile, localPort }, probeThrough: healthyProbe })
+  t.after(() => controller.dispose())
+  const { state } = await controller.importNodes(SIP002)
+  // The node answered the probe at enable time but now refuses every tunnel,
+  // which is exactly the failure a single startup check cannot catch.
+  await controller.configure({ id: state.nodes[0].id, server: '127.0.0.1', port: 1 })
+  await controller.enable()
+  const client = net.connect({ host: '127.0.0.1', port: localPort })
+  t.after(() => client.destroy())
+  await new Promise((resolve, reject) => client.once('connect', resolve).once('error', reject))
+  client.end('CONNECT invalid.example:443 HTTP/1.1\r\nHost: invalid.example:443\r\n\r\n')
+  await waitFor(() => controller.state().enabled === false)
+  assert.equal(controller.state().running, false)
+  assert.equal(controller.state().egress, null)
+  assert.match(controller.state().lastError, /disabled automatically/)
+  assert.equal(JSON.parse(await readFile(stateFile, 'utf8')).enabled, false)
+  await controller.enable()
+  assert.equal(controller.state().enabled, true, 'a late callback from the old sockets cannot close this new route')
+  assert.equal(controller.state().running, true)
+})
+
+test('controller: selecting an unusable node fails closed without changing activeId', async (t) => {
+  const stateFile = await tempStateFile(t)
+  const localPort = await unusedPort()
+  const controller = new ProxyController({
+    config: { stateFile, localPort },
+    probeThrough: async (node) => {
+      if (node.server === 'host.example') throw new Error('new node failed')
+      return healthyProbe()
+    },
+  })
+  t.after(() => controller.dispose())
+  const { state } = await controller.importNodes(`${SIP002}\n${LEGACY}`)
+  const [active, other] = state.nodes.map((node) => node.id)
+  await controller.enable()
+  await assert.rejects(controller.select(other), /new node failed/)
+  assert.equal(controller.state().enabled, false)
+  assert.equal(controller.state().running, false)
+  assert.equal(controller.state().activeId, active)
+  assert.equal(JSON.parse(await readFile(stateFile, 'utf8')).enabled, false)
+})
+
+test('controller: the health watchdog closes a route whose node stops answering', async (t) => {
+  const stateFile = await tempStateFile(t)
+  const localPort = await unusedPort()
+  let healthy = true
+  const controller = new ProxyController({
+    config: { stateFile, localPort },
+    watchdogIntervalMs: 25,
+    probeThrough: async () => {
+      if (!healthy) throw new Error('node stopped answering')
+      return healthyProbe()
+    },
+  })
+  t.after(() => controller.dispose())
+  await controller.importNodes(SIP002)
+  await controller.enable()
+  assert.equal(controller.state().running, true)
+  healthy = false
+  // The in-memory flag flips before the atomic write lands; wait for both.
+  const persistedOff = () => {
+    try {
+      return JSON.parse(readFileSync(stateFile, 'utf8')).enabled === false
+    } catch {
+      return false
+    }
+  }
+  await waitFor(() => controller.state().enabled === false && persistedOff())
+  assert.equal(controller.state().running, false)
+  assert.equal(controller.state().egress, null)
+  assert.match(controller.state().lastError, /health checks failed/)
+})
+
+test('controller: a restart clears inherited proxy variables that point at the dead port', async (t) => {
+  const stateFile = await tempStateFile(t)
+  const saved = {
+    HTTP_PROXY: process.env.HTTP_PROXY,
+    HTTPS_PROXY: process.env.HTTPS_PROXY,
+    ALL_PROXY: process.env.ALL_PROXY,
+    NO_PROXY: process.env.NO_PROXY,
+    NODE_USE_ENV_PROXY: process.env.NODE_USE_ENV_PROXY,
+    CORPORATE_PROXY: process.env.CORPORATE_PROXY,
+  }
+  t.after(() => {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) Reflect.deleteProperty(process.env, key)
+      else process.env[key] = value
+    }
+  })
+  await writeFile(stateFile, JSON.stringify({ enabled: false, nodes: [], localPort: 17890 }))
+  process.env.HTTP_PROXY = 'http://127.0.0.1:17890'
+  process.env.http_proxy = 'http://127.0.0.1:17890'
+  process.env.HTTPS_PROXY = 'http://corp.example:3128'
+  process.env.NO_PROXY = 'localhost,127.0.0.1'
+  process.env.NODE_USE_ENV_PROXY = '1'
+  const controller = new ProxyController({ config: { stateFile } })
+  await controller.init()
+  assert.equal(process.env.HTTP_PROXY, undefined, 'the dead self-referential route is gone')
+  assert.equal(process.env.http_proxy, undefined)
+  assert.equal(process.env.NODE_USE_ENV_PROXY, undefined)
+  assert.equal(process.env.HTTPS_PROXY, 'http://corp.example:3128', 'an unrelated proxy is left alone')
+  assert.equal(process.env.NO_PROXY, 'localhost,127.0.0.1', 'the direct list is left alone')
+})
+
+test('egress: dispose restores direct access instead of a self-referential proxy', async (t) => {
+  const { installEgress } = await import('../host/proxy/lib/egress.js')
+  const saved = { HTTP_PROXY: process.env.HTTP_PROXY, http_proxy: process.env.http_proxy }
+  t.after(() => {
+    for (const [key, value] of Object.entries(saved)) {
+      if (value === undefined) Reflect.deleteProperty(process.env, key)
+      else process.env[key] = value
+    }
+  })
+  const port = await unusedPort()
+  process.env.HTTP_PROXY = `http://127.0.0.1:${port}`
+  process.env.http_proxy = `http://127.0.0.1:${port}`
+  const egress = await installEgress({ port, bypass: 'localhost' })
+  assert.equal(process.env.HTTP_PROXY, `http://127.0.0.1:${port}`)
+  await egress.dispose()
+  assert.equal(process.env.HTTP_PROXY, undefined, 'restoring a dead self-route would break every request')
+  assert.equal(process.env.http_proxy, undefined)
 })

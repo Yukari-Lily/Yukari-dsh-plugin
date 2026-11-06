@@ -1,8 +1,8 @@
 # Yukari 插件合集：主行 + 10 个可在「插件」页单独开关的组件
 #
-# 代理、无限制模式、无头浏览器三行默认关闭（disabled: true）：
-# 浏览器没被打开前不会下载 Chrome 与运行库，代理没被打开前不会起本地端口。
-# 要用哪个，就在「插件」页对应组件行上打开；面板里的标签页会跟着出现。
+# 全部组件默认启用。代理功能仍默认直连，主动启用后才起本地端口；
+# 无头浏览器挂载后才会开始准备 Chrome 与缺失的运行库。
+# 不用的组件在「插件」页关掉即可。
 - insert:
     - id: yukari
       name: yukari-dsh-plugin
@@ -41,7 +41,6 @@
 
     - id: yukari-proxy
       name: yukari-dsh-plugin/proxy
-      disabled: true
       config:
         localPort: 17890
         bypass: localhost,127.0.0.1,::1
@@ -55,7 +54,6 @@
 
     - id: yukari-purge
       name: yukari-dsh-plugin/purge
-      disabled: true
       config:
         # 尾部锚点：把规则放在系统提示词最后一段，长上下文里不漂移
         anchor: true
@@ -66,7 +64,6 @@
 
     - id: yukari-browser
       name: yukari-dsh-plugin/browser
-      disabled: true
       config:
         viewportWidth: 1280
         viewportHeight: 900

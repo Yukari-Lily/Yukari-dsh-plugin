@@ -65,16 +65,16 @@ window.__ModuleLoader__.load({
       compPresets: '智能体预设',
       ovPresets: '{n} 个自定义',
       ovPresetsHow: '以已有预设为模板新建',
-      pIntro: '管理「自定义」分组里的智能体预设：新建时先选一个内置或自定义预设当模板，再改组合；内置预设只读，复制一份就能改。',
-      pTrust: '组合会加载宿主插件：只添加你信任的包。',
+      pIntro: '复制现有预设，或新建空白组合。',
+      pTrust: '仅添加信任的插件包。',
       pMine: '我的预设',
-      pMineHint: '由这个插件注册并保存，可以改也可以删。',
+      pMineHint: '可编辑、删除',
       pDeclared: '其他自定义预设',
-      pDeclaredHint: '由 profile 的 patch 声明；保存会写入一条覆盖，不能在这里删除。',
+      pDeclaredHint: '保存会创建覆盖',
       pBuiltin: '内置预设',
-      pBuiltinHint: '只读，复制一份再改。',
+      pBuiltinHint: '只读，可复制',
       pRuntimeGroup: '运行时注册',
-      pRuntimeHint: '由其他插件在运行时注册。',
+      pRuntimeHint: '由其他插件提供',
       pSourceStore: '我的',
       pSourceDeclared: '声明式',
       pSourceBuiltin: '内置',
@@ -87,7 +87,7 @@ window.__ModuleLoader__.load({
       pNewTitle: '新建预设',
       pEditTitle: '编辑预设',
       pChooseTemplate: '选一个模板',
-      pChooseTemplateHint: '新预设立刻复制它的完整组合：工具、人格提示词、分组都在里面，之后随便改。',
+      pChooseTemplateHint: '复制模板的工具、提示词与分组。',
       pBlankTitle: '空白组合',
       pBlankHint: '不含任何工具，只有对话。',
       pUseTemplate: '用这个',
@@ -109,12 +109,12 @@ window.__ModuleLoader__.load({
       pOrder: '排序',
       pOrderHint: '数字小的排前面；留空排最后',
       pPersona: '人格提示词',
-      pPersonaHint: '写进 @deepseek-ai/dsh-persona 的 prefix，是这个模式的「性格」。',
+      pPersonaHint: '定义这个模式的人格。',
       pPersonaPlaceholder: '你在这个模式下工作……',
       pPersonaSuffix: '后缀（可留空）',
       pPersonaMissing: '这个组合里没有人格行。',
       pPersonaAdd: '添加人格行',
-      pRowsHint: '每行是一个插件；停用不挂载，带 !!js 条件的行由表达式决定。',
+      pRowsHint: '每行对应一个插件。',
       pRowGroup: '分组',
       pRowCondition: '条件',
       pRowDisable: '停用',
@@ -327,7 +327,7 @@ window.__ModuleLoader__.load({
       gStatsNone: '本进程还没有无限制模式的装配记录',
 
       kTitle: '强约束',
-      kDesc: '把硬性规则写进系统提示词首尾：优先级高于工具说明和工作区指引，保存后下一轮对话立即生效，不用重启。',
+      kDesc: '约束写入系统提示词首尾，保存后下一轮生效。',
       kGlobalTitle: '全局约束',
       kGlobalNote: '对所有会话生效，包括子智能体',
       kProjectTitle: '工作区约束',
@@ -357,13 +357,14 @@ window.__ModuleLoader__.load({
       kProbeFail: '自检失败：{reason}',
       kStats: '已注入 {a} 次 · 全局 {b} · 工作区 {c}',
       kStatsNone: '还没有会话带上约束',
-      kPrecedence: '约束与操作者的直接指令同级，高于工具说明、工作区指引、角色设定与风格要求；不改变审批与沙箱权限。',
-      kAgentsNote: '工作区里的 AGENTS.md / CLAUDE.md 由 dsh 自己作为「工作区指引」加载（用户消息、不是强约束），同一内容会重复进上下文，所以这里用独立文件；要迁移就用「导入」。',
+      kPrecedence: '不改变审批与沙箱权限。',
+      kAgentsNote: '可用「导入」迁移 AGENTS.md / CLAUDE.md。',
       kSwitchDirty: '切换工作区会丢掉未保存的修改',
       kDiscard: '放弃修改',
       kNoWorkspaces: '没有注册的工作区',
       kDirMissing: '工作区目录不存在',
       kTruncated: '已截断',
+      kDetails: '说明与统计',
       ovRulesActive: '{n} 份约束已写好',
       ovRulesHow: '保存后下一轮生效',
 
@@ -371,17 +372,15 @@ window.__ModuleLoader__.load({
       compGithub: 'Github',
       ghIntro: '连接 Github',
       ghCreate: '在 GitHub 创建 fine-grained token',
-      ghStepAccess: 'Repository access 选 Only select repositories，勾选要推送的仓库。',
-      ghStepPerm: 'Repository permissions → Contents 设为 Read and write；Metadata 保持 Read。',
-      ghStepPaste: '生成后复制令牌，粘贴到下面；令牌只显示一次。',
+      ghStepAccess: '创建 fine-grained token：选择仓库，授予 Contents 读写权限。',
       ghTokenLabel: 'GitHub 令牌',
       ghTokenPlaceholder: 'github_pat_… 或 ghp_…',
       ghShow: '显示',
       ghHide: '隐藏',
       ghSave: '保存并验证',
       ghSaving: '验证中…',
-      ghStorage: '保存到 $DSH_HOME/yukari-github/token（0600）；重启、更新、容器重建后都不需要重输。',
-      ghSecurityHint: '令牌不会出现在面板、API、日志、remote 或 helper 脚本里；但同一容器的进程（包括智能体的 bash 和文件读取）能读取这个 0600 文件。请用 fine-grained PAT，只选必要仓库、Contents: Read and write、较短有效期；不用时点“清除令牌”。',
+      ghStorage: '令牌仅保存在本机，重启后仍有效。',
+      ghSecurityHint: '请使用限定仓库、短期有效的 fine-grained token；同容器进程可读取令牌文件。',
       ghAccount: '账号',
       ghLogin: '登录名',
       ghTokenType: '令牌类型',
@@ -408,13 +407,13 @@ window.__ModuleLoader__.load({
       ghCannotPush: '无写权限',
       ghRepoPrivate: '私有',
       ghRepoPublic: '公开',
-      ghRepoCheckHint: '只代表这枚令牌对该仓库有 write 权限；分支保护仍可能拒绝 push。',
+      ghRepoCheckHint: '分支保护仍可能拒绝 push。',
       ghRepo: '仓库',
       ghVisibility: '可见性',
       ghDefaultBranch: '默认分支',
       ghClear: '清除令牌',
       ghClearTitle: '清除 GitHub 令牌？',
-      ghClearHint: '令牌文件和 git 凭据助手会被删除；之后智能体不能再 push，重新粘贴令牌才能恢复。',
+      ghClearHint: '删除令牌与凭据助手；需重新配置才能 push。',
       ghClearConfirm: '清除',
       ghDanger: '撤销',
       ghUnconfigured: '未配置',
@@ -522,16 +521,16 @@ window.__ModuleLoader__.load({
       compPresets: 'Agent presets',
       ovPresets: '{n} custom',
       ovPresetsHow: 'Start from an existing preset',
-      pIntro: 'Manage the Custom agent presets. Creating one starts from a built-in or custom preset as a template; built-ins stay read-only, duplicate one to edit.',
-      pTrust: 'A composition runs Host plugins: only add packages you trust.',
+      pIntro: 'Duplicate an existing preset or start empty.',
+      pTrust: 'Only add plugin packages you trust.',
       pMine: 'My presets',
-      pMineHint: 'Registered and stored by this plugin; editable and removable.',
+      pMineHint: 'Editable and removable',
       pDeclared: 'Other custom presets',
-      pDeclaredHint: 'Declared by the profile patch; saving writes an override, and deleting is not offered here.',
+      pDeclaredHint: 'Saving creates an override',
       pBuiltin: 'Built-in presets',
-      pBuiltinHint: 'Read-only; duplicate one to change it.',
+      pBuiltinHint: 'Read-only; duplicate to edit',
       pRuntimeGroup: 'Registered at runtime',
-      pRuntimeHint: 'Registered by another plugin at runtime.',
+      pRuntimeHint: 'Provided by another plugin',
       pSourceStore: 'Mine',
       pSourceDeclared: 'Declared',
       pSourceBuiltin: 'Built-in',
@@ -544,7 +543,7 @@ window.__ModuleLoader__.load({
       pNewTitle: 'New preset',
       pEditTitle: 'Edit preset',
       pChooseTemplate: 'Pick a template',
-      pChooseTemplateHint: 'The new preset copies its whole composition — tools, persona prompt and groups — and you change it from there.',
+      pChooseTemplateHint: 'Copy its tools, prompts, and groups.',
       pBlankTitle: 'Empty composition',
       pBlankHint: 'No tools at all; conversation only.',
       pUseTemplate: 'Use this',
@@ -566,12 +565,12 @@ window.__ModuleLoader__.load({
       pOrder: 'Order',
       pOrderHint: 'Lower numbers sort first; leave empty to sort last',
       pPersona: 'Persona prompt',
-      pPersonaHint: 'Written into the prefix of @deepseek-ai/dsh-persona: this mode’s character.',
+      pPersonaHint: 'Define this mode’s persona.',
       pPersonaPlaceholder: 'You work in this mode…',
       pPersonaSuffix: 'Suffix (optional)',
       pPersonaMissing: 'This composition has no persona row.',
       pPersonaAdd: 'Add persona row',
-      pRowsHint: 'One plugin per row; a disabled row does not mount, and a !!js condition decides for itself.',
+      pRowsHint: 'One plugin per row.',
       pRowGroup: 'Group',
       pRowCondition: 'Condition',
       pRowDisable: 'Disable',
@@ -784,7 +783,7 @@ window.__ModuleLoader__.load({
       gStatsNone: 'No unrestricted assembly recorded in this process yet',
 
       kTitle: 'Hard rules',
-      kDesc: 'Write binding rules into the head and tail of the system prompt: they outrank tool guidance and workspace instructions, and a save applies to the next turn without a restart.',
+      kDesc: 'Saved rules apply to the next turn.',
       kGlobalTitle: 'Global rules',
       kGlobalNote: 'Applies to every chat, subagents included',
       kProjectTitle: 'Workspace rules',
@@ -814,13 +813,14 @@ window.__ModuleLoader__.load({
       kProbeFail: 'Check failed: {reason}',
       kStats: 'injected {a}× · global {b} · workspace {c}',
       kStatsNone: 'No chat has carried the rules yet',
-      kPrecedence: 'Rules rank with a direct operator instruction, above tool guidance, workspace instructions, persona and style requests; they do not change approval or sandbox permissions.',
-      kAgentsNote: 'AGENTS.md / CLAUDE.md in the workspace are loaded by dsh itself as workspace guidance (a user message, not a hard rule). Writing the same text there would duplicate it in context, so this component uses its own files; use Import to migrate.',
+      kPrecedence: 'Approval and sandbox permissions are unchanged.',
+      kAgentsNote: 'Use Import to migrate AGENTS.md / CLAUDE.md.',
       kSwitchDirty: 'Switching workspaces discards unsaved edits',
       kDiscard: 'Discard',
       kNoWorkspaces: 'No workspace registered',
       kDirMissing: 'Workspace directory is missing',
       kTruncated: 'truncated',
+      kDetails: 'Details and stats',
       ovRulesActive: '{n} rule file(s) written',
       ovRulesHow: 'applies to the next turn',
 
@@ -828,17 +828,15 @@ window.__ModuleLoader__.load({
       compGithub: 'Github',
       ghIntro: 'Connect Github',
       ghCreate: 'Create a fine-grained token on GitHub',
-      ghStepAccess: 'Repository access: choose Only select repositories and pick the repos you push to.',
-      ghStepPerm: 'Repository permissions → Contents: Read and write; keep Metadata: Read.',
-      ghStepPaste: 'Copy the token after creating it and paste it below; GitHub shows it only once.',
+      ghStepAccess: 'Create a fine-grained token, select repositories, and grant Contents read/write.',
       ghTokenLabel: 'GitHub token',
       ghTokenPlaceholder: 'github_pat_… or ghp_…',
       ghShow: 'Show',
       ghHide: 'Hide',
       ghSave: 'Save and verify',
       ghSaving: 'Verifying…',
-      ghStorage: 'Saved to $DSH_HOME/yukari-github/token (0600); no re-entry after restarts, updates, or container rebuilds.',
-      ghSecurityHint: 'The token never appears in the panel, API, logs, remotes, or the helper script; but any process in this container, including the agent bash and file reads, can read the 0600 file. Use a fine-grained PAT limited to the repos you need, Contents: Read and write, and a short expiry; clear it when unused.',
+      ghStorage: 'Stored locally and restored after a restart.',
+      ghSecurityHint: 'Use a short-lived, repository-scoped fine-grained token. Processes in this container can read its file.',
       ghAccount: 'Account',
       ghLogin: 'Login',
       ghTokenType: 'Token type',
@@ -865,13 +863,13 @@ window.__ModuleLoader__.load({
       ghCannotPush: 'No write access',
       ghRepoPrivate: 'Private',
       ghRepoPublic: 'Public',
-      ghRepoCheckHint: 'This only means the token has write permission on that repository; branch protection may still reject the push.',
+      ghRepoCheckHint: 'Branch protection may still reject pushes.',
       ghRepo: 'Repository',
       ghVisibility: 'Visibility',
       ghDefaultBranch: 'Default branch',
       ghClear: 'Clear token',
       ghClearTitle: 'Clear the GitHub token?',
-      ghClearHint: 'The token file and git credential helper are deleted; the agent cannot push again until you paste a token.',
+      ghClearHint: 'Deletes the token and credential helper; configure again to push.',
       ghClearConfirm: 'Clear',
       ghDanger: 'Revoke',
       ghUnconfigured: 'Not configured',
@@ -975,6 +973,10 @@ window.__ModuleLoader__.load({
 .yk-navTab[aria-selected="true"] { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-active); }
 .yk-navTab:focus-visible, .yk-btn:focus-visible, .yk-cardAction:focus-visible { outline: 2px solid var(--yk-accent); outline-offset: 2px; }
 .yk-tabPanel, .yk-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.yk-subpageHead { display: flex; align-items: flex-start; gap: 10px; min-width: 0; padding: 2px 0 4px; }
+.yk-backBtn { flex: none; margin-left: -8px; }
+.yk-subpageTitle { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding-top: 5px; }
+.yk-subpageTitle .yk-cardTitle { font-size: 16px; white-space: normal; overflow-wrap: anywhere; }
 .yk-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .yk-search { display: flex; align-items: center; gap: 8px; flex: 1 1 220px; height: 34px; padding: 0 10px; border-radius: var(--dsw-radius-md); border: 1px solid var(--yk-line); background: var(--dsw-alias-bg-base); color: var(--yk-muted); }
 .yk-search:focus-within, .yk-input:focus { border-color: var(--yk-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--yk-accent) 12%, transparent); }
@@ -1506,6 +1508,7 @@ window.__ModuleLoader__.load({
       )
     const ChevronDownIcon = (props) => glyph(stroke('M6 9l6 6 6-6'), props)
     const ChevronRightIcon = (props) => glyph(stroke('M9 6l6 6-6 6'), props)
+    const BackIcon = (props) => glyph([stroke('M19 12H5', { key: 'a' }), stroke('m11 18-6-6 6-6', { key: 'b' })], props)
 
     const Spinner = ({ size }) => h(RefreshIcon, { className: 'yk-spin', width: size ?? 15, height: size ?? 15 })
 
@@ -1534,6 +1537,20 @@ window.__ModuleLoader__.load({
             h(Chip, { key: index, kind: chip.kind, dot: chip.dot }, chip.text),
           ),
         ),
+      )
+    }
+
+    function SubpageHeader({ t, title, note, onBack, action }) {
+      return h(
+        'div',
+        { className: 'yk-subpageHead' },
+        h(
+          'button',
+          { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-backBtn', onClick: onBack, title: t('pBack'), 'aria-label': t('pBack') },
+          h(BackIcon, { width: 17, height: 17 }),
+        ),
+        h('div', { className: 'yk-subpageTitle' }, h('h2', { className: 'yk-cardTitle' }, title), note ? h('div', { className: 'yk-itemMeta' }, note) : null),
+        action ?? null,
       )
     }
 
@@ -3511,15 +3528,7 @@ window.__ModuleLoader__.load({
         h(
           React.Fragment,
           null,
-          withSteps
-            ? h(
-                'ol',
-                { className: 'yk-steps' },
-                h('li', null, t('ghStepAccess')),
-                h('li', null, t('ghStepPerm')),
-                h('li', null, t('ghStepPaste')),
-              )
-            : null,
+          withSteps ? h('p', { className: 'yk-cardText' }, t('ghStepAccess')) : null,
           h(
             'div',
             { className: 'yk-toolbar' },
@@ -3556,7 +3565,7 @@ window.__ModuleLoader__.load({
               t('ghCreate'),
             ),
           ),
-          h('div', { className: 'yk-foot' }, t('ghStorage')),
+          h('div', { className: 'yk-foot' }, `${t('ghStorage')} ${t('ghSecurityHint')}`),
         )
 
       if (state === null) {
@@ -3587,7 +3596,6 @@ window.__ModuleLoader__.load({
         'div',
         { className: 'yk-body' },
         h(Failure, { t, name: 'github', error: failure, onRetry: load }),
-        h(Banner, { kind: 'warn', text: t('ghSecurityHint') }),
         h(FlashNote, { flash, keys: ['save', 'verify', 'repair'] }),
 
         state.configured
@@ -4094,9 +4102,7 @@ window.__ModuleLoader__.load({
             ),
           ),
           probeNote,
-          statsNote,
-          h('div', { className: 'yk-foot' }, t('kPrecedence')),
-          h('div', { className: 'yk-foot' }, t('kAgentsNote')),
+          h(Disclosure, { title: t('kDetails') }, statsNote, h('div', { className: 'yk-foot' }, t('kPrecedence')), h('div', { className: 'yk-foot' }, t('kAgentsNote'))),
         ),
         h(
           'div',
@@ -4718,15 +4724,10 @@ window.__ModuleLoader__.load({
           config: { ...(row.config && typeof row.config === 'object' ? row.config : {}), [field]: value },
         }))
 
-      const openAdvanced = () => {
-        setAdvanced(JSON.stringify(draft?.plugins ?? [], null, 2))
-        setJsonError('')
-      }
-
       const applyAdvanced = () => {
         let parsed
         try {
-          parsed = JSON.parse(advanced ?? '')
+          parsed = JSON.parse(advanced ?? JSON.stringify(draft?.plugins ?? [], null, 2))
         } catch (error) {
           setJsonError(fill(t('pJsonInvalid'), { error: messageOf(error) }))
           return
@@ -4755,34 +4756,15 @@ window.__ModuleLoader__.load({
       }
 
       const editorHeader = () =>
-        h(
-          'div',
-          { className: 'yk-toolbar' },
-          h(
-            'div',
-            { className: 'yk-grow', style: { display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 } },
-            h('div', { className: 'yk-cardTitle', style: { fontSize: '15px' } }, draft.mode === 'create' ? t('pNewTitle') : t('pEditTitle')),
+        h(SubpageHeader, {
+          t,
+          title: draft.mode === 'create' ? t('pNewTitle') : t('pEditTitle'),
+          note:
             draft.template === null
-              ? h(
-                  'div',
-                  { className: 'yk-itemMeta' },
-                  draft.mode === 'create' ? t('pBlankTitle') : draft.declared ? t('pDeclaredHint') : t('pMine'),
-                )
-              : h(
-                  'div',
-                  { className: 'yk-itemMeta' },
-                  h(
-                    'span',
-                    null,
-                    fill(t('pTemplateTag'), {
-                      name: `${draft.template.name} · ${t(PRESET_SOURCE_LABEL[draft.template.source] ?? 'pSourceDeclared')}`,
-                    }),
-                  ),
-                  draft.template.notes.map((note, index) => h('span', { key: index }, note)),
-                ),
-          ),
-          h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: closeEditor, disabled: busyNow }, t('pBack')),
-        )
+              ? draft.mode === 'create' ? t('pBlankTitle') : draft.declared ? t('pDeclaredHint') : t('pMine')
+              : fill(t('pTemplateTag'), { name: draft.template.name }),
+          onBack: closeEditor,
+        })
 
       const field = (labelKey, control, hint) =>
         h(
@@ -4836,17 +4818,12 @@ window.__ModuleLoader__.load({
         return h(
           'div',
           { className: 'yk-body' },
-          h(
-            'div',
-            { className: 'yk-toolbar' },
-            h(
-              'div',
-              { className: 'yk-grow', style: { display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 } },
-              h('div', { className: 'yk-cardTitle', style: { fontSize: '15px' } }, composition?.item?.name ?? composition?.item?.id ?? ''),
-              h('div', { className: 'yk-itemMeta' }, composition?.item?.id ?? ''),
-            ),
-            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => setView('list') }, t('pBack')),
-          ),
+          h(SubpageHeader, {
+            t,
+            title: composition?.item?.name ?? composition?.item?.id ?? '',
+            note: composition?.item?.id ?? '',
+            onBack: () => setView('list'),
+          }),
           composition?.plugins === null || composition?.plugins === undefined
             ? h('p', { className: 'yk-foot' }, t('pNoStructure'))
             : h('pre', { className: 'yk-out yk-outTall' }, JSON.stringify(composition.plugins, null, 2)),
@@ -4861,13 +4838,7 @@ window.__ModuleLoader__.load({
           'div',
           { className: 'yk-body' },
           h(Failure, { t, name: 'presets', error: failure, onRetry: () => load() }),
-          h(
-            'div',
-            { className: 'yk-toolbar' },
-            h('div', { className: 'yk-itemTitle' }, t('pImportRows')),
-            h('span', { className: 'yk-grow' }),
-            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => setView('edit') }, t('pBack')),
-          ),
+          h(SubpageHeader, { t, title: t('pImportRows'), onBack: () => setView('edit') }),
           h('p', { className: 'yk-foot' }, t('pImportPick')),
           h(
             'ul',
@@ -4904,17 +4875,12 @@ window.__ModuleLoader__.load({
           'div',
           { className: 'yk-body' },
           h(Failure, { t, name: 'presets', error: failure, onRetry: () => load() }),
-          h(
-            'div',
-            { className: 'yk-toolbar' },
-            h(
-              'div',
-              { className: 'yk-grow', style: { display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 } },
-              h('div', { className: 'yk-itemTitle' }, fill(t('pImportFrom'), { name: importFrom.name })),
-              h('div', { className: 'yk-itemMeta' }, t('pImportHint')),
-            ),
-            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => setView('edit') }, t('pBack')),
-          ),
+          h(SubpageHeader, {
+            t,
+            title: fill(t('pImportFrom'), { name: importFrom.name }),
+            note: t('pImportHint'),
+            onBack: () => setView('template'),
+          }),
           h(
             'ul',
             { className: 'yk-list' },
@@ -4964,21 +4930,12 @@ window.__ModuleLoader__.load({
           'div',
           { className: 'yk-body' },
           h(Failure, { t, name: 'presets', error: failure, onRetry: () => load() }),
-          h(
-            'div',
-            { className: 'yk-toolbar' },
-            h(
-              'div',
-              { className: 'yk-grow', style: { display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 } },
-              h('div', { className: 'yk-cardTitle', style: { fontSize: '15px' } }, t('pChooseTemplate')),
-              h('div', { className: 'yk-itemMeta' }, t('pChooseTemplateHint')),
-            ),
-            h(
-              'button',
-              { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => (draft === null ? setView('list') : setView('edit')) },
-              t('pBack'),
-            ),
-          ),
+          h(SubpageHeader, {
+            t,
+            title: t('pChooseTemplate'),
+            note: t('pChooseTemplateHint'),
+            onBack: () => (draft === null ? setView('list') : setView('edit')),
+          }),
           h(
             'ul',
             { className: 'yk-list' },
@@ -5194,35 +5151,17 @@ window.__ModuleLoader__.load({
                 ),
           ),
           h(
-            Card,
-            {
-              title: t('pAdvanced'),
-              note: t('pAdvancedHint'),
-              span: true,
-              action:
-                advanced === null
-                  ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: openAdvanced }, t('pAdvancedOpen'))
-                  : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => setAdvanced(null) }, t('pCancel')),
-            },
-            advanced === null
-              ? null
-              : h(
-                  'div',
-                  { className: 'yk-stack' },
-                  h('textarea', {
-                    className: 'yk-input yk-textarea yk-textareaCode',
-                    value: advanced,
-                    spellCheck: false,
-                    onChange: (event) => setAdvanced(event.target.value),
-                  }),
-                  jsonError === '' ? null : h('p', { className: 'yk-foot yk-footError', role: 'alert' }, jsonError),
-                  h(
-                    'div',
-                    { className: 'yk-toolbar' },
-                    h('span', { className: 'yk-grow' }),
-                    h('button', { type: 'button', className: 'yk-btn yk-btn-sm', onClick: applyAdvanced }, t('pApply')),
-                  ),
-                ),
+            Disclosure,
+            { title: t('pAdvanced') },
+            h('div', { className: 'yk-foot' }, t('pAdvancedHint')),
+            h('textarea', {
+              className: 'yk-input yk-textarea yk-textareaCode',
+              value: advanced ?? JSON.stringify(draft.plugins, null, 2),
+              spellCheck: false,
+              onChange: (event) => setAdvanced(event.target.value),
+            }),
+            jsonError === '' ? null : h('p', { className: 'yk-foot yk-footError', role: 'alert' }, jsonError),
+            h('div', { className: 'yk-toolbar' }, h('span', { className: 'yk-grow' }), h('button', { type: 'button', className: 'yk-btn yk-btn-sm', onClick: applyAdvanced }, t('pApply'))),
           ),
           h(
             'div',
@@ -5246,7 +5185,6 @@ window.__ModuleLoader__.load({
         'div',
         { className: 'yk-body' },
         h(Failure, { t, name: 'presets', error: failure, onRetry: () => load() }),
-        h(Banner, { kind: 'info', text: t('pTrust') }),
         state?.storeError ? h(Banner, { kind: 'error', text: fill(t('pStoreBroken'), { error: state.storeError }) }) : null,
         state?.declaredError ? h(Banner, { kind: 'warn', text: state.declaredError }) : null,
         h(
@@ -5256,7 +5194,7 @@ window.__ModuleLoader__.load({
             'div',
             { className: 'yk-grow', style: { display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 } },
             h('div', { className: 'yk-cardTitle', style: { fontSize: '15px' } }, t('tabPresets')),
-            h('div', { className: 'yk-itemMeta' }, t('pIntro')),
+            h('div', { className: 'yk-itemMeta' }, `${t('pIntro')} ${t('pTrust')}`),
           ),
           flash?.key === 'save' ? h('span', { className: 'yk-flash' }, flash.text) : null,
           flash?.key === 'delete' ? h('span', { className: 'yk-flash' }, flash.text) : null,

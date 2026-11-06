@@ -47,12 +47,9 @@ test('the bundle registers every component under its own row id', async () => {
   }
 })
 
-test('proxy, unrestricted mode and the browser ship disabled; the rest ship on', async () => {
+test('every component ships enabled, the proxy page included', async () => {
   const table = await rows()
-  for (const id of ['yukari-proxy', 'yukari-purge', 'yukari-browser']) {
-    assert.equal(table.get(id).disabled, true, `${id} must not mount before the user enables it`)
-  }
-  for (const id of ['yukari', 'yukari-chats', 'yukari-sites', 'yukari-files', 'yukari-rules', 'yukari-presets', 'yukari-github', 'yukari-runtime']) {
+  for (const id of table.keys()) {
     assert.equal(table.get(id).disabled, false, `${id} ships enabled`)
   }
 })
@@ -71,4 +68,38 @@ test('every component row resolves to a package export', async () => {
     assert.equal(typeof pkg.exports[`./${name}`], 'string', `./${name} must be exported`)
     assert.match(pkg.exports[`./${name}`], new RegExp(`/host/${name}/index\\.js$`), `./${name} points at its module`)
   }
+})
+
+/** Panel tab name each component shows, mirroring the client dictionary. */
+const TAB_NAMES = {
+  chats: '会话',
+  sites: '站点',
+  files: '文件',
+  rules: '约束',
+  presets: '预设',
+  proxy: '代理',
+  github: 'Github',
+  purge: '无限制模式',
+  browser: '无头浏览器',
+  runtime: '状态',
+}
+
+test('each component exposes locale metadata and its exports resolve', async () => {
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  const check = async (specifier, expected) => {
+    for (const language of ['en', 'zh']) {
+      assert.equal(typeof pkg.exports[`.${specifier}/locale/*.json`], 'string', `${specifier} exports its locale files`)
+      const url = import.meta.resolve(`yukari-dsh-plugin${specifier}/locale/${language}.json`)
+      const parsed = JSON.parse(await readFile(new URL(url), 'utf8'))
+      assert.equal(typeof parsed.meta?.title, 'string', `${specifier}/${language}.json carries meta.title`)
+      assert.ok(parsed.meta.title.trim().length > 0, `${specifier}/${language}.json has a non-empty title`)
+    }
+    const zh = JSON.parse(await readFile(new URL(import.meta.resolve(`yukari-dsh-plugin${specifier}/locale/zh.json`)), 'utf8'))
+    assert.equal(zh.meta.title, expected, `${specifier} shows its panel tab name in the plugin list`)
+  }
+  for (const [name, expected] of Object.entries(TAB_NAMES)) await check(`/${name}`, expected)
+  // The package root row names the panel itself.
+  const root = JSON.parse(await readFile(new URL('../locale/zh.json', import.meta.url), 'utf8'))
+  assert.equal(root.meta.title, 'Yukari插件合集')
+  assert.equal(typeof pkg.exports['./locale/*.json'], 'string', 'the package root exports its locale files')
 })

@@ -8,7 +8,6 @@
  */
 import crypto from 'node:crypto'
 import { chmod, mkdir, readFile, rename, writeFile } from 'node:fs/promises'
-import net from 'node:net'
 import path from 'node:path'
 import os from 'node:os'
 import { LocalProxy } from './local-proxy.js'
@@ -25,11 +24,20 @@ const DEFAULT_BYPASS = 'localhost,127.0.0.1,::1'
 /** Probe used by `test` when the caller names no target. */
 const DEFAULT_TEST_TARGET = 'www.gstatic.com:80'
 
-/** Wait between reconnect attempts while a saved route cannot be restored. */
-const RETRY_DELAY_MS = 20000
-
 /** Nodes probed at once by `testAll`. */
 const TEST_CONCURRENCY = 4
+
+/** How often an enabled route re-checks the active node on its own. */
+const WATCHDOG_INTERVAL_MS = 60000
+
+/** Failed checks in a row before an enabled route closes itself. */
+const WATCHDOG_FAILURES = 2
+
+/** Proxy variables a previous process may have left behind. */
+const EGRESS_NAMES = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy']
+
+/** Loopback host names that mean "this process's own proxy". */
+const LOOPBACK_NAMES = new Set(['127.0.0.1', 'localhost', '::1'])
 
 /** Clamp a value into an integer range. */
 function integerInRange(value, min, max, fallback) {
@@ -78,14 +86,24 @@ export class ProxyController {
   #nodeTests = new Map()
   #lastError = null
   #startedAt = null
-  #retryTimer = null
+  #shutdown = null
+  #proxyGeneration = 0
+  #probeThroughOverride = null
+  #watchdogTimer = null
+  #watchdogFailures = 0
+  #watchdogInterval = WATCHDOG_INTERVAL_MS
 
   /**
    * @param options.config - the plugin row config, used only as first-run defaults.
    * @param options.log - diagnostic sink.
+   * @param options.probeThrough - optional test override for the real tunnel probe.
+   * @param options.watchdogIntervalMs - optional health-check interval override.
    */
-  constructor({ config = {}, log = () => {} } = {}) {
+  constructor({ config = {}, log = () => {}, probeThrough, watchdogIntervalMs } = {}) {
     this.#log = log
+    this.#probeThroughOverride = typeof probeThrough === 'function' ? probeThrough : null
+    const interval = Number(watchdogIntervalMs)
+    if (Number.isFinite(interval) && interval > 0) this.#watchdogInterval = interval
     const home = process.env.DSH_HOME ?? path.join(os.homedir(), '.dsh')
     this.#stateFile = typeof config.stateFile === 'string' && config.stateFile.length > 0 ? config.stateFile : path.join(home, 'ss-proxy.json')
     const nodes = []
@@ -113,12 +131,14 @@ export class ProxyController {
    * Load persisted state and re-establish the route it recorded.
    *
    * The saved password travels with each node, so a restart resumes the same
-   * tunnel instead of dropping the user back to direct egress. A node that is
-   * unreachable at boot keeps the saved intent and is retried in the
-   * background; the intent only changes when the user changes it.
+   * tunnel instead of dropping the user back to direct egress. Invalid or
+   * unreachable configuration turns the saved intent off: never leave every
+   * outbound request pointed at a route that is known to be broken.
    */
   async init() {
     let migrated = false
+    // A restart keeps the environment: clear a dead route before reading anything.
+    this.#clearInheritedEgress()
     try {
       const raw = await readFile(this.#stateFile, 'utf8')
       const saved = JSON.parse(raw)
@@ -147,29 +167,24 @@ export class ProxyController {
       if (error?.code !== 'ENOENT') this.#log(`state file unreadable: ${error.message}`)
     }
     this.#ensureActive()
+    // The saved port may differ from the configured one; clear that spelling too.
+    this.#clearInheritedEgress()
     if (migrated) await this.#persist()
     if (!this.#state.enabled && this.#state.autoStart) this.#state.enabled = true
     if (!this.#state.enabled) return
     if (!this.#nodeReady()) {
-      this.#lastError = 'the saved node is missing its password or server; enter them to reconnect'
-      this.#scheduleRetry()
+      await this.#failClosed('the saved node is missing its password or server; enter a valid node and enable again')
       return
     }
     try {
       await this.enable()
     } catch (error) {
-      this.#lastError = `reconnect at startup failed: ${error.message}`
-      this.#log(this.#lastError)
-      await this.#teardown()
-      // The saved intent survives, so the next boot and the retry timer both
-      // keep trying instead of silently switching the user back to direct egress.
-      this.#scheduleRetry()
+      await this.#failClosed(`reconnect at startup failed: ${messageOf(error)}`)
     }
   }
 
   /** Stop the proxy and restore the previous egress route. */
   async dispose() {
-    this.#cancelRetry()
     await this.#teardown()
   }
 
@@ -214,49 +229,103 @@ export class ProxyController {
     if (this.#active() === null) this.#state.activeId = this.#state.nodes[0]?.id ?? null
   }
 
-  /** Retry a pending reconnect in the background while the intent stands. */
-  #scheduleRetry() {
-    if (this.#retryTimer !== null || !this.#state.enabled) return
-    this.#retryTimer = setTimeout(async () => {
-      this.#retryTimer = null
-      if (!this.#state.enabled || this.#proxy !== null) return
+  /**
+   * Restore direct egress and persist the off state after any route failure.
+   * Concurrent tunnel errors share one shutdown; stale proxy generations are ignored.
+   */
+  async #failClosed(reason) {
+    if (this.#shutdown !== null) return this.#shutdown
+    this.#shutdown = (async () => {
+      this.#lastError = `proxy disabled automatically: ${reason}`
+      this.#log(this.#lastError)
       try {
-        // Keep waiting: a node selected or imported later resumes the route.
-        if (!this.#nodeReady()) return this.#scheduleRetry()
-        await this.enable()
-      } catch (error) {
-        this.#lastError = `reconnect failed: ${error.message}`
-        this.#scheduleRetry()
+        await this.#teardown()
+      } finally {
+        this.#state.enabled = false
+        await this.#persist()
       }
-    }, RETRY_DELAY_MS)
-    this.#retryTimer.unref?.()
+    })()
+    try {
+      await this.#shutdown
+    } finally {
+      this.#shutdown = null
+    }
   }
 
-  /** Drop a pending reconnect. */
-  #cancelRetry() {
-    if (this.#retryTimer === null) return
-    clearTimeout(this.#retryTimer)
-    this.#retryTimer = null
+  /** A live tunnel failed; only its own current generation may shut the route down. */
+  async #proxyFailed(generation, error) {
+    if (generation !== this.#proxyGeneration || this.#proxy === null || !this.#state.enabled) return
+    await this.#failClosed(messageOf(error))
   }
 
-  /** Fail fast when a node's TCP port is unreachable. */
-  #probeServer(node, timeoutMs) {
-    return new Promise((resolve, reject) => {
-      const socket = net.connect({ host: node.server, port: node.port })
-      const timer = setTimeout(() => {
-        socket.destroy()
-        reject(new Error(`node ${node.server}:${node.port} did not answer within ${timeoutMs} ms`))
-      }, timeoutMs)
-      socket.once('connect', () => {
-        clearTimeout(timer)
-        socket.destroy()
-        resolve()
-      })
-      socket.once('error', (error) => {
-        clearTimeout(timer)
-        reject(error)
-      })
-    })
+  /**
+   * Drop proxy variables that point at our own local port while no proxy of
+   * this process is listening. An `execve` restart keeps the environment, so a
+   * route installed by the previous process would otherwise send every
+   * outbound request into a port that no longer exists.
+   * @returns the names that were cleared.
+   */
+  #clearInheritedEgress() {
+    const port = String(this.#state.localPort)
+    const cleared = []
+    for (const name of EGRESS_NAMES) {
+      const value = process.env[name]
+      if (typeof value !== 'string' || value.length === 0) continue
+      let url
+      try {
+        url = new URL(value)
+      } catch {
+        continue
+      }
+      if (!LOOPBACK_NAMES.has(url.hostname.replace(/^\[|\]$/g, '').toLowerCase())) continue
+      if (String(url.port) !== port) continue
+      Reflect.deleteProperty(process.env, name)
+      cleared.push(name)
+    }
+    if (cleared.length === 0) return cleared
+    Reflect.deleteProperty(process.env, 'NODE_USE_ENV_PROXY')
+    this.#log(`cleared inherited proxy settings (${cleared.join(', ')}) pointing at 127.0.0.1:${port} while no proxy was running`)
+    return cleared
+  }
+
+  /** Re-check the active node on a timer so a route that dies between requests still closes. */
+  #startWatchdog() {
+    this.#stopWatchdog()
+    this.#watchdogTimer = setInterval(() => {
+      void this.#watchdogTick()
+    }, this.#watchdogInterval)
+    this.#watchdogTimer.unref?.()
+  }
+
+  /** Drop the health-check timer. */
+  #stopWatchdog() {
+    if (this.#watchdogTimer !== null) {
+      clearInterval(this.#watchdogTimer)
+      this.#watchdogTimer = null
+    }
+    this.#watchdogFailures = 0
+  }
+
+  /** One health check: two failures in a row close the route. */
+  async #watchdogTick() {
+    if (!this.#state.enabled || this.#proxy === null) {
+      this.#stopWatchdog()
+      return
+    }
+    const node = this.#active()
+    if (!this.#nodeReady(node)) {
+      await this.#failClosed('the active node lost the fields a connection needs')
+      return
+    }
+    try {
+      const probe = await this.#probeThrough(node, parseTestTarget(DEFAULT_TEST_TARGET))
+      if (probe?.ok !== true) throw new Error(`probe returned HTTP ${probe?.status ?? 0}`)
+      this.#watchdogFailures = 0
+    } catch (error) {
+      this.#watchdogFailures += 1
+      this.#log(`proxy health check failed (${this.#watchdogFailures}/${WATCHDOG_FAILURES}): ${messageOf(error)}`)
+      if (this.#watchdogFailures >= WATCHDOG_FAILURES) await this.#failClosed(`health checks failed: ${messageOf(error)}`)
+    }
   }
 
   /** Whether a node (default the active one) has everything a connection needs. */
@@ -350,9 +419,7 @@ export class ProxyController {
         if (this.#state.localPort !== previousLocalPort) await this.#teardown()
         await this.enable()
       } catch (error) {
-        await this.#teardown()
-        this.#state.enabled = false
-        await this.#persist()
+        await this.#failClosed(`configuration failed: ${messageOf(error)}`)
         throw error
       }
     }
@@ -396,15 +463,21 @@ export class ProxyController {
   }
 
   /**
-   * Make a node the active one. While the proxy is on, the new node's port is
-   * probed first and an unreachable node leaves the current one in place.
+   * Make a node the active one. While the proxy is on, a real request probes
+   * the new node first; a failure restores direct egress instead of stranding
+   * the process on an enabled but unusable route.
    */
   async select(id) {
     const node = this.#find(id)
     if (node === this.#active()) return this.state()
     if (this.#state.enabled) {
-      if (!this.#nodeReady(node)) throw new Error(`node "${node.name}" is missing its server or password`)
-      await this.#probeServer(node, 4000)
+      try {
+        if (!this.#nodeReady(node)) throw new Error(`node "${node.name}" is missing its server or password`)
+        await this.#probeThrough(node, parseTestTarget(DEFAULT_TEST_TARGET))
+      } catch (error) {
+        await this.#failClosed(`node selection failed: ${messageOf(error)}`)
+        throw error
+      }
     }
     // New connections pick the node up through `resolveNode`; open ones finish on the old node.
     this.#state.activeId = node.id
@@ -415,8 +488,8 @@ export class ProxyController {
       try {
         await this.enable()
       } catch (error) {
-        this.#lastError = `reconnect failed: ${error.message}`
-        this.#scheduleRetry()
+        await this.#failClosed(`reconnect failed: ${messageOf(error)}`)
+        throw error
       }
     }
     return this.state()
@@ -434,7 +507,6 @@ export class ProxyController {
     }
     this.#ensureActive()
     if (this.#state.nodes.length === 0 && this.#state.enabled) {
-      this.#cancelRetry()
       await this.#teardown()
       this.#state.enabled = false
     }
@@ -444,7 +516,6 @@ export class ProxyController {
 
   /** Forget every stored node and return to the initial state. */
   async reset() {
-    this.#cancelRetry()
     await this.#teardown()
     this.#state = {
       enabled: false,
@@ -473,38 +544,48 @@ export class ProxyController {
     if (node === null) throw new Error('add a Shadowsocks node first')
     if (!this.#nodeReady(node)) throw new Error('fill in the Shadowsocks server, port and password first')
     this.#lastError = null
-    // Refuse to point every outbound request at a node that cannot be reached.
-    if (this.#egress === null) await this.#probeServer(node, 4000)
-    if (this.#proxy === null) {
-      const proxy = new LocalProxy({
-        resolveNode: () => {
-          const active = this.#active()
-          if (!this.#nodeReady(active)) throw new Error('Shadowsocks node is not configured')
-          return active
-        },
-        log: (message) => this.#log(message),
-      })
-      try {
-        await proxy.listen(this.#state.localPort)
-      } catch (error) {
-        throw new Error(`cannot listen on 127.0.0.1:${this.#state.localPort} — ${error.message}`)
+    try {
+      // TCP reachability alone accepts wrong passwords and non-SS servers. Prove
+      // a full request before taking over egress whenever a route is installed.
+      if (this.#egress === null) {
+        const probe = await this.#probeThrough(node, parseTestTarget(DEFAULT_TEST_TARGET))
+        if (probe?.ok !== true) throw new Error(`node probe returned HTTP ${probe?.status ?? 0}`)
       }
-      this.#proxy = proxy
+      if (this.#proxy === null) {
+        const generation = ++this.#proxyGeneration
+        const proxy = new LocalProxy({
+          resolveNode: () => {
+            const active = this.#active()
+            if (!this.#nodeReady(active)) throw new Error('Shadowsocks node is not configured')
+            return active
+          },
+          log: (message) => this.#log(message),
+          onFailure: (error) => this.#proxyFailed(generation, error),
+        })
+        try {
+          await proxy.listen(this.#state.localPort)
+        } catch (error) {
+          throw new Error(`cannot listen on 127.0.0.1:${this.#state.localPort} — ${error.message}`)
+        }
+        this.#proxy = proxy
+      }
+      // Reinstall on every enable so a changed bypass list reaches NO_PROXY at once;
+      // disposing first restores the pre-proxy environment the new install captures.
+      if (this.#egress !== null) await this.#egress.dispose()
+      this.#egress = await installEgress({ port: this.#proxy.port ?? this.#state.localPort, bypass: this.#state.bypass })
+      this.#state.enabled = true
+      this.#startedAt = new Date().toISOString()
+      this.#startWatchdog()
+      await this.#persist()
+      return this.state()
+    } catch (error) {
+      await this.#failClosed(messageOf(error))
+      throw error
     }
-    // Reinstall on every enable so a changed bypass list reaches NO_PROXY at once;
-    // disposing first restores the pre-proxy environment the new install captures.
-    if (this.#egress !== null) await this.#egress.dispose()
-    this.#egress = await installEgress({ port: this.#proxy.port ?? this.#state.localPort, bypass: this.#state.bypass })
-    this.#state.enabled = true
-    this.#startedAt = new Date().toISOString()
-    this.#cancelRetry()
-    await this.#persist()
-    return this.state()
   }
 
   /** Turn the proxy off and restore direct egress. */
   async disable() {
-    this.#cancelRetry()
     await this.#teardown()
     this.#state.enabled = false
     await this.#persist()
@@ -513,6 +594,7 @@ export class ProxyController {
 
   /** Stop both halves without touching the persisted `enabled` flag. */
   async #teardown() {
+    this.#stopWatchdog()
     if (this.#egress !== null) {
       const egress = this.#egress
       this.#egress = null
@@ -543,6 +625,7 @@ export class ProxyController {
       return result
     } catch (error) {
       this.#recordTest(node, { ok: false, error: messageOf(error), at: new Date().toISOString() })
+      if (node === this.#active() && this.#state.enabled) await this.#failClosed(`active node probe failed: ${messageOf(error)}`)
       throw error
     }
   }
@@ -571,6 +654,7 @@ export class ProxyController {
 
   /** One `GET /generate_204` through a fresh tunnel to the node. */
   async #probeThrough(node, destination) {
+    if (this.#probeThroughOverride !== null) return this.#probeThroughOverride(node, destination)
     const startedAt = Date.now()
     const tunnel = await openTunnel(node, destination, { timeoutMs: 10000 })
     try {

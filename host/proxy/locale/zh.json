@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "代理",
+    "description": "Shadowsocks 出站代理，故障自动关闭"
+  }
+}

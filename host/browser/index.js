@@ -352,12 +352,33 @@ export function apply(ctx, config, dependencies = {}) {
   })
   // Mounting never throws for a missing browser or a network failure. All tools
   // and the retry API subsequently await this exact installation promise.
-  const installation = runtime.ensureReady().catch((error) => {
-    try { ctx.logger?.('browser')?.warn?.(messageOf(error)) } catch { /* optional logger */ }
+  // Provisioning races the network (and this deployment's egress route): the
+  // first fetch can fail while the route is still coming up, so a bounded
+  // retry keeps the runtime from parking in a permanent error state.
+  const PROVISION_BACKOFF_MS = [0, 15000, 45000]
+  let retryTimer = null
+  const provisioning = (async () => {
+    let lastError = null
+    for (const wait of PROVISION_BACKOFF_MS) {
+      if (wait > 0) {
+        await new Promise((resolve) => {
+          retryTimer = setTimeout(resolve, wait)
+          retryTimer.unref?.()
+        })
+        retryTimer = null
+      }
+      try {
+        return typeof runtime.retry === 'function' ? await runtime.retry() : await runtime.ensureReady()
+      } catch (error) {
+        lastError = error
+      }
+    }
+    try { ctx.logger?.('browser')?.warn?.(messageOf(lastError ?? new Error('browser runtime is unavailable'))) } catch { /* optional logger */ }
     return undefined
-  })
+  })()
   ctx.effect(() => () => {
-    void installation
+    if (retryTimer !== null) clearTimeout(retryTimer)
+    void provisioning
     void browser.dispose()
   })
 }

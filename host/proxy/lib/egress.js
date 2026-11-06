@@ -52,8 +52,27 @@ export function isBypassed(hostname, bypass) {
 export async function installEgress({ port, bypass }) {
   const proxyUrl = `http://127.0.0.1:${port}`
   const previousDispatcher = getGlobalDispatcher()
+
+  /**
+   * A value that already points at this very proxy is not a usable direct
+   * baseline: restoring it after `dispose` would hand out a dead port. Such a
+   * value can only come from a previous process whose route outlived it.
+   */
+  const isOwnProxy = (value) => {
+    if (typeof value !== 'string' || value.length === 0) return false
+    try {
+      const url = new URL(value)
+      return url.hostname.replace(/^\[|\]$/g, '').toLowerCase() === '127.0.0.1' && String(url.port) === String(port)
+    } catch {
+      return false
+    }
+  }
+
   const previousEnv = new Map()
-  for (const name of [...PROXY_NAMES, ...BYPASS_NAMES, 'NODE_USE_ENV_PROXY']) previousEnv.set(name, process.env[name])
+  for (const name of [...PROXY_NAMES, ...BYPASS_NAMES, 'NODE_USE_ENV_PROXY']) {
+    const value = process.env[name]
+    previousEnv.set(name, isOwnProxy(value) ? undefined : value)
+  }
 
   const previousBypass = process.env.NO_PROXY ?? process.env.no_proxy ?? ''
   const merged = [...new Set([...bypassEntries(previousBypass), ...bypassEntries(bypass), 'localhost', '127.0.0.1', '::1'])].join(',')
