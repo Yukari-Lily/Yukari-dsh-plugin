@@ -33,3 +33,13 @@ test('every delete-failure reason the host can report has an entry', async () =>
     assert.ok(zh.includes(`cReason_${reason}`), `missing cReason_${reason}`)
   }
 })
+
+test("every t('key') in the client bundle resolves in both dictionaries", async () => {
+  const text = await readFile(new URL('../client.js', import.meta.url), 'utf8')
+  const zh = new Set(keys(text, 'zh'))
+  const en = new Set(keys(text, 'en'))
+  const used = new Set([...text.matchAll(/\bt\('([A-Za-z][\w]*)'\)/g)].map((match) => match[1]))
+  assert.ok(used.size > 100, 'the usage scan found the dictionary lookups')
+  const missing = [...used].filter((key) => !zh.has(key) || !en.has(key))
+  assert.deepEqual(missing, [], 'a lookup without an entry renders the raw key in the panel')
+})

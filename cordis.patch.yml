@@ -1,4 +1,4 @@
-# Yukari 插件合集：主行 + 7 个可在「插件」页单独开关的组件
+# Yukari 插件合集：主行 + 10 个可在「插件」页单独开关的组件
 #
 # 代理、无限制模式、无头浏览器三行默认关闭（disabled: true）：
 # 浏览器没被打开前不会下载 Chrome 与运行库，代理没被打开前不会起本地端口。
@@ -29,6 +29,16 @@
         # 单次打包下载的总量上限（MB）
         maxMb: 1024
 
+    - id: yukari-rules
+      name: yukari-dsh-plugin/rules
+      config:
+        # 单份约束的注入上限（字节）；超出的部分截断并标注
+        maxBytes: 16384
+        # 全局 / 工作区 / 尾部重申三个开关的初始值，面板里可随时改
+        global: true
+        project: true
+        tailAnchor: true
+
     - id: yukari-proxy
       name: yukari-dsh-plugin/proxy
       disabled: true
@@ -36,6 +46,12 @@
         localPort: 17890
         bypass: localhost,127.0.0.1,::1
         autoStart: false
+
+    - id: yukari-presets
+      name: yukari-dsh-plugin/presets
+
+    - id: yukari-github
+      name: yukari-dsh-plugin/github
 
     - id: yukari-purge
       name: yukari-dsh-plugin/purge

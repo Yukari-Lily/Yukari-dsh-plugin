@@ -26,7 +26,19 @@ test('the bundle registers every component under its own row id', async () => {
   const table = await rows()
   assert.deepEqual(
     [...table.keys()],
-    ['yukari', 'yukari-chats', 'yukari-sites', 'yukari-files', 'yukari-proxy', 'yukari-purge', 'yukari-browser', 'yukari-runtime'],
+    [
+      'yukari',
+      'yukari-chats',
+      'yukari-sites',
+      'yukari-files',
+      'yukari-rules',
+      'yukari-proxy',
+      'yukari-presets',
+      'yukari-github',
+      'yukari-purge',
+      'yukari-browser',
+      'yukari-runtime',
+    ],
   )
   assert.equal(table.get('yukari').name, 'yukari-dsh-plugin')
   for (const [id, row] of table) {
@@ -40,7 +52,7 @@ test('proxy, unrestricted mode and the browser ship disabled; the rest ship on',
   for (const id of ['yukari-proxy', 'yukari-purge', 'yukari-browser']) {
     assert.equal(table.get(id).disabled, true, `${id} must not mount before the user enables it`)
   }
-  for (const id of ['yukari', 'yukari-chats', 'yukari-sites', 'yukari-files', 'yukari-runtime']) {
+  for (const id of ['yukari', 'yukari-chats', 'yukari-sites', 'yukari-files', 'yukari-rules', 'yukari-presets', 'yukari-github', 'yukari-runtime']) {
     assert.equal(table.get(id).disabled, false, `${id} ships enabled`)
   }
 })
@@ -51,4 +63,12 @@ test('the browser row carries no eager provisioning flag of its own', async () =
   // Provisioning is triggered by the component mounting; a disabled row never mounts.
   assert.match(block, /autoLibraries: true/u)
   assert.match(block, /sandbox: auto/u)
+})
+
+test('every component row resolves to a package export', async () => {
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  for (const name of ['chats', 'sites', 'files', 'rules', 'presets', 'proxy', 'github', 'purge', 'browser', 'runtime']) {
+    assert.equal(typeof pkg.exports[`./${name}`], 'string', `./${name} must be exported`)
+    assert.match(pkg.exports[`./${name}`], new RegExp(`/host/${name}/index\\.js$`), `./${name} points at its module`)
+  }
 })

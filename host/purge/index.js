@@ -20,9 +20,9 @@
  * @module @local/yukari-purge
  */
 import fs from 'node:fs'
-import os from 'node:os'
 import path from 'node:path'
 import { markMounted } from '../shared/mounted.js'
+import { resolveDshHome } from '../shared/home.js'
 import { BODY_LIMITS, guardRoute, readJsonBody, sendJson } from '../shared/http.js'
 import { ANCHOR_TEXT, CHILD_ANCHOR_TEXT, DEFAULT_PROMPT, SENTINEL } from './lib/prompts.js'
 import { ensurePresetFiles, getPresetDefinition, UNRESTRICTED_PRESET_ID } from './lib/preset.js'
@@ -46,12 +46,6 @@ export const inject = ['agentPresets', 'systemPrompt', 'webServer', 'connection'
 const SESSION_CAP = 500
 /** How many recent rewrites the panel can show. */
 const RECENT_CAP = 20
-
-function resolveDshHome() {
-  const fromEnv = process.env.DSH_HOME
-  if (fromEnv && fromEnv.trim()) return path.normalize(fromEnv.trim())
-  return path.normalize(path.join(os.homedir(), '.dsh'))
-}
 
 function shortId(id) {
   const text = typeof id === 'string' ? id : ''

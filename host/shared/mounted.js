@@ -10,7 +10,7 @@
  */
 
 /** Component keys, in panel order. */
-export const COMPONENTS = ['chats', 'sites', 'files', 'proxy', 'purge', 'browser', 'runtime']
+export const COMPONENTS = ['chats', 'sites', 'files', 'rules', 'presets', 'proxy', 'github', 'purge', 'browser', 'runtime']
 
 /** Root-level record key. */
 const KEY = 'yukari.mounted'

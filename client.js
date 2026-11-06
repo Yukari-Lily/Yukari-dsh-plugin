@@ -21,6 +21,9 @@ window.__ModuleLoader__.load({
       proxy: '/ssproxy/api',
       purge: '/purge/api',
       files: '/files/api',
+      rules: '/rules/api',
+      presets: '/presets/api',
+      github: '/github/api',
       browser: '/browser/api',
     }
 
@@ -33,6 +36,7 @@ window.__ModuleLoader__.load({
       tabSites: '站点',
       tabProxy: '代理',
       tabPurge: '无限制模式',
+      tabRules: '约束',
       tabRuntime: '状态',
 
       compChats: '会话管理',
@@ -40,6 +44,7 @@ window.__ModuleLoader__.load({
       compFiles: '工作区文件',
       compProxy: '出站代理',
       compPurge: '无限制模式',
+      compRules: '强约束',
       compBrowser: '无头浏览器',
       compRuntime: '运行状态',
 
@@ -54,6 +59,100 @@ window.__ModuleLoader__.load({
       upRestart: '立即重启',
       upFailed: '检查更新失败：{error}',
       upUpdateFailed: '更新失败：{error}',
+
+      /* presets */
+      tabPresets: '预设',
+      compPresets: '智能体预设',
+      ovPresets: '{n} 个自定义',
+      ovPresetsHow: '以已有预设为模板新建',
+      pIntro: '管理「自定义」分组里的智能体预设：新建时先选一个内置或自定义预设当模板，再改组合；内置预设只读，复制一份就能改。',
+      pTrust: '组合会加载宿主插件：只添加你信任的包。',
+      pMine: '我的预设',
+      pMineHint: '由这个插件注册并保存，可以改也可以删。',
+      pDeclared: '其他自定义预设',
+      pDeclaredHint: '由 profile 的 patch 声明；保存会写入一条覆盖，不能在这里删除。',
+      pBuiltin: '内置预设',
+      pBuiltinHint: '只读，复制一份再改。',
+      pRuntimeGroup: '运行时注册',
+      pRuntimeHint: '由其他插件在运行时注册。',
+      pSourceStore: '我的',
+      pSourceDeclared: '声明式',
+      pSourceBuiltin: '内置',
+      pSourceRuntime: '运行时',
+      pEmptyList: '这里还没有预设。',
+      pRowsCount: '{n} 行',
+      pRowsTitle: '能力行（{n}）',
+      pRowsUnknown: '结构未知',
+      pNew: '新建预设',
+      pNewTitle: '新建预设',
+      pEditTitle: '编辑预设',
+      pChooseTemplate: '选一个模板',
+      pChooseTemplateHint: '新预设立刻复制它的完整组合：工具、人格提示词、分组都在里面，之后随便改。',
+      pBlankTitle: '空白组合',
+      pBlankHint: '不含任何工具，只有对话。',
+      pUseTemplate: '用这个',
+      pImportChoose: '选它',
+      pImportFrom: '从「{name}」导入',
+      pImportHint: '选中的行会深拷贝追加到当前组合末尾。',
+      pImportAdd: '加入 {n} 行',
+      pImportPick: '先选一个预设，再从它的组合里挑行。',
+      pTemplateTag: '模板：{name}',
+      pCopyName: '{name} 副本',
+      pName: '名称',
+      pNamePlaceholder: '例如：代码审查',
+      pId: '标识',
+      pIdPlaceholder: 'code-review',
+      pIdHint: '小写字母、数字、- 和 _；创建后不可改，会话按它记录预设。',
+      pIdLocked: '标识创建后不可修改。',
+      pDescription: '描述',
+      pDescriptionPlaceholder: '一句话说明这个模式做什么',
+      pOrder: '排序',
+      pOrderHint: '数字小的排前面；留空排最后',
+      pPersona: '人格提示词',
+      pPersonaHint: '写进 @deepseek-ai/dsh-persona 的 prefix，是这个模式的「性格」。',
+      pPersonaPlaceholder: '你在这个模式下工作……',
+      pPersonaSuffix: '后缀（可留空）',
+      pPersonaMissing: '这个组合里没有人格行。',
+      pPersonaAdd: '添加人格行',
+      pRowsHint: '每行是一个插件；停用不挂载，带 !!js 条件的行由表达式决定。',
+      pRowGroup: '分组',
+      pRowCondition: '条件',
+      pRowDisable: '停用',
+      pRowEnable: '启用',
+      pRowDisabled: '已停用',
+      pRemoveRow: '移除这一行',
+      pAddRow: '自定义行',
+      pImportRows: '从预设导入',
+      pRowName: '插件包名，例如 @deepseek-ai/dsh-tool-fs',
+      pRowId: '行 id（可留空）',
+      pRowConfig: 'config（JSON，可留空）',
+      pRowNameRequired: '插件包名不能为空',
+      pAdd: '添加',
+      pAdvanced: '高级：组合 JSON',
+      pAdvancedHint: '在这里整段替换能力行；分组、isolate 这类结构也在这里改。',
+      pAdvancedOpen: '展开 JSON',
+      pApply: '应用',
+      pJsonInvalid: 'JSON 有问题：{error}',
+      pJsonShape: '组合必须是插件行数组，每行要有 name。',
+      pSave: '保存',
+      pBack: '返回',
+      pCancel: '取消',
+      pEdit: '编辑',
+      pCopy: '复制一份',
+      pDelete: '删除',
+      pView: '查看组合',
+      pDeleted: '已删除',
+      pDeleteTitle: '删除「{name}」？',
+      pDeleteHint: '删除后新会话不能再选它；已经在用它的会话不受影响。',
+      pConflict: '注册冲突',
+      pDefault: '当前默认',
+      pSaved: '已保存；新会话生效，正在运行的会话保留旧组合',
+      pNoStructure: '这个预设的组合只能看 YAML，读不到逐行结构。',
+      pYaml: 'YAML 组合',
+      pYamlHint: '只读；DSH 自带的查看器渲染的同一份声明。',
+      pStoreBroken: '预设存档有问题：{error}',
+      pEmptyComposition: '这个组合是空的：会话只能用对话，没有任何工具。',
+      pSelectAll: '全选',
       upManual: '这份安装无法自动更新，请在「插件」页重新安装',
 
       refresh: '刷新',
@@ -227,6 +326,111 @@ window.__ModuleLoader__.load({
       gStats: '注入 {a} 次 · 改写 {b} 条 · 重试 {c} 次',
       gStatsNone: '本进程还没有无限制模式的装配记录',
 
+      kTitle: '强约束',
+      kDesc: '把硬性规则写进系统提示词首尾：优先级高于工具说明和工作区指引，保存后下一轮对话立即生效，不用重启。',
+      kGlobalTitle: '全局约束',
+      kGlobalNote: '对所有会话生效，包括子智能体',
+      kProjectTitle: '工作区约束',
+      kProjectNote: '只对工作区内的会话生效',
+      kPath: '文件',
+      kExists: '已存在',
+      kMissing: '未创建',
+      kPlaceholder: '一行一条，写清楚「必须做 / 禁止做 / 冲突时怎么办」。\n例：\n- 回复一律用简体中文。\n- 改代码前先读现有实现，不另起一套。',
+      kChars: '{n} 字符',
+      kLimit: '单份上限 {n}',
+      kUnsaved: '未保存',
+      kSavedNext: '已保存 · 下一轮对话生效',
+      kClear: '清空',
+      kConfirmClear: '清空这份约束？',
+      kConfirmClearHint: '文件 {path} 会被删除；下一轮对话起不再注入它。',
+      kClearDone: '已清空',
+      kImport: '导入 AGENTS.md',
+      kImportNone: '这个范围里没有可导入的 AGENTS.md / CLAUDE.md',
+      kImported: '已载入 {file}，保存后生效',
+      kToggleGlobal: '全局',
+      kToggleProject: '工作区',
+      kToggleAnchor: '尾部重申',
+      kProbe: '自检注入',
+      kProbeOk: '注入正常',
+      kProbeMiss: '没有注入',
+      kProbeNone: '没有可自检的会话',
+      kProbeFail: '自检失败：{reason}',
+      kStats: '已注入 {a} 次 · 全局 {b} · 工作区 {c}',
+      kStatsNone: '还没有会话带上约束',
+      kPrecedence: '约束与操作者的直接指令同级，高于工具说明、工作区指引、角色设定与风格要求；不改变审批与沙箱权限。',
+      kAgentsNote: '工作区里的 AGENTS.md / CLAUDE.md 由 dsh 自己作为「工作区指引」加载（用户消息、不是强约束），同一内容会重复进上下文，所以这里用独立文件；要迁移就用「导入」。',
+      kSwitchDirty: '切换工作区会丢掉未保存的修改',
+      kDiscard: '放弃修改',
+      kNoWorkspaces: '没有注册的工作区',
+      kDirMissing: '工作区目录不存在',
+      kTruncated: '已截断',
+      ovRulesActive: '{n} 份约束已写好',
+      ovRulesHow: '保存后下一轮生效',
+
+      tabGithub: 'Github',
+      compGithub: 'Github',
+      ghIntro: '连接 Github',
+      ghCreate: '在 GitHub 创建 fine-grained token',
+      ghStepAccess: 'Repository access 选 Only select repositories，勾选要推送的仓库。',
+      ghStepPerm: 'Repository permissions → Contents 设为 Read and write；Metadata 保持 Read。',
+      ghStepPaste: '生成后复制令牌，粘贴到下面；令牌只显示一次。',
+      ghTokenLabel: 'GitHub 令牌',
+      ghTokenPlaceholder: 'github_pat_… 或 ghp_…',
+      ghShow: '显示',
+      ghHide: '隐藏',
+      ghSave: '保存并验证',
+      ghSaving: '验证中…',
+      ghStorage: '保存到 $DSH_HOME/yukari-github/token（0600）；重启、更新、容器重建后都不需要重输。',
+      ghSecurityHint: '令牌不会出现在面板、API、日志、remote 或 helper 脚本里；但同一容器的进程（包括智能体的 bash 和文件读取）能读取这个 0600 文件。请用 fine-grained PAT，只选必要仓库、Contents: Read and write、较短有效期；不用时点“清除令牌”。',
+      ghAccount: '账号',
+      ghLogin: '登录名',
+      ghTokenType: '令牌类型',
+      ghScopes: '权限范围',
+      ghExpiry: '有效期',
+      ghExpired: '已过期',
+      ghNeverExpires: '不过期',
+      ghFineGrained: 'Fine-grained',
+      ghClassic: 'Classic',
+      ghUnknown: '未知',
+      ghGit: 'Git 凭据助手',
+      ghHelperOn: '已安装',
+      ghRepaired: '凭据助手已重新安装',
+      ghHelperOff: '未安装',
+      ghGitVersion: 'git 版本',
+      ghRepair: '修复',
+      ghRepairing: '修复中…',
+      ghTokenFile: '令牌文件',
+      ghRepoCheck: '检查仓库权限',
+      ghRepoPlaceholder: 'owner/repo',
+      ghCheck: '检查',
+      ghChecking: '检查中…',
+      ghCanPush: '可推送',
+      ghCannotPush: '无写权限',
+      ghRepoPrivate: '私有',
+      ghRepoPublic: '公开',
+      ghRepoCheckHint: '只代表这枚令牌对该仓库有 write 权限；分支保护仍可能拒绝 push。',
+      ghRepo: '仓库',
+      ghVisibility: '可见性',
+      ghDefaultBranch: '默认分支',
+      ghClear: '清除令牌',
+      ghClearTitle: '清除 GitHub 令牌？',
+      ghClearHint: '令牌文件和 git 凭据助手会被删除；之后智能体不能再 push，重新粘贴令牌才能恢复。',
+      ghClearConfirm: '清除',
+      ghDanger: '撤销',
+      ghUnconfigured: '未配置',
+      ghConfigured: '已连接',
+      ghConnected: '已连接',
+      ghDisconnected: '未连接',
+      ghVerify: '重新验证',
+      ghVerifying: '验证中…',
+      ghVerified: '已验证',
+      ghClassicWarning: 'Classic PAT 的 repo 权限覆盖整个账号，建议改用 fine-grained。',
+      ghExpiryWarning: '这枚令牌没有设置有效期，建议设置一个较短的有效期。',
+      ghExpiringSoon: '令牌将在 {time} 过期。',
+      ghTokenSaved: '令牌已保存，可以直接 git push。',
+      ghSavedNoHelper: '令牌已保存，但 git 凭据助手没有装好；先点修复。',
+      ghReplace: '更换令牌',
+
       rCheck: '检查更新',
       rLatestShort: '已是最新',
       rChecking: '正在查询 npm…',
@@ -289,6 +493,7 @@ window.__ModuleLoader__.load({
       tabSites: 'Sites',
       tabProxy: 'Proxy',
       tabPurge: 'Unrestricted',
+      tabRules: 'Rules',
       tabRuntime: 'Status',
 
       compChats: 'Chats',
@@ -296,6 +501,7 @@ window.__ModuleLoader__.load({
       compFiles: 'Workspace files',
       compProxy: 'Proxy',
       compPurge: 'Unrestricted mode',
+      compRules: 'Hard rules',
       compBrowser: 'Headless browser',
       compRuntime: 'Status',
 
@@ -310,6 +516,100 @@ window.__ModuleLoader__.load({
       upRestart: 'Restart now',
       upFailed: 'Update check failed: {error}',
       upUpdateFailed: 'Update failed: {error}',
+
+      /* presets */
+      tabPresets: 'Presets',
+      compPresets: 'Agent presets',
+      ovPresets: '{n} custom',
+      ovPresetsHow: 'Start from an existing preset',
+      pIntro: 'Manage the Custom agent presets. Creating one starts from a built-in or custom preset as a template; built-ins stay read-only, duplicate one to edit.',
+      pTrust: 'A composition runs Host plugins: only add packages you trust.',
+      pMine: 'My presets',
+      pMineHint: 'Registered and stored by this plugin; editable and removable.',
+      pDeclared: 'Other custom presets',
+      pDeclaredHint: 'Declared by the profile patch; saving writes an override, and deleting is not offered here.',
+      pBuiltin: 'Built-in presets',
+      pBuiltinHint: 'Read-only; duplicate one to change it.',
+      pRuntimeGroup: 'Registered at runtime',
+      pRuntimeHint: 'Registered by another plugin at runtime.',
+      pSourceStore: 'Mine',
+      pSourceDeclared: 'Declared',
+      pSourceBuiltin: 'Built-in',
+      pSourceRuntime: 'Runtime',
+      pEmptyList: 'No presets here yet.',
+      pRowsCount: '{n} rows',
+      pRowsTitle: 'Capability rows ({n})',
+      pRowsUnknown: 'Structure unavailable',
+      pNew: 'New preset',
+      pNewTitle: 'New preset',
+      pEditTitle: 'Edit preset',
+      pChooseTemplate: 'Pick a template',
+      pChooseTemplateHint: 'The new preset copies its whole composition — tools, persona prompt and groups — and you change it from there.',
+      pBlankTitle: 'Empty composition',
+      pBlankHint: 'No tools at all; conversation only.',
+      pUseTemplate: 'Use this',
+      pImportChoose: 'Choose',
+      pImportFrom: 'Import from “{name}”',
+      pImportHint: 'Selected rows are deep-copied onto the end of this composition.',
+      pImportAdd: 'Add {n} rows',
+      pImportPick: 'Pick a preset, then choose rows from its composition.',
+      pTemplateTag: 'Template: {name}',
+      pCopyName: '{name} copy',
+      pName: 'Name',
+      pNamePlaceholder: 'For example: Code review',
+      pId: 'ID',
+      pIdPlaceholder: 'code-review',
+      pIdHint: 'Lowercase letters, digits, - and _; immutable after creation, because sessions record it.',
+      pIdLocked: 'The ID cannot change after creation.',
+      pDescription: 'Description',
+      pDescriptionPlaceholder: 'One sentence on what this mode is for',
+      pOrder: 'Order',
+      pOrderHint: 'Lower numbers sort first; leave empty to sort last',
+      pPersona: 'Persona prompt',
+      pPersonaHint: 'Written into the prefix of @deepseek-ai/dsh-persona: this mode’s character.',
+      pPersonaPlaceholder: 'You work in this mode…',
+      pPersonaSuffix: 'Suffix (optional)',
+      pPersonaMissing: 'This composition has no persona row.',
+      pPersonaAdd: 'Add persona row',
+      pRowsHint: 'One plugin per row; a disabled row does not mount, and a !!js condition decides for itself.',
+      pRowGroup: 'Group',
+      pRowCondition: 'Condition',
+      pRowDisable: 'Disable',
+      pRowEnable: 'Enable',
+      pRowDisabled: 'Disabled',
+      pRemoveRow: 'Remove this row',
+      pAddRow: 'Custom row',
+      pImportRows: 'Import rows',
+      pRowName: 'Plugin package, e.g. @deepseek-ai/dsh-tool-fs',
+      pRowId: 'Row id (optional)',
+      pRowConfig: 'config (JSON, optional)',
+      pRowNameRequired: 'The plugin package is required',
+      pAdd: 'Add',
+      pAdvanced: 'Advanced: composition JSON',
+      pAdvancedHint: 'Replace the whole row list here; groups and isolate settings live here too.',
+      pAdvancedOpen: 'Show JSON',
+      pApply: 'Apply',
+      pJsonInvalid: 'The JSON is invalid: {error}',
+      pJsonShape: 'The composition must be a list of plugin rows, each with a name.',
+      pSave: 'Save',
+      pBack: 'Back',
+      pCancel: 'Cancel',
+      pEdit: 'Edit',
+      pCopy: 'Duplicate',
+      pDelete: 'Delete',
+      pView: 'View composition',
+      pDeleted: 'Deleted',
+      pDeleteTitle: 'Delete “{name}”?',
+      pDeleteHint: 'New sessions can no longer select it; sessions already using it are unaffected.',
+      pConflict: 'Registration conflict',
+      pDefault: 'Default',
+      pSaved: 'Saved; new sessions pick it up, running sessions keep their composition',
+      pNoStructure: 'Only the YAML of this composition is readable; its rows cannot be listed.',
+      pYaml: 'Composition YAML',
+      pYamlHint: 'Read-only; the same declaration the shipped viewer renders.',
+      pStoreBroken: 'The preset store is unusable: {error}',
+      pEmptyComposition: 'This composition is empty: the session can only talk, with no tools.',
+      pSelectAll: 'Select all',
       upManual: 'This install cannot update itself; reinstall it from the Plugins page',
 
       refresh: 'Refresh',
@@ -483,6 +783,111 @@ window.__ModuleLoader__.load({
       gStats: 'injected {a}× · rewritten {b} · retried {c}×',
       gStatsNone: 'No unrestricted assembly recorded in this process yet',
 
+      kTitle: 'Hard rules',
+      kDesc: 'Write binding rules into the head and tail of the system prompt: they outrank tool guidance and workspace instructions, and a save applies to the next turn without a restart.',
+      kGlobalTitle: 'Global rules',
+      kGlobalNote: 'Applies to every chat, subagents included',
+      kProjectTitle: 'Workspace rules',
+      kProjectNote: 'Applies only to chats inside this workspace',
+      kPath: 'File',
+      kExists: 'present',
+      kMissing: 'not created',
+      kPlaceholder: 'One rule per line. Say what must happen, what must not, and what wins on conflict.\nExample:\n- Always answer in Simplified Chinese.\n- Read the existing implementation before adding a new one.',
+      kChars: '{n} chars',
+      kLimit: 'Limit {n} per file',
+      kUnsaved: 'Unsaved',
+      kSavedNext: 'Saved · applies to the next turn',
+      kClear: 'Clear',
+      kConfirmClear: 'Clear these rules?',
+      kConfirmClearHint: 'The file {path} is deleted; the next turn stops receiving it.',
+      kClearDone: 'Cleared',
+      kImport: 'Import AGENTS.md',
+      kImportNone: 'No AGENTS.md / CLAUDE.md found in this scope',
+      kImported: 'Loaded {file}; save to apply',
+      kToggleGlobal: 'Global',
+      kToggleProject: 'Workspace',
+      kToggleAnchor: 'Tail repeat',
+      kProbe: 'Verify injection',
+      kProbeOk: 'injected',
+      kProbeMiss: 'not injected',
+      kProbeNone: 'No live chat to check',
+      kProbeFail: 'Check failed: {reason}',
+      kStats: 'injected {a}× · global {b} · workspace {c}',
+      kStatsNone: 'No chat has carried the rules yet',
+      kPrecedence: 'Rules rank with a direct operator instruction, above tool guidance, workspace instructions, persona and style requests; they do not change approval or sandbox permissions.',
+      kAgentsNote: 'AGENTS.md / CLAUDE.md in the workspace are loaded by dsh itself as workspace guidance (a user message, not a hard rule). Writing the same text there would duplicate it in context, so this component uses its own files; use Import to migrate.',
+      kSwitchDirty: 'Switching workspaces discards unsaved edits',
+      kDiscard: 'Discard',
+      kNoWorkspaces: 'No workspace registered',
+      kDirMissing: 'Workspace directory is missing',
+      kTruncated: 'truncated',
+      ovRulesActive: '{n} rule file(s) written',
+      ovRulesHow: 'applies to the next turn',
+
+      tabGithub: 'Github',
+      compGithub: 'Github',
+      ghIntro: 'Connect Github',
+      ghCreate: 'Create a fine-grained token on GitHub',
+      ghStepAccess: 'Repository access: choose Only select repositories and pick the repos you push to.',
+      ghStepPerm: 'Repository permissions → Contents: Read and write; keep Metadata: Read.',
+      ghStepPaste: 'Copy the token after creating it and paste it below; GitHub shows it only once.',
+      ghTokenLabel: 'GitHub token',
+      ghTokenPlaceholder: 'github_pat_… or ghp_…',
+      ghShow: 'Show',
+      ghHide: 'Hide',
+      ghSave: 'Save and verify',
+      ghSaving: 'Verifying…',
+      ghStorage: 'Saved to $DSH_HOME/yukari-github/token (0600); no re-entry after restarts, updates, or container rebuilds.',
+      ghSecurityHint: 'The token never appears in the panel, API, logs, remotes, or the helper script; but any process in this container, including the agent bash and file reads, can read the 0600 file. Use a fine-grained PAT limited to the repos you need, Contents: Read and write, and a short expiry; clear it when unused.',
+      ghAccount: 'Account',
+      ghLogin: 'Login',
+      ghTokenType: 'Token type',
+      ghScopes: 'Scopes',
+      ghExpiry: 'Expiry',
+      ghExpired: 'Expired',
+      ghNeverExpires: 'No expiry',
+      ghFineGrained: 'Fine-grained',
+      ghClassic: 'Classic',
+      ghUnknown: 'Unknown',
+      ghGit: 'Git credential helper',
+      ghHelperOn: 'Installed',
+      ghRepaired: 'The credential helper is installed again',
+      ghHelperOff: 'Not installed',
+      ghGitVersion: 'git version',
+      ghRepair: 'Repair',
+      ghRepairing: 'Repairing…',
+      ghTokenFile: 'Token file',
+      ghRepoCheck: 'Check repository access',
+      ghRepoPlaceholder: 'owner/repo',
+      ghCheck: 'Check',
+      ghChecking: 'Checking…',
+      ghCanPush: 'Can push',
+      ghCannotPush: 'No write access',
+      ghRepoPrivate: 'Private',
+      ghRepoPublic: 'Public',
+      ghRepoCheckHint: 'This only means the token has write permission on that repository; branch protection may still reject the push.',
+      ghRepo: 'Repository',
+      ghVisibility: 'Visibility',
+      ghDefaultBranch: 'Default branch',
+      ghClear: 'Clear token',
+      ghClearTitle: 'Clear the GitHub token?',
+      ghClearHint: 'The token file and git credential helper are deleted; the agent cannot push again until you paste a token.',
+      ghClearConfirm: 'Clear',
+      ghDanger: 'Revoke',
+      ghUnconfigured: 'Not configured',
+      ghConfigured: 'Connected',
+      ghConnected: 'Connected',
+      ghDisconnected: 'Not connected',
+      ghVerify: 'Verify again',
+      ghVerifying: 'Verifying…',
+      ghVerified: 'Verified',
+      ghClassicWarning: 'A classic PAT repo scope covers the whole account; a fine-grained token is safer.',
+      ghExpiryWarning: 'This token has no expiry; consider setting a short one.',
+      ghExpiringSoon: 'The token expires at {time}.',
+      ghTokenSaved: 'Token saved; git push works now.',
+      ghSavedNoHelper: 'Token saved, but the git credential helper is not installed; use Repair.',
+      ghReplace: 'Replace token',
+
       rCheck: 'Check for updates',
       rLatestShort: 'Up to date',
       rChecking: 'Asking npm…',
@@ -613,6 +1018,8 @@ window.__ModuleLoader__.load({
 .yk-cardText { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 1.65; }
 .yk-cardHint, .yk-foot { color: var(--yk-muted); font-size: 12px; }
 .yk-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.yk-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 1.55; }
+.yk-steps li::marker { color: var(--yk-accent); }
 .yk-footDot { opacity: .45; }
 .yk-rows { display: flex; flex-direction: column; }
 .yk-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--dsw-alias-border-l1); font-size: 13px; }
@@ -702,6 +1109,20 @@ window.__ModuleLoader__.load({
 .yk-fieldLabel { font-size: 12px; font-weight: 500; color: var(--dsw-alias-label-secondary); }
 .yk-input { height: 34px; width: 100%; min-width: 0; border-radius: var(--dsw-radius-md); border: 1px solid var(--yk-line); background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); padding: 0 10px; font: inherit; font-size: 13px; outline: none; }
 .yk-textarea { height: auto; min-height: 76px; padding: 9px 10px; resize: vertical; line-height: 1.55; }
+.yk-textareaTall { min-height: 140px; }
+.yk-textareaCode { min-height: 200px; font: 12px/1.5 var(--dsw-font-mono, monospace); }
+.yk-stack { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.yk-presetGroup { display: flex; flex-direction: column; gap: 6px; }
+.yk-presetGroupHead { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--dsw-alias-label-tertiary); }
+.yk-presetId { font-family: var(--dsw-font-mono, monospace); font-size: 11px; }
+.yk-presetRows { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.yk-presetRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border: 1px solid var(--yk-line); border-radius: var(--dsw-radius-md); }
+.yk-presetRowHead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.yk-presetRowName { font-family: var(--dsw-font-mono, monospace); font-size: 12px; overflow-wrap: anywhere; }
+.yk-customRow { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px dashed var(--yk-line); border-radius: var(--dsw-radius-md); }
+.yk-confirmWrap { padding-left: 12px; }
+.yk-footError { color: var(--dsw-alias-state-error-primary); }
+.yk-outTall { max-height: 46vh; }
 .yk-editor { min-height: 300px; font-family: var(--ds-font-family-code, monospace); font-size: 12px; }
 .yk-editorHead { display: flex; align-items: center; justify-content: space-between; }
 .yk-importBox { display: flex; align-items: flex-end; gap: 8px; }
@@ -1050,6 +1471,39 @@ window.__ModuleLoader__.load({
         ],
         props,
       )
+    /** Rules: a document whose body carries a check, distinct from the purge shield. */
+    const RulesIcon = (props) =>
+      glyph(
+        [
+          stroke('M6 3.8h8.4L19 8.4v11.8H6V3.8Z', { key: 'a' }),
+          stroke('M14.4 3.8v4.6H19', { key: 'b' }),
+          stroke('M9.2 12.8l1.9 1.9 3.7-4.1', { key: 'c' }),
+          stroke('M9.2 17.6h5.6', { key: 'd' }),
+        ],
+        props,
+      )
+    /** Github: a branch with a commit, distinct from the proxy route. */
+    const GithubIcon = (props) =>
+      glyph(
+        [
+          h('circle', { key: 'a', cx: 6.4, cy: 5.8, r: 2.2, stroke: 'currentColor', strokeWidth: 1.75 }),
+          h('circle', { key: 'b', cx: 6.4, cy: 18.2, r: 2.2, stroke: 'currentColor', strokeWidth: 1.75 }),
+          h('circle', { key: 'c', cx: 17.6, cy: 8.2, r: 2.2, stroke: 'currentColor', strokeWidth: 1.75 }),
+          stroke('M6.4 8v8', { key: 'd' }),
+          stroke('M17.6 10.4c0 4.4-3.4 6.6-8 6.8', { key: 'e' }),
+        ],
+        props,
+      )
+    /** Presets: stacked layers, one composition over another. */
+    const PresetsIcon = (props) =>
+      glyph(
+        [
+          stroke('M4 8.4 12 4.2l8 4.2-8 4.2-8-4.2Z', { key: 'a' }),
+          stroke('M4 12.4l8 4.2 8-4.2', { key: 'b' }),
+          stroke('M4 16.2l8 4.2 8-4.2', { key: 'c' }),
+        ],
+        props,
+      )
     const ChevronDownIcon = (props) => glyph(stroke('M6 9l6 6 6-6'), props)
     const ChevronRightIcon = (props) => glyph(stroke('M9 6l6 6-6 6'), props)
 
@@ -1180,7 +1634,10 @@ window.__ModuleLoader__.load({
       chats: 'compChats',
       sites: 'compSites',
       files: 'compFiles',
+      rules: 'compRules',
+      presets: 'compPresets',
       proxy: 'compProxy',
+      github: 'compGithub',
       purge: 'compPurge',
       browser: 'compBrowser',
       runtime: 'compRuntime',
@@ -1382,7 +1839,7 @@ window.__ModuleLoader__.load({
     /* ---------------------------------------------------------------- overview */
 
     /** Panel order for the overview grid: mounted components are buttons, the rest are greyed. */
-    const OVERVIEW_ORDER = ['chats', 'files', 'sites', 'proxy', 'browser', 'purge', 'runtime']
+    const OVERVIEW_ORDER = ['chats', 'files', 'rules', 'presets', 'sites', 'proxy', 'github', 'browser', 'purge', 'runtime']
 
     function OverviewTab({ t, components, onGo }) {
       const [state, setState] = React.useState(null)
@@ -1402,6 +1859,9 @@ window.__ModuleLoader__.load({
           want('browser', `${API.browser}/state`),
           want('files', `${API.files}/roots`),
           want('purge', `${API.purge}/config`),
+          want('rules', `${API.rules}/config`),
+          want('github', `${API.github}/state`),
+          want('presets', `${API.presets}/state`),
         ])
         if (!alive.current) return
         const pick = (index) => (settled[index].status === 'fulfilled' ? settled[index].value : null)
@@ -1414,6 +1874,9 @@ window.__ModuleLoader__.load({
           browser: pick(4)?.state ?? null,
           files: pick(5),
           purge: pick(6),
+          rules: pick(7),
+          github: pick(8)?.state ?? null,
+          presets: pick(9)?.items ?? null,
         })
         setFailure(broken === undefined ? null : failureOf(broken.reason))
         setBusy(false)
@@ -1421,7 +1884,7 @@ window.__ModuleLoader__.load({
 
       React.useEffect(() => { load() }, [load])
 
-      const { chats, runtime, sites, proxy, browser, files, purge } = state ?? {}
+      const { chats, runtime, sites, proxy, browser, files, purge, rules, github, presets } = state ?? {}
       const activeNode = proxy?.nodes?.find((node) => node.active)
       const browserBusy = browser?.status === 'installing' || browser?.status === 'checking'
       const pending = busy ? t('loading') : ''
@@ -1431,6 +1894,10 @@ window.__ModuleLoader__.load({
         files: [files?.roots ? fill(t('ovFiles'), { n: files.roots.length }) : '—', files?.roots?.[0]?.title ?? pending],
         sites: [sites ? counted(t, 'sCountOne', 'sCount', sites.sites.length) : '—', sites?.sites?.[0]?.title ?? t('sEmpty')],
         proxy: [proxy ? (proxy.enabled ? t('pEnabled') : t('pDisabled')) : '—', activeNode?.name ?? t('pNoNodes')],
+        github: [
+          github ? (github.configured ? t('ghConnected') : t('ghDisconnected')) : '—',
+          github?.account?.login ?? (github?.git?.helperInstalled ? t('ghHelperOn') : t('ghHelperOff')),
+        ],
         browser: [
           browser?.status === 'ready' ? t('ovReady') : browserBusy ? t('bInstalling') : t('bAutomatic'),
           browser?.version ?? `${components?.browser?.viewportWidth ?? 1280}×${components?.browser?.viewportHeight ?? 900}`,
@@ -1439,9 +1906,23 @@ window.__ModuleLoader__.load({
           purge?.stats?.assembled > 0 ? fill(t('ovPurgeUsed'), { n: purge.stats.assembled }) : t('ovReady'),
           t('ovPurgeHow'),
         ],
+        rules: [
+          rules
+            ? fill(t('ovRulesActive'), {
+                n:
+                  (rules.global?.exists && rules.global.bytes > 0 ? 1 : 0) +
+                  (rules.workspaces ?? []).filter((workspace) => workspace.exists && workspace.bytes > 0).length,
+              })
+            : '—',
+          rules?.stats?.assembled > 0 ? fill(t('ovPurgeUsed'), { n: rules.stats.assembled }) : t('ovRulesHow'),
+        ],
+        presets: [
+          presets ? fill(t('ovPresets'), { n: presets.length }) : '—',
+          presets?.find((item) => item.isDefault)?.name ?? t('ovPresetsHow'),
+        ],
         runtime: [`DSH ${runtime?.runtime?.version ?? '—'}`, runtime?.disk?.stale ? t('rNeedsRestart') : runtime?.runtime?.uptime ?? t('rCheck')],
       }
-      const icons = { chats: ChatIcon, files: FolderIcon, sites: SitesIcon, proxy: RouteIcon, browser: GlobeIcon, purge: PurgeIcon, runtime: PowerIcon }
+      const icons = { chats: ChatIcon, files: FolderIcon, rules: RulesIcon, presets: PresetsIcon, sites: SitesIcon, proxy: RouteIcon, github: GithubIcon, browser: GlobeIcon, purge: PurgeIcon, runtime: PowerIcon }
 
       return h(
         'div',
@@ -2886,6 +3367,777 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /* ---------------------------------------------------------------- github */
+
+    function GithubTab({ t }) {
+      const [state, setState] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const [busy, setBusy] = React.useState('')
+      const [token, setToken] = React.useState('')
+      const [reveal, setReveal] = React.useState(false)
+      const [repo, setRepo] = React.useState('')
+      const [repoResult, setRepoResult] = React.useState(null)
+      const [repoFailure, setRepoFailure] = React.useState(null)
+      const [confirmClear, setConfirmClear] = React.useState(false)
+      const [flash, show] = useFlash()
+      const { signal, alive } = useAbortOnUnmount()
+
+      const load = React.useCallback(async () => {
+        setBusy('load')
+        try {
+          const payload = await getJson(`${API.github}/state`, signal)
+          if (!alive.current) return
+          setState(payload.state)
+          setFailure(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }, [])
+
+      React.useEffect(() => { load() }, [load])
+
+      const save = async () => {
+        const value = token.trim()
+        if (value === '' || busy !== '') return
+        setBusy('save')
+        setFailure(null)
+        try {
+          const response = await fetch(`${API.github}/token`, {
+            method: 'POST',
+            headers: {
+              accept: 'application/json',
+              'content-type': 'application/json',
+              'x-yukari-github-token': value,
+            },
+            body: '{}',
+            cache: 'no-store',
+          })
+          const payload = await response.json().catch(() => ({}))
+          if (!response.ok) {
+            const error = new Error(payload.error ?? `HTTP ${response.status}`)
+            error.status = response.status
+            throw error
+          }
+          if (!payload?.state) throw new Error('服务器没有返回 Github 状态')
+          if (!alive.current) return
+          setState(payload.state)
+          setToken('')
+          setReveal(false)
+          setRepoResult(null)
+          setRepoFailure(null)
+          show('save', payload.state.git?.helperInstalled ? t('ghTokenSaved') : t('ghSavedNoHelper'))
+        } catch (error) {
+          if (alive.current) setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const verify = async () => {
+        setBusy('verify')
+        setFailure(null)
+        try {
+          const payload = await postJson(`${API.github}/verify`, {})
+          if (!payload?.state) throw new Error('服务器没有返回 Github 状态')
+          if (!alive.current) return
+          setState(payload.state)
+          show('verify', t('ghVerified'))
+        } catch (error) {
+          if (alive.current) setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const repair = async () => {
+        setBusy('repair')
+        setFailure(null)
+        try {
+          const payload = await postJson(`${API.github}/install`, {})
+          if (!payload?.state) throw new Error('服务器没有返回 Github 状态')
+          if (!alive.current) return
+          setState(payload.state)
+          show('repair', t('ghRepaired'))
+        } catch (error) {
+          if (alive.current) setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const clear = async () => {
+        setBusy('clear')
+        setFailure(null)
+        try {
+          const payload = await postJson(`${API.github}/clear`, {})
+          if (!payload?.state) throw new Error('服务器没有返回 Github 状态')
+          if (!alive.current) return
+          setState(payload.state)
+          setConfirmClear(false)
+          setToken('')
+          setReveal(false)
+          setRepoResult(null)
+          setRepoFailure(null)
+        } catch (error) {
+          if (alive.current) setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const checkRepo = async () => {
+        const value = repo.trim()
+        if (value === '' || busy !== '') return
+        setBusy('repo')
+        setRepoFailure(null)
+        try {
+          const payload = await postJson(`${API.github}/repo`, { repo: value })
+          if (!payload?.repo) throw new Error('服务器没有返回仓库信息')
+          if (!alive.current) return
+          setRepoResult(payload.repo)
+        } catch (error) {
+          if (alive.current) {
+            setRepoResult(null)
+            setRepoFailure(failureOf(error))
+          }
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const tokenFields = (withSteps) =>
+        h(
+          React.Fragment,
+          null,
+          withSteps
+            ? h(
+                'ol',
+                { className: 'yk-steps' },
+                h('li', null, t('ghStepAccess')),
+                h('li', null, t('ghStepPerm')),
+                h('li', null, t('ghStepPaste')),
+              )
+            : null,
+          h(
+            'div',
+            { className: 'yk-toolbar' },
+            h('input', {
+              className: 'yk-input yk-mono',
+              style: { flex: '1 1 240px' },
+              type: reveal ? 'text' : 'password',
+              value: token,
+              placeholder: t('ghTokenPlaceholder'),
+              'aria-label': t('ghTokenLabel'),
+              autoComplete: 'off',
+              spellCheck: false,
+              onChange: (event) => setToken(event.target.value),
+            }),
+            h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => setReveal((value) => !value) },
+              h(reveal ? EyeOffIcon : EyeIcon, { width: 14, height: 14 }),
+              t(reveal ? 'ghHide' : 'ghShow'),
+            ),
+            h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-solid', onClick: save, disabled: busy !== '' || token.trim() === '' },
+              busy === 'save' ? h(Spinner) : null,
+              t('ghSave'),
+            ),
+          ),
+          h(
+            'div',
+            { className: 'yk-toolbar' },
+            h(
+              'a',
+              { className: 'yk-link', href: 'https://github.com/settings/personal-access-tokens/new', target: '_blank', rel: 'noreferrer noopener' },
+              t('ghCreate'),
+            ),
+          ),
+          h('div', { className: 'yk-foot' }, t('ghStorage')),
+        )
+
+      if (state === null) {
+        return h(
+          'div',
+          { className: 'yk-body' },
+          h(Failure, { t, name: 'github', error: failure, onRetry: load }),
+          failure === null ? h(Loading, { text: t('loading') }) : null,
+        )
+      }
+
+      const account = state.account
+      const typeLabel =
+        account?.tokenType === 'fine-grained' ? t('ghFineGrained')
+          : account?.tokenType === 'classic' ? t('ghClassic')
+            : t('ghUnknown')
+      const expiry = account?.expiresAt === null || account?.expiresAt === undefined ? t('ghNeverExpires') : formatTime(account.expiresAt)
+      const expiresAt = account?.expiresAt === null || account?.expiresAt === undefined ? NaN : Date.parse(account.expiresAt)
+      const expiresSoon = Number.isFinite(expiresAt) && expiresAt > Date.now() && expiresAt - Date.now() < 7 * 86400000
+      const warnings = [
+        account?.expired ? h(Banner, { key: 'expired', kind: 'error', text: t('ghExpired') }) : null,
+        account?.tokenType === 'classic' ? h(Banner, { key: 'classic', kind: 'warn', text: t('ghClassicWarning') }) : null,
+        account !== null && account?.expiresAt === null ? h(Banner, { key: 'expiry', kind: 'warn', text: t('ghExpiryWarning') }) : null,
+        expiresSoon ? h(Banner, { key: 'soon', kind: 'warn', text: fill(t('ghExpiringSoon'), { time: formatTime(account.expiresAt) }) }) : null,
+      ].filter(Boolean)
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        h(Failure, { t, name: 'github', error: failure, onRetry: load }),
+        h(Banner, { kind: 'warn', text: t('ghSecurityHint') }),
+        h(FlashNote, { flash, keys: ['save', 'verify', 'repair'] }),
+
+        state.configured
+          ? h(
+              React.Fragment,
+              null,
+              h(
+                'div',
+                { className: 'yk-grid' },
+                h(
+                  Card,
+                  {
+                    title: t('ghAccount'),
+                    icon: h(GithubIcon, { width: 16, height: 16 }),
+                    action: h(Chip, { kind: 'ok', dot: true }, t('ghConfigured')),
+                  },
+                  h(
+                    'div',
+                    { className: 'yk-rows' },
+                    h(Row, { label: t('ghLogin'), value: account?.login ?? '—', mono: true }),
+                    h(Row, { label: t('ghTokenType'), value: typeLabel }),
+                    h(Row, { label: t('ghScopes'), value: account?.scopes?.length ? account.scopes.join(', ') : '—' }),
+                    h(Row, {
+                      label: t('ghExpiry'),
+                      value: expiry,
+                      chips: account?.expired ? [{ kind: 'danger', text: t('ghExpired') }] : [],
+                    }),
+                  ),
+                  h(
+                    'div',
+                    { className: 'yk-toolbar' },
+                    h(
+                      'button',
+                      { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: verify, disabled: busy !== '' },
+                      busy === 'verify' ? h(Spinner) : null,
+                      t('ghVerify'),
+                    ),
+                  ),
+                ),
+                h(
+                  Card,
+                  {
+                    title: t('ghGit'),
+                    icon: h(GithubIcon, { width: 16, height: 16 }),
+                    action: h(
+                      Chip,
+                      { kind: state.git.helperInstalled ? 'ok' : 'danger', dot: true },
+                      state.git.helperInstalled ? t('ghHelperOn') : t('ghHelperOff'),
+                    ),
+                  },
+                  h(
+                    'div',
+                    { className: 'yk-rows' },
+                    h(Row, { label: t('ghGitVersion'), value: state.git.version ?? '—', mono: true }),
+                    h(Row, { label: t('ghTokenFile'), value: state.git.tokenFile ?? '—', mono: true, clamp: true }),
+                    h(Row, { label: 'include.path', value: state.git.includePath ?? '—', mono: true, clamp: true }),
+                  ),
+                  state.git.error ? h(Banner, { kind: 'error', text: state.git.error }) : null,
+                  !state.git.helperInstalled
+                    ? h(
+                        'div',
+                        { className: 'yk-toolbar' },
+                        h(
+                          'button',
+                          { type: 'button', className: 'yk-btn', onClick: repair, disabled: busy !== '' },
+                          busy === 'repair' ? h(Spinner) : null,
+                          t('ghRepair'),
+                        ),
+                      )
+                    : null,
+                ),
+              ),
+              warnings.length > 0 ? warnings : null,
+              h(
+                Card,
+                {
+                  title: t('ghRepoCheck'),
+                  icon: h(SearchIcon),
+                },
+                h(
+                  'div',
+                  { className: 'yk-toolbar' },
+                  h('input', {
+                    className: 'yk-input yk-mono',
+                    style: { flex: '1 1 220px' },
+                    value: repo,
+                    placeholder: t('ghRepoPlaceholder'),
+                    'aria-label': t('ghRepoPlaceholder'),
+                    spellCheck: false,
+                    onChange: (event) => {
+                      setRepo(event.target.value)
+                      setRepoResult(null)
+                      setRepoFailure(null)
+                    },
+                  }),
+                  h(
+                    'button',
+                    { type: 'button', className: 'yk-btn', onClick: checkRepo, disabled: busy !== '' || repo.trim() === '' },
+                    busy === 'repo' ? h(Spinner) : null,
+                    t('ghCheck'),
+                  ),
+                ),
+                repoFailure ? h(Banner, { kind: 'error', text: repoFailure.message }) : null,
+                repoResult
+                  ? h(
+                      'div',
+                      { className: 'yk-rows' },
+                      h(Row, { label: t('ghRepo'), value: repoResult.fullName, mono: true }),
+                      h(Row, {
+                        label: t('ghVisibility'),
+                        value: repoResult.private ? t('ghRepoPrivate') : t('ghRepoPublic'),
+                        chips: [{ kind: repoResult.canPush ? 'ok' : 'danger', text: repoResult.canPush ? t('ghCanPush') : t('ghCannotPush') }],
+                      }),
+                      h(Row, { label: t('ghDefaultBranch'), value: repoResult.defaultBranch || '—', mono: true }),
+                    )
+                  : null,
+                h('div', { className: 'yk-foot' }, t('ghRepoCheckHint')),
+              ),
+              h(Disclosure, { title: t('ghReplace') }, h('div', { className: 'yk-form' }, tokenFields(false))),
+              h(
+                Card,
+                {
+                  title: t('ghDanger'),
+                  icon: h(TrashIcon, { width: 16, height: 16 }),
+                },
+                h('div', { className: 'yk-foot' }, t('ghClearHint')),
+                h(
+                  'div',
+                  { className: 'yk-toolbar' },
+                  h('span', { className: 'yk-grow' }),
+                  confirmClear
+                    ? null
+                    : h(
+                        'button',
+                        { type: 'button', className: 'yk-btn yk-btn-ghost yk-dangerHover', onClick: () => setConfirmClear(true), disabled: busy !== '' },
+                        t('ghClear'),
+                      ),
+                ),
+                confirmClear
+                  ? h(ConfirmStrip, {
+                      t,
+                      title: t('ghClearTitle'),
+                      hint: t('ghClearHint'),
+                      confirmLabel: t('ghClearConfirm'),
+                      busy: busy === 'clear',
+                      onCancel: () => setConfirmClear(false),
+                      onConfirm: clear,
+                    })
+                  : null,
+              ),
+            )
+          : h(
+              Card,
+              {
+                title: t('ghIntro'),
+                icon: h(GithubIcon, { width: 16, height: 16 }),
+                action: h(Chip, { kind: 'warn', dot: true }, t('ghUnconfigured')),
+              },
+              tokenFields(true),
+            ),
+      )
+    }
+
+    /* ----------------------------------------------------------------- rules */
+
+    function RulesTab({ t }) {
+      const [config, setConfig] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const [busy, setBusy] = React.useState('')
+      const [flash, show] = useFlash()
+      const [probe, setProbe] = React.useState(null)
+      const [globalDoc, setGlobalDoc] = React.useState(null)
+      const [workspaceId, setWorkspaceId] = React.useState('')
+      const [projectDoc, setProjectDoc] = React.useState(null)
+      const [pendingSwitch, setPendingSwitch] = React.useState(null)
+      const [confirmClear, setConfirmClear] = React.useState('')
+      const { signal, alive } = useAbortOnUnmount()
+
+      const withDoc = (doc) => ({ ...doc, draft: doc.text })
+
+      const load = React.useCallback(async (targetId) => {
+        setBusy('load')
+        try {
+          const payload = await getJson(`${API.rules}/config`, signal)
+          if (!alive.current) return
+          const ids = (payload.workspaces ?? []).map((workspace) => workspace.id)
+          const id = typeof targetId === 'string' && ids.includes(targetId) ? targetId : ids[0] ?? ''
+          const [globalPayload, projectPayload] = await Promise.all([
+            getJson(`${API.rules}/doc?scope=global`, signal),
+            id === '' ? Promise.resolve(null) : getJson(`${API.rules}/doc?scope=workspace&id=${encodeURIComponent(id)}`, signal),
+          ])
+          if (!alive.current) return
+          setWorkspaceId(id)
+          setConfig(payload)
+          setGlobalDoc(withDoc(globalPayload.doc))
+          setProjectDoc(projectPayload === null ? null : withDoc(projectPayload.doc))
+          setFailure(null)
+          setPendingSwitch(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }, [])
+
+      React.useEffect(() => {
+        load()
+      }, [load])
+
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'rules' }))
+      if (config === null) {
+        return h(
+          'div',
+          { className: 'yk-body' },
+          h(Failure, { t, name: 'rules', error: failure, onRetry: () => load() }),
+          failure === null ? h(Loading, { text: t('loading') }) : null,
+        )
+      }
+
+      const run = async (name, operation) => {
+        setBusy(name)
+        setFailure(null)
+        try {
+          await operation()
+        } catch (error) {
+          setFailure(failureOf(error))
+        } finally {
+          setBusy('')
+          setConfirmClear('')
+        }
+      }
+
+      const refreshConfig = async () => {
+        const next = await getJson(`${API.rules}/config`, signal)
+        if (alive.current) setConfig(next)
+      }
+
+      const saveDoc = (scope) => {
+        const state = scope === 'global' ? globalDoc : projectDoc
+        if (state === null) return undefined
+        return run(`save-${scope}`, async () => {
+          const body =
+            scope === 'global'
+              ? { scope: 'global', text: state.draft }
+              : { scope: 'workspace', id: workspaceId, text: state.draft }
+          const payload = await postJson(`${API.rules}/doc`, body)
+          if (!alive.current) return
+          if (scope === 'global') setGlobalDoc(withDoc(payload.doc))
+          else setProjectDoc(withDoc(payload.doc))
+          setProbe(null)
+          show(`save-${scope}`, t('kSavedNext'))
+          await refreshConfig()
+        })
+      }
+
+      const clearDoc = (scope) =>
+        run(`clear-${scope}`, async () => {
+          const body = scope === 'global' ? { scope: 'global' } : { scope: 'workspace', id: workspaceId }
+          const payload = await postJson(`${API.rules}/reset`, body)
+          if (!alive.current) return
+          if (scope === 'global') setGlobalDoc(withDoc(payload.doc))
+          else setProjectDoc(withDoc(payload.doc))
+          setProbe(null)
+          show(`clear-${scope}`, t('kClearDone'))
+          await refreshConfig()
+        })
+
+      const importDoc = (scope) =>
+        run(`import-${scope}`, async () => {
+          const query = scope === 'global' ? '?scope=global' : `?scope=workspace&id=${encodeURIComponent(workspaceId)}`
+          const payload = await getJson(`${API.rules}/import${query}`, signal)
+          if (!alive.current) return
+          if (payload.source === null || payload.source === undefined) {
+            show(`import-${scope}`, t('kImportNone'))
+            return
+          }
+          const file = String(payload.source).split(/[\\/]/).pop()
+          if (scope === 'global') setGlobalDoc((current) => ({ ...current, draft: payload.text }))
+          else setProjectDoc((current) => ({ ...current, draft: payload.text }))
+          show(`import-${scope}`, fill(t('kImported'), { file }))
+        })
+
+      const flip = (key) =>
+        run(key, async () => {
+          const payload = await postJson(`${API.rules}/settings`, { [key]: !(config.settings?.[key] ?? true) })
+          if (!alive.current) return
+          setConfig((current) => ({ ...current, settings: payload.settings }))
+          setProbe(null)
+        })
+
+      const runProbe = () =>
+        run('probe', async () => {
+          const payload = await getJson(`${API.rules}/probe`, signal)
+          if (alive.current) setProbe(payload)
+        })
+
+      const openWorkspace = async (id) => {
+        setPendingSwitch(null)
+        setBusy('doc')
+        try {
+          const payload = await getJson(`${API.rules}/doc?scope=workspace&id=${encodeURIComponent(id)}`, signal)
+          if (!alive.current) return
+          setWorkspaceId(id)
+          setProjectDoc(withDoc(payload.doc))
+          setProbe(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const switchWorkspace = (id) => {
+        if (id === workspaceId || busy !== '') return
+        const dirty = projectDoc !== null && projectDoc.draft !== projectDoc.text
+        if (dirty) {
+          setPendingSwitch(id)
+          return
+        }
+        openWorkspace(id)
+      }
+
+      const settings = config.settings ?? {}
+      const stats = config.stats
+      const workspaces = config.workspaces ?? []
+      const selected = workspaces.find((workspace) => workspace.id === workspaceId) ?? null
+      const disabled = busy !== ''
+
+      const pathRow = (doc) =>
+        h(
+          'div',
+          { className: 'yk-foot' },
+          h('span', { className: 'yk-fieldLabel' }, t('kPath')),
+          h('span', { className: 'yk-mono yk-link', title: doc?.path ?? '' }, doc?.path ?? '—'),
+          h(CopyButton, { text: doc?.path ?? '', label: t('copy'), t }),
+          doc !== null && doc.exists ? h(Chip, { kind: 'ok' }, t('kExists')) : h(Chip, { kind: 'warn' }, t('kMissing')),
+          doc?.truncated === true ? h(Chip, { kind: 'warn' }, t('kTruncated')) : null,
+        )
+
+      const editorNodes = (scope, doc) => {
+        if (doc === null) return []
+        const dirty = doc.draft !== doc.text
+        return [
+          h('textarea', {
+            key: 'editor',
+            className: 'yk-input yk-textarea yk-editor',
+            value: doc.draft,
+            placeholder: t('kPlaceholder'),
+            spellCheck: false,
+            disabled: busy === 'load',
+            onChange: (event) => {
+              const value = event.target.value
+              if (scope === 'global') setGlobalDoc((current) => ({ ...current, draft: value }))
+              else setProjectDoc((current) => ({ ...current, draft: value }))
+            },
+          }),
+          h(
+            'div',
+            { key: 'bar', className: 'yk-toolbar' },
+            h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-solid', onClick: () => saveDoc(scope), disabled: disabled || !dirty },
+              busy === `save-${scope}` ? h(Spinner) : null,
+              flashed(flash, `save-${scope}`, t('save')),
+            ),
+            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => importDoc(scope), disabled }, t('kImport')),
+            h('span', { className: 'yk-grow' }),
+            confirmClear === scope
+              ? h(
+                  React.Fragment,
+                  null,
+                  h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirmClear('') }, t('cancel')),
+                  h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: () => clearDoc(scope), disabled }, t('kClear')),
+                )
+              : h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'yk-btn yk-btn-ghost yk-dangerHover',
+                    onClick: () => setConfirmClear(scope),
+                    disabled: disabled || !doc.exists,
+                  },
+                  t('kClear'),
+                ),
+          ),
+          confirmClear === scope
+            ? h(
+                'div',
+                { key: 'confirm', className: 'yk-foot' },
+                h('span', { className: 'yk-fieldLabel' }, t('kConfirmClear')),
+                fill(t('kConfirmClearHint'), { path: doc.path }),
+              )
+            : null,
+          h(
+            'div',
+            { key: 'note', className: 'yk-foot' },
+            h(FlashNote, { flash, keys: [`import-${scope}`, `clear-${scope}`] }),
+            h('span', { className: 'yk-cardNote' }, dirty ? t('kUnsaved') : fill(t('kChars'), { n: doc.draft.length })),
+          ),
+        ]
+      }
+
+      const actionChip = (doc) => {
+        const dirty = doc !== null && doc.draft !== doc.text
+        return h(
+          Chip,
+          { kind: dirty ? 'warn' : undefined },
+          dirty ? t('kUnsaved') : fill(t('kChars'), { n: (doc?.draft ?? '').length }),
+        )
+      }
+
+      const probeNote =
+        probe === null
+          ? null
+          : h(
+              'div',
+              { className: 'yk-foot' },
+              probe.ok === true
+                ? `${probe.hasHead && probe.hasAnchor ? t('kProbeOk') : t('kProbeMiss')} · ${probe.sessionId ?? '?'} · ${formatBytes(
+                    (probe.bytes?.head ?? 0) + (probe.bytes?.anchor ?? 0),
+                  )}`
+                : probe.reason === 'no-session' || probe.reason === 'not-live'
+                  ? t('kProbeNone')
+                  : fill(t('kProbeFail'), { reason: probe.reason ?? 'unknown' }),
+            )
+
+      const statsNote = h(
+        'div',
+        { className: 'yk-foot' },
+        stats && stats.assembled > 0
+          ? fill(t('kStats'), { a: stats.assembled, b: stats.globalHits ?? 0, c: stats.projectHits ?? 0 })
+          : t('kStatsNone'),
+      )
+
+      const settingsChips = [
+        ['global', t('kToggleGlobal')],
+        ['project', t('kToggleProject')],
+        ['tailAnchor', t('kToggleAnchor')],
+      ].map(([key, label]) =>
+        h(
+          'button',
+          {
+            key,
+            type: 'button',
+            className: 'yk-chip yk-chip-toggle',
+            'aria-pressed': settings[key] ? 'true' : 'false',
+            title: `${label}：${settings[key] ? t('gOn') : t('gOff')}`,
+            disabled,
+            onClick: () => flip(key),
+          },
+          h('span', { className: 'yk-chip-dot', 'aria-hidden': true }),
+          label,
+        ),
+      )
+
+      const workspaceHeader = h(
+        'div',
+        { key: 'workspace', className: 'yk-toolbar' },
+        h(
+          'select',
+          {
+            className: 'yk-input yk-select',
+            value: workspaceId,
+            'aria-label': t('fWorkspace'),
+            disabled,
+            onChange: (event) => switchWorkspace(event.target.value),
+          },
+          workspaces.map((workspace) => h('option', { key: workspace.id, value: workspace.id }, workspace.title || workspace.path)),
+        ),
+        selected !== null && selected.dirExists === false ? h(Chip, { kind: 'danger' }, t('kDirMissing')) : null,
+      )
+
+      const workspaceChildren =
+        projectDoc === null
+          ? [workspaceHeader, h('div', { key: 'empty', className: 'yk-foot' }, workspaces.length === 0 ? t('kNoWorkspaces') : t('loading'))]
+          : [workspaceHeader, pathRow(projectDoc), ...editorNodes('workspace', projectDoc)]
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        h(Failure, { t, name: 'rules', error: failure, onRetry: () => load(workspaceId) }),
+        h(
+          Card,
+          {
+            title: t('kTitle'),
+            span: true,
+            icon: h(RulesIcon, { width: 16, height: 16 }),
+            action: h(
+              'div',
+              { className: 'yk-cardTools' },
+              h(Chip, { kind: 'accent' }, fill(t('kLimit'), { n: formatBytes(config.limits?.maxBytes ?? 0) })),
+            ),
+          },
+          h('p', { className: 'yk-cardText' }, t('kDesc')),
+          h(
+            'div',
+            { className: 'yk-toggleRow' },
+            settingsChips,
+            h('span', { className: 'yk-grow' }),
+            h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: runProbe, disabled },
+              busy === 'probe' ? h(Spinner, { size: 13 }) : t('kProbe'),
+            ),
+          ),
+          probeNote,
+          statsNote,
+          h('div', { className: 'yk-foot' }, t('kPrecedence')),
+          h('div', { className: 'yk-foot' }, t('kAgentsNote')),
+        ),
+        h(
+          'div',
+          { className: 'yk-grid' },
+          h(
+            Card,
+            {
+              key: 'global',
+              title: t('kGlobalTitle'),
+              icon: h(RulesIcon, { width: 16, height: 16 }),
+              action: actionChip(globalDoc),
+            },
+            h('div', { className: 'yk-cardNote' }, t('kGlobalNote')),
+            pathRow(globalDoc),
+            ...editorNodes('global', globalDoc),
+          ),
+          h(
+            Card,
+            {
+              key: 'workspace',
+              title: t('kProjectTitle'),
+              icon: h(RulesIcon, { width: 16, height: 16 }),
+              action: actionChip(projectDoc),
+            },
+            h('div', { className: 'yk-cardNote' }, t('kProjectNote')),
+            ...workspaceChildren,
+          ),
+        ),
+        pendingSwitch !== null
+          ? h(ConfirmStrip, {
+              t,
+              title: t('kSwitchDirty'),
+              confirmLabel: t('kDiscard'),
+              busy: false,
+              onCancel: () => setPendingSwitch(null),
+              onConfirm: () => openWorkspace(pendingSwitch),
+            })
+          : null,
+      )
+    }
+
     /* ---------------------------------------------------------------- purge */
 
     function PurgeTab({ t }) {
@@ -3229,12 +4481,889 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /* ----------------------------------------------------------------- presets */
+
+    /** One preset row's source tag. */
+    const PRESET_SOURCE_LABEL = {
+      store: 'pSourceStore',
+      declared: 'pSourceDeclared',
+      builtin: 'pSourceBuiltin',
+      runtime: 'pSourceRuntime',
+    }
+
+    /** Group heading and hint for each source, in reading order. */
+    const PRESET_GROUPS = [
+      ['store', 'pMine', 'pMineHint'],
+      ['declared', 'pDeclared', 'pDeclaredHint'],
+      ['builtin', 'pBuiltin', 'pBuiltinHint'],
+      ['runtime', 'pRuntimeGroup', 'pRuntimeHint'],
+    ]
+
+    /** A copy id that is both valid and unused. */
+    function copyPresetId(from, taken) {
+      const base = `${from === '' || from === undefined ? 'preset' : from}-copy`
+      if (!taken.has(base)) return base
+      for (let index = 2; index < 100; index += 1) {
+        const candidate = `${base}-${index}`
+        if (!taken.has(candidate)) return candidate
+      }
+      return `${base}-${Date.now().toString(36)}`
+    }
+
+    /** Whether a row's disable flag is a `!!js` condition the panel must not flip. */
+    const rowCondition = (row) =>
+      row !== null && typeof row === 'object' && row.disabled !== null && typeof row.disabled === 'object' && typeof row.disabled.__jsExpr === 'string'
+        ? row.disabled.__jsExpr
+        : null
+
+    /** Rows an import picker can offer: the top level of one composition. */
+    function importableRows(plugins) {
+      return (plugins ?? []).filter((row) => row !== null && typeof row === 'object' && typeof row.name === 'string')
+    }
+
+    function PresetsTab({ t }) {
+      const [state, setState] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const [busy, setBusy] = React.useState('')
+      const [flash, show] = useFlash(4200)
+      const [view, setView] = React.useState('list')
+      const [draft, setDraft] = React.useState(null)
+      const [composition, setComposition] = React.useState(null)
+      const [confirmId, setConfirmId] = React.useState('')
+      const [pickPurpose, setPickPurpose] = React.useState('template')
+      const [importFrom, setImportFrom] = React.useState(null)
+      const [chosen, setChosen] = React.useState([])
+      const [advanced, setAdvanced] = React.useState(null)
+      const [jsonError, setJsonError] = React.useState('')
+      const [customRow, setCustomRow] = React.useState(null)
+      const { signal, alive } = useAbortOnUnmount()
+
+      const load = React.useCallback(async () => {
+        setBusy('load')
+        try {
+          const payload = await getJson(`${API.presets}/state`, signal)
+          if (!alive.current) return
+          setState(payload)
+          setFailure(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }, [])
+
+      React.useEffect(() => {
+        load()
+      }, [load])
+
+      const items = state?.items ?? []
+      const busyNow = busy !== ''
+
+      const run = async (name, operation) => {
+        setBusy(name)
+        setFailure(null)
+        try {
+          await operation()
+        } catch (error) {
+          setFailure(failureOf(error))
+        } finally {
+          setBusy('')
+          setCustomRow(null)
+        }
+      }
+
+      const readTemplate = async (id) => {
+        const payload = await getJson(`${API.presets}/template?id=${encodeURIComponent(id)}`, signal)
+        return payload
+      }
+
+      /** Start a new preset from `item`'s composition, or from nothing. */
+      const startCreate = (item) =>
+        run('template', async () => {
+          const taken = new Set(items.map((row) => row.id))
+          let plugins = []
+          let source = 'blank'
+          let notes = []
+          if (item !== null && item !== undefined) {
+            const payload = await readTemplate(item.id)
+            plugins = payload.plugins ?? []
+            source = payload.source ?? item.source
+            notes = payload.notes ?? []
+          }
+          if (!alive.current) return
+          setComposition(null)
+          setAdvanced(null)
+          setJsonError('')
+          setDraft({
+            mode: 'create',
+            declared: false,
+            id: item === null || item === undefined ? '' : copyPresetId(item.id, taken),
+            name: item === null || item === undefined ? '' : fill(t('pCopyName'), { name: item.name ?? item.id }),
+            description: item?.description ?? '',
+            order: '',
+            plugins,
+            template: item === null || item === undefined ? null : { id: item.id, name: item.name ?? item.id, source, notes },
+          })
+          setView('edit')
+        })
+
+      const startEdit = (item) =>
+        run('get', async () => {
+          const payload = await getJson(`${API.presets}/get?id=${encodeURIComponent(item.id)}`, signal)
+          if (!alive.current) return
+          setComposition(null)
+          setAdvanced(null)
+          setJsonError('')
+          setDraft({
+            mode: 'edit',
+            declared: item.source !== 'store',
+            id: item.id,
+            name: item.name ?? '',
+            description: item.description ?? '',
+            order: item.order === null || item.order === undefined ? '' : String(item.order),
+            plugins: payload.plugins ?? [],
+            template: null,
+          })
+          setView('edit')
+        })
+
+      const showComposition = (item) =>
+        run('get', async () => {
+          const payload = await getJson(`${API.presets}/get?id=${encodeURIComponent(item.id)}`, signal)
+          if (!alive.current) return
+          setComposition({ item, plugins: payload.plugins, yaml: payload.yaml })
+          setView('composition')
+        })
+
+      const save = () =>
+        run('save', async () => {
+          if (draft === null) return
+          const body = {
+            id: draft.id.trim(),
+            name: draft.name.trim(),
+            description: draft.description.trim(),
+            plugins: draft.plugins,
+          }
+          if (String(draft.order).trim() !== '') body.order = Number(draft.order)
+          const action = draft.mode === 'create' ? 'create' : 'update'
+          await postJson(`${API.presets}/${action}`, body, signal)
+          if (!alive.current) return
+          setDraft(null)
+          setView('list')
+          show('save', t('pSaved'))
+          await load()
+        })
+
+      const removeItem = (id) =>
+        run('delete', async () => {
+          await postJson(`${API.presets}/delete`, { id }, signal)
+          if (!alive.current) return
+          setConfirmId('')
+          show('delete', t('pDeleted'))
+          await load()
+        })
+
+      const startImport = () => {
+        setPickPurpose('import')
+        setImportFrom(null)
+        setChosen([])
+        setView('template')
+      }
+
+      const chooseImport = (item) =>
+        run('template', async () => {
+          const payload = await readTemplate(item.id)
+          if (!alive.current) return
+          const rows = importableRows(payload.plugins)
+          setImportFrom({ id: item.id, name: item.name ?? item.id, rows })
+          setChosen(rows.map(() => false))
+          setPickPurpose('import')
+          setView('import')
+        })
+
+      const confirmImport = () => {
+        if (importFrom === null) return
+        const picked = importFrom.rows.filter((row, index) => chosen[index] === true)
+        setDraft((current) =>
+          current === null ? current : { ...current, plugins: [...current.plugins, ...structuredClone(picked)] },
+        )
+        setView('edit')
+        setImportFrom(null)
+        setChosen([])
+      }
+
+      /* ------------------------------------------------------------- editor ops */
+
+      const patchRow = (index, change) =>
+        setDraft((current) =>
+          current === null
+            ? current
+            : { ...current, plugins: current.plugins.map((row, position) => (position === index ? change(structuredClone(row)) : row)) },
+        )
+
+      const removeRow = (index) =>
+        setDraft((current) =>
+          current === null ? current : { ...current, plugins: current.plugins.filter((row, position) => position !== index) },
+        )
+
+      const addRow = (row) => setDraft((current) => (current === null ? current : { ...current, plugins: [...current.plugins, row] }))
+
+      const personaIndex =
+        draft === null ? -1 : draft.plugins.findIndex((row) => row !== null && typeof row === 'object' && row.name === '@deepseek-ai/dsh-persona')
+      const persona = personaIndex === -1 ? null : draft.plugins[personaIndex]
+
+      const setPersona = (field, value) =>
+        patchRow(personaIndex, (row) => ({
+          ...row,
+          config: { ...(row.config && typeof row.config === 'object' ? row.config : {}), [field]: value },
+        }))
+
+      const openAdvanced = () => {
+        setAdvanced(JSON.stringify(draft?.plugins ?? [], null, 2))
+        setJsonError('')
+      }
+
+      const applyAdvanced = () => {
+        let parsed
+        try {
+          parsed = JSON.parse(advanced ?? '')
+        } catch (error) {
+          setJsonError(fill(t('pJsonInvalid'), { error: messageOf(error) }))
+          return
+        }
+        if (!Array.isArray(parsed)) {
+          setJsonError(t('pJsonShape'))
+          return
+        }
+        const bad = parsed.findIndex((row) => row === null || typeof row !== 'object' || typeof row.name !== 'string' || row.name === '')
+        if (bad !== -1) {
+          setJsonError(`${t('pJsonShape')}（第 ${bad + 1} 行）`)
+          return
+        }
+        setJsonError('')
+        setDraft((current) => (current === null ? current : { ...current, plugins: parsed }))
+        setAdvanced(null)
+      }
+
+      /* ------------------------------------------------------------------ views */
+
+      const closeEditor = () => {
+        setDraft(null)
+        setAdvanced(null)
+        setJsonError('')
+        setView('list')
+      }
+
+      const editorHeader = () =>
+        h(
+          'div',
+          { className: 'yk-toolbar' },
+          h(
+            'div',
+            { className: 'yk-grow', style: { display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 } },
+            h('div', { className: 'yk-cardTitle', style: { fontSize: '15px' } }, draft.mode === 'create' ? t('pNewTitle') : t('pEditTitle')),
+            draft.template === null
+              ? h(
+                  'div',
+                  { className: 'yk-itemMeta' },
+                  draft.mode === 'create' ? t('pBlankTitle') : draft.declared ? t('pDeclaredHint') : t('pMine'),
+                )
+              : h(
+                  'div',
+                  { className: 'yk-itemMeta' },
+                  h(
+                    'span',
+                    null,
+                    fill(t('pTemplateTag'), {
+                      name: `${draft.template.name} · ${t(PRESET_SOURCE_LABEL[draft.template.source] ?? 'pSourceDeclared')}`,
+                    }),
+                  ),
+                  draft.template.notes.map((note, index) => h('span', { key: index }, note)),
+                ),
+          ),
+          h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: closeEditor, disabled: busyNow }, t('pBack')),
+        )
+
+      const field = (labelKey, control, hint) =>
+        h(
+          'label',
+          { className: 'yk-field' },
+          h('span', { className: 'yk-fieldLabel' }, t(labelKey)),
+          control,
+          hint === undefined ? null : h('span', { className: 'yk-itemMeta' }, hint),
+        )
+
+      const renderRow = (row, index) => {
+        const condition = rowCondition(row)
+        const group = row.group === true && Array.isArray(row.config)
+        return h(
+          'li',
+          { className: 'yk-presetRow', key: `${row.id ?? row.name}-${index}` },
+          h(
+            'div',
+            { className: 'yk-presetRowHead' },
+            h('code', { className: 'yk-presetRowName' }, row.name),
+            row.id === undefined ? null : h('span', { className: 'yk-itemMeta' }, row.id),
+            group ? h(Chip, { kind: 'accent' }, `${t('pRowGroup')} ${row.config.length}`) : null,
+            condition !== null ? h(Chip, { kind: 'warn' }, `${t('pRowCondition')}: ${condition}`) : null,
+            row.disabled === true && condition === null ? h(Chip, { kind: 'danger' }, t('pRowDisabled')) : null,
+          ),
+          h(
+            'div',
+            { className: 'yk-itemActions' },
+            condition !== null
+              ? null
+              : h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'yk-btn yk-btn-ghost yk-btn-sm',
+                    'aria-pressed': row.disabled !== true,
+                    onClick: () => patchRow(index, (next) => ({ ...next, disabled: next.disabled === true ? false : true })),
+                  },
+                  row.disabled === true ? t('pRowEnable') : t('pRowDisable'),
+                ),
+            h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm yk-iconBtn', title: t('pRemoveRow'), 'aria-label': t('pRemoveRow'), onClick: () => removeRow(index) },
+              h(TrashIcon, { width: 13, height: 13 }),
+            ),
+          ),
+        )
+      }
+
+      if (view === 'composition') {
+        return h(
+          'div',
+          { className: 'yk-body' },
+          h(
+            'div',
+            { className: 'yk-toolbar' },
+            h(
+              'div',
+              { className: 'yk-grow', style: { display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 } },
+              h('div', { className: 'yk-cardTitle', style: { fontSize: '15px' } }, composition?.item?.name ?? composition?.item?.id ?? ''),
+              h('div', { className: 'yk-itemMeta' }, composition?.item?.id ?? ''),
+            ),
+            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => setView('list') }, t('pBack')),
+          ),
+          composition?.plugins === null || composition?.plugins === undefined
+            ? h('p', { className: 'yk-foot' }, t('pNoStructure'))
+            : h('pre', { className: 'yk-out yk-outTall' }, JSON.stringify(composition.plugins, null, 2)),
+          composition?.yaml === null || composition?.yaml === undefined
+            ? null
+            : h(Card, { title: t('pYaml'), note: t('pYamlHint'), span: true }, h('pre', { className: 'yk-out yk-outTall' }, composition.yaml)),
+        )
+      }
+
+      if (view === 'template' && pickPurpose === 'import') {
+        return h(
+          'div',
+          { className: 'yk-body' },
+          h(Failure, { t, name: 'presets', error: failure, onRetry: () => load() }),
+          h(
+            'div',
+            { className: 'yk-toolbar' },
+            h('div', { className: 'yk-itemTitle' }, t('pImportRows')),
+            h('span', { className: 'yk-grow' }),
+            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => setView('edit') }, t('pBack')),
+          ),
+          h('p', { className: 'yk-foot' }, t('pImportPick')),
+          h(
+            'ul',
+            { className: 'yk-list' },
+            items.filter((item) => item.canTemplate).map((item) =>
+              h(
+                'li',
+                { className: 'yk-item', key: item.id },
+                h(
+                  'div',
+                  { className: 'yk-itemMain' },
+                  h('div', { className: 'yk-itemTitleRow' }, h('span', { className: 'yk-itemTitle' }, item.name ?? item.id)),
+                  h(
+                    'div',
+                    { className: 'yk-itemMeta' },
+                    h('span', null, item.id),
+                    h('span', null, item.rows === null ? t('pRowsUnknown') : fill(t('pRowsCount'), { n: item.rows })),
+                  ),
+                ),
+                h(
+                  'div',
+                  { className: 'yk-itemActions' },
+                  h('button', { type: 'button', className: 'yk-btn yk-btn-sm', onClick: () => chooseImport(item), disabled: busyNow }, t('pImportChoose')),
+                ),
+              ),
+            ),
+          ),
+        )
+      }
+
+      if (view === 'import' && importFrom !== null) {
+        const pickedCount = chosen.filter(Boolean).length
+        return h(
+          'div',
+          { className: 'yk-body' },
+          h(Failure, { t, name: 'presets', error: failure, onRetry: () => load() }),
+          h(
+            'div',
+            { className: 'yk-toolbar' },
+            h(
+              'div',
+              { className: 'yk-grow', style: { display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 } },
+              h('div', { className: 'yk-itemTitle' }, fill(t('pImportFrom'), { name: importFrom.name })),
+              h('div', { className: 'yk-itemMeta' }, t('pImportHint')),
+            ),
+            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => setView('edit') }, t('pBack')),
+          ),
+          h(
+            'ul',
+            { className: 'yk-list' },
+            importFrom.rows.map((row, index) =>
+              h(
+                'li',
+                { className: 'yk-item', key: `${row.id ?? row.name}-${index}` },
+                h(
+                  'label',
+                  { className: 'yk-itemMain', style: { flexDirection: 'row', alignItems: 'center', gap: '8px', cursor: 'pointer' } },
+                  h('input', {
+                    type: 'checkbox',
+                    checked: chosen[index] === true,
+                    onChange: (event) =>
+                      setChosen((current) => current.map((value, position) => (position === index ? event.target.checked : value))),
+                  }),
+                  h('code', { className: 'yk-presetRowName' }, row.name),
+                  row.group === true ? h(Chip, { kind: 'accent' }, t('pRowGroup')) : null,
+                ),
+              ),
+            ),
+          ),
+          h(
+            'div',
+            { className: 'yk-toolbar' },
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'yk-btn yk-btn-sm',
+                onClick: () => setChosen((current) => current.map(() => true)),
+              },
+              t('pSelectAll'),
+            ),
+            h('span', { className: 'yk-grow' }),
+            h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-solid yk-btn-sm', onClick: confirmImport, disabled: pickedCount === 0 },
+              fill(t('pImportAdd'), { n: pickedCount }),
+            ),
+          ),
+        )
+      }
+
+      if (view === 'template') {
+        return h(
+          'div',
+          { className: 'yk-body' },
+          h(Failure, { t, name: 'presets', error: failure, onRetry: () => load() }),
+          h(
+            'div',
+            { className: 'yk-toolbar' },
+            h(
+              'div',
+              { className: 'yk-grow', style: { display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 } },
+              h('div', { className: 'yk-cardTitle', style: { fontSize: '15px' } }, t('pChooseTemplate')),
+              h('div', { className: 'yk-itemMeta' }, t('pChooseTemplateHint')),
+            ),
+            h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => (draft === null ? setView('list') : setView('edit')) },
+              t('pBack'),
+            ),
+          ),
+          h(
+            'ul',
+            { className: 'yk-list' },
+            h(
+              'li',
+              { className: 'yk-item', key: '__blank' },
+              h(
+                'div',
+                { className: 'yk-itemMain' },
+                h('div', { className: 'yk-itemTitleRow' }, h('span', { className: 'yk-itemTitle' }, t('pBlankTitle'))),
+                h('div', { className: 'yk-itemMeta' }, h('span', null, t('pBlankHint'))),
+              ),
+              h(
+                'div',
+                { className: 'yk-itemActions' },
+                h('button', { type: 'button', className: 'yk-btn yk-btn-sm', onClick: () => startCreate(null), disabled: busyNow }, t('pUseTemplate')),
+              ),
+            ),
+            items
+              .filter((item) => item.canTemplate)
+              .map((item) =>
+                h(
+                  'li',
+                  { className: 'yk-item', key: item.id },
+                  h(
+                    'div',
+                    { className: 'yk-itemMain' },
+                    h(
+                      'div',
+                      { className: 'yk-itemTitleRow' },
+                      h('span', { className: 'yk-itemTitle' }, item.name ?? item.id),
+                      h(Chip, { kind: item.source === 'store' ? 'accent' : undefined }, t(PRESET_SOURCE_LABEL[item.source])),
+                      item.isDefault ? h(Chip, { kind: 'ok' }, t('pDefault')) : null,
+                    ),
+                    h(
+                      'div',
+                      { className: 'yk-itemMeta' },
+                      h('span', null, item.id),
+                      h('span', null, item.rows === null ? t('pRowsUnknown') : fill(t('pRowsCount'), { n: item.rows })),
+                      item.description ? h('span', null, item.description) : null,
+                    ),
+                  ),
+                  h(
+                    'div',
+                    { className: 'yk-itemActions' },
+                    h('button', { type: 'button', className: 'yk-btn yk-btn-sm', onClick: () => showComposition(item), disabled: busyNow }, t('pView')),
+                    h('button', { type: 'button', className: 'yk-btn yk-btn-solid yk-btn-sm', onClick: () => startCreate(item), disabled: busyNow }, t('pUseTemplate')),
+                  ),
+                ),
+              ),
+          ),
+          busy === 'template' ? h(Loading, { text: t('loading') }) : null,
+        )
+      }
+
+      if (view === 'edit' && draft !== null) {
+        return h(
+          'div',
+          { className: 'yk-body' },
+          h(Failure, { t, name: 'presets', error: failure, onRetry: () => load() }),
+          editorHeader(),
+          h(
+            'div',
+            { className: 'yk-form' },
+            field(
+              'pName',
+              h('input', {
+                className: 'yk-input',
+                value: draft.name,
+                placeholder: t('pNamePlaceholder'),
+                maxLength: state?.limits?.nameMax ?? 80,
+                onChange: (event) => setDraft({ ...draft, name: event.target.value }),
+              }),
+            ),
+            field(
+              'pId',
+              h('input', {
+                className: 'yk-input',
+                value: draft.id,
+                placeholder: t('pIdPlaceholder'),
+                spellCheck: false,
+                disabled: draft.mode === 'edit',
+                onChange: (event) => setDraft({ ...draft, id: event.target.value }),
+              }),
+              draft.mode === 'edit' ? t('pIdLocked') : t('pIdHint'),
+            ),
+            field(
+              'pOrder',
+              h('input', {
+                className: 'yk-input',
+                value: draft.order,
+                inputMode: 'numeric',
+                placeholder: t('pOrderHint'),
+                onChange: (event) => setDraft({ ...draft, order: event.target.value }),
+              }),
+            ),
+          ),
+          field(
+            'pDescription',
+            h('input', {
+              className: 'yk-input',
+              value: draft.description,
+              maxLength: state?.limits?.descMax ?? 500,
+              placeholder: t('pDescriptionPlaceholder'),
+              onChange: (event) => setDraft({ ...draft, description: event.target.value }),
+            }),
+          ),
+          h(
+            Card,
+            { title: t('pPersona'), note: t('pPersonaHint'), span: true },
+            persona === null
+              ? h(
+                  'div',
+                  { className: 'yk-toolbar' },
+                  h('span', { className: 'yk-foot' }, t('pPersonaMissing')),
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'yk-btn yk-btn-sm',
+                      onClick: () => addRow({ id: 'persona', name: '@deepseek-ai/dsh-persona', config: { prefix: '' } }),
+                    },
+                    t('pPersonaAdd'),
+                  ),
+                )
+              : h(
+                  'div',
+                  { className: 'yk-stack' },
+                  h('textarea', {
+                    className: 'yk-input yk-textarea yk-textareaTall',
+                    value: typeof persona.config?.prefix === 'string' ? persona.config.prefix : '',
+                    placeholder: t('pPersonaPlaceholder'),
+                    onChange: (event) => setPersona('prefix', event.target.value),
+                  }),
+                  h('input', {
+                    className: 'yk-input',
+                    value: typeof persona.config?.suffix === 'string' ? persona.config.suffix : '',
+                    placeholder: t('pPersonaSuffix'),
+                    onChange: (event) => setPersona('suffix', event.target.value),
+                  }),
+                ),
+          ),
+          h(
+            Card,
+            {
+              title: fill(t('pRowsTitle'), { n: draft.plugins.length }),
+              note: t('pRowsHint'),
+              span: true,
+              action: h(
+                'div',
+                { className: 'yk-itemActions' },
+                h('button', { type: 'button', className: 'yk-btn yk-btn-sm', onClick: startImport, disabled: busyNow }, t('pImportRows')),
+                h('button', { type: 'button', className: 'yk-btn yk-btn-sm', onClick: () => setCustomRow({ name: '', id: '', config: '' }) }, t('pAddRow')),
+              ),
+            },
+            draft.plugins.length === 0
+              ? h('p', { className: 'yk-foot' }, t('pEmptyComposition'))
+              : h('ul', { className: 'yk-presetRows' }, draft.plugins.map((row, index) => renderRow(row, index))),
+            customRow === null
+              ? null
+              : h(
+                  'div',
+                  { className: 'yk-customRow' },
+                  h('input', {
+                    className: 'yk-input',
+                    value: customRow.name,
+                    placeholder: t('pRowName'),
+                    onChange: (event) => setCustomRow({ ...customRow, name: event.target.value }),
+                  }),
+                  h('input', {
+                    className: 'yk-input',
+                    value: customRow.id,
+                    placeholder: t('pRowId'),
+                    onChange: (event) => setCustomRow({ ...customRow, id: event.target.value }),
+                  }),
+                  h('textarea', {
+                    className: 'yk-input yk-textarea',
+                    value: customRow.config,
+                    placeholder: t('pRowConfig'),
+                    onChange: (event) => setCustomRow({ ...customRow, config: event.target.value }),
+                  }),
+                  h(
+                    'div',
+                    { className: 'yk-toolbar' },
+                    h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => setCustomRow(null) }, t('pCancel')),
+                    h('span', { className: 'yk-grow' }),
+                    h(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'yk-btn yk-btn-solid yk-btn-sm',
+                        onClick: () =>
+                          run('row', async () => {
+                            const name = customRow.name.trim()
+                            if (name === '') throw new Error(t('pRowNameRequired'))
+                            let config
+                            if (customRow.config.trim() !== '') {
+                              try {
+                                config = JSON.parse(customRow.config)
+                              } catch (error) {
+                                throw new Error(fill(t('pJsonInvalid'), { error: messageOf(error) }))
+                              }
+                            }
+                            const row = { name }
+                            if (customRow.id.trim() !== '') row.id = customRow.id.trim()
+                            if (config !== undefined) row.config = config
+                            addRow(row)
+                          }),
+                      },
+                      t('pAdd'),
+                    ),
+                  ),
+                ),
+          ),
+          h(
+            Card,
+            {
+              title: t('pAdvanced'),
+              note: t('pAdvancedHint'),
+              span: true,
+              action:
+                advanced === null
+                  ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: openAdvanced }, t('pAdvancedOpen'))
+                  : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => setAdvanced(null) }, t('pCancel')),
+            },
+            advanced === null
+              ? null
+              : h(
+                  'div',
+                  { className: 'yk-stack' },
+                  h('textarea', {
+                    className: 'yk-input yk-textarea yk-textareaCode',
+                    value: advanced,
+                    spellCheck: false,
+                    onChange: (event) => setAdvanced(event.target.value),
+                  }),
+                  jsonError === '' ? null : h('p', { className: 'yk-foot yk-footError', role: 'alert' }, jsonError),
+                  h(
+                    'div',
+                    { className: 'yk-toolbar' },
+                    h('span', { className: 'yk-grow' }),
+                    h('button', { type: 'button', className: 'yk-btn yk-btn-sm', onClick: applyAdvanced }, t('pApply')),
+                  ),
+                ),
+          ),
+          h(
+            'div',
+            { className: 'yk-toolbar' },
+            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: closeEditor, disabled: busyNow }, t('pCancel')),
+            h('span', { className: 'yk-grow' }),
+            flash?.key === 'save' ? h('span', { className: 'yk-flash' }, flash.text) : null,
+            h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-solid', onClick: save, disabled: busyNow },
+              busy === 'save' ? h(Spinner, { size: 13 }) : null,
+              t('pSave'),
+            ),
+          ),
+        )
+      }
+
+      /* ------------------------------------------------------------------- list */
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        h(Failure, { t, name: 'presets', error: failure, onRetry: () => load() }),
+        h(Banner, { kind: 'info', text: t('pTrust') }),
+        state?.storeError ? h(Banner, { kind: 'error', text: fill(t('pStoreBroken'), { error: state.storeError }) }) : null,
+        state?.declaredError ? h(Banner, { kind: 'warn', text: state.declaredError }) : null,
+        h(
+          'div',
+          { className: 'yk-toolbar' },
+          h(
+            'div',
+            { className: 'yk-grow', style: { display: 'flex', flexDirection: 'column', gap: '3px', minWidth: 0 } },
+            h('div', { className: 'yk-cardTitle', style: { fontSize: '15px' } }, t('tabPresets')),
+            h('div', { className: 'yk-itemMeta' }, t('pIntro')),
+          ),
+          flash?.key === 'save' ? h('span', { className: 'yk-flash' }, flash.text) : null,
+          flash?.key === 'delete' ? h('span', { className: 'yk-flash' }, flash.text) : null,
+          h(RefreshButton, { t, onClick: load, spinning: busy === 'load' }),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'yk-btn yk-btn-solid yk-btn-sm',
+              onClick: () => {
+                setPickPurpose('template')
+                setView('template')
+              },
+              disabled: busyNow,
+            },
+            t('pNew'),
+          ),
+        ),
+        state === null && busy === 'load' ? h(Loading, { text: t('loading') }) : null,
+        PRESET_GROUPS.map(([source, titleKey, hintKey]) => {
+          const rows = items.filter((item) => item.source === source)
+          if (rows.length === 0 && source !== 'store') return null
+          return h(
+            'section',
+            { className: 'yk-presetGroup', key: source },
+            h('div', { className: 'yk-presetGroupHead' }, h('span', null, t(titleKey)), h('span', { className: 'yk-itemMeta' }, t(hintKey))),
+            rows.length === 0
+              ? h('p', { className: 'yk-foot' }, t('pEmptyList'))
+              : h(
+                  'ul',
+                  { className: 'yk-list' },
+                  rows.map((item) => [
+                    h(
+                      'li',
+                      { className: 'yk-item', key: item.id },
+                      h(
+                        'div',
+                        { className: 'yk-itemMain' },
+                        h(
+                          'div',
+                          { className: 'yk-itemTitleRow' },
+                          h('span', { className: 'yk-itemTitle' }, item.name ?? item.id),
+                          item.isDefault ? h(Chip, { kind: 'accent' }, t('pDefault')) : null,
+                          item.broken ? h(Chip, { kind: 'danger' }, t('pConflict')) : null,
+                        ),
+                        h(
+                          'div',
+                          { className: 'yk-itemMeta' },
+                          h('code', { className: 'yk-presetId' }, item.id),
+                          h('span', null, item.rows === null ? t('pRowsUnknown') : fill(t('pRowsCount'), { n: item.rows })),
+                          item.description ? h('span', null, item.description) : null,
+                          item.reason ? h('span', null, item.reason) : null,
+                          item.broken ? h('span', null, item.broken) : null,
+                        ),
+                      ),
+                      h(
+                        'div',
+                        { className: 'yk-itemActions' },
+                        h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => showComposition(item), disabled: busyNow }, t('pView')),
+                        item.canTemplate
+                          ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => startCreate(item), disabled: busyNow }, t('pCopy'))
+                          : null,
+                        item.canEdit
+                          ? h('button', { type: 'button', className: 'yk-btn yk-btn-sm', onClick: () => startEdit(item), disabled: busyNow }, t('pEdit'))
+                          : null,
+                        item.canDelete
+                          ? h(
+                              'button',
+                              {
+                                type: 'button',
+                                className: 'yk-btn yk-btn-ghost yk-btn-sm yk-btn-danger',
+                                onClick: () => setConfirmId(confirmId === item.id ? '' : item.id),
+                                disabled: busyNow,
+                              },
+                              t('pDelete'),
+                            )
+                          : null,
+                      ),
+                    ),
+                    confirmId === item.id
+                      ? h(
+                          'div',
+                          { key: `${item.id}-confirm`, className: 'yk-confirmWrap' },
+                          h(ConfirmStrip, {
+                            t,
+                            title: fill(t('pDeleteTitle'), { name: item.name ?? item.id }),
+                            hint: t('pDeleteHint'),
+                            confirmLabel: t('pDelete'),
+                            busy: busy === 'delete',
+                            onCancel: () => setConfirmId(''),
+                            onConfirm: () => removeItem(item.id),
+                          }),
+                        )
+                      : null,
+                  ]),
+                ),
+          )
+        }),
+      )
+    }
+
     /* ----------------------------------------------------------------- shell */
 
-    const TABS = ['overview', 'chats', 'sites', 'files', 'proxy', 'browser', 'purge', 'runtime']
+    const TABS = ['overview', 'chats', 'sites', 'files', 'rules', 'presets', 'proxy', 'github', 'browser', 'purge', 'runtime']
     const TAB_STORAGE_KEY = 'yukari-dsh-plugin:tab'
-    const TAB_LABEL = { overview: 'tabOverview', chats: 'tabChats', sites: 'tabSites', files: 'tabFiles', proxy: 'tabProxy', browser: 'compBrowser', purge: 'tabPurge', runtime: 'tabRuntime' }
-    const TAB_ICON = { overview: OverviewIcon, chats: ChatIcon, sites: GlobeIcon, files: FolderIcon, proxy: RouteIcon, browser: GlobeIcon, purge: PurgeIcon, runtime: PowerIcon }
+    const TAB_LABEL = { overview: 'tabOverview', chats: 'tabChats', sites: 'tabSites', files: 'tabFiles', rules: 'tabRules', presets: 'tabPresets', proxy: 'tabProxy', github: 'tabGithub', browser: 'compBrowser', purge: 'tabPurge', runtime: 'tabRuntime' }
+    const TAB_ICON = { overview: OverviewIcon, chats: ChatIcon, sites: GlobeIcon, files: FolderIcon, rules: RulesIcon, presets: PresetsIcon, proxy: RouteIcon, github: GithubIcon, browser: GlobeIcon, purge: PurgeIcon, runtime: PowerIcon }
 
     function readStoredTab() {
       try {
@@ -3432,8 +5561,14 @@ window.__ModuleLoader__.load({
                   ? h(SitesTab, { key: 'sites', t })
                   : current === 'files'
                     ? h(FilesTab, { key: 'files', t, ui })
+                  : current === 'rules'
+                    ? h(RulesTab, { key: 'rules', t })
+                  : current === 'presets'
+                    ? h(PresetsTab, { key: 'presets', t })
                   : current === 'proxy'
                     ? h(ProxyTab, { key: 'proxy', t })
+                  : current === 'github'
+                    ? h(GithubTab, { key: 'github', t })
                     : current === 'browser'
                       ? h(BrowserTab, { key: 'browser', t })
                       : current === 'purge'
