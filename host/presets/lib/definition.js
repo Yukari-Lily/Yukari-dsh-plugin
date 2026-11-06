@@ -30,8 +30,15 @@ export const DESC_MAX = 500
 /** Roster order ceiling. */
 export const ORDER_MAX = 9999
 
-/** Row keys the Loader reads; everything else is dropped on the way in. */
-const ROW_KEYS = ['id', 'name', 'config', 'group', 'disabled', 'inject']
+/**
+ * Row keys the Loader reads; everything else is dropped on the way in.
+ *
+ * `isolate` and `intercept` are Loader entry options too. Dropping `isolate` is
+ * not cosmetic: the registry refuses to mount a preset whose rows publish a
+ * service into the root realm, so a copy of any composition that hides
+ * `compaction` / `planMode` behind an isolated group would never start.
+ */
+const ROW_KEYS = ['id', 'name', 'config', 'group', 'disabled', 'inject', 'isolate', 'intercept']
 
 /** Platform markers a bundled preset file may carry. */
 const PLATFORM_KEYS = ['win32', 'non-win32']

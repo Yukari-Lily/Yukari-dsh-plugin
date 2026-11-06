@@ -76,6 +76,25 @@ test('normalize: group children keep their own shape', () => {
   assert.equal('platform' in plugins[0].config[0], false)
 })
 
+test('normalize: isolate and intercept survive a copy, they are Loader options', () => {
+  // The registry refuses to mount a preset whose rows publish a service into the
+  // root realm; a composition that hides those rows behind `isolate` fails to
+  // start as soon as the copy drops the key.
+  const { plugins } = normalizeRows([
+    row('compaction', 'cordis:group', {
+      group: true,
+      isolate: { compaction: true, toolResultPruner: true },
+      config: [row('compaction-basic', '@deepseek-ai/dsh-compaction-basic')],
+    }),
+    row('persona', '@deepseek-ai/dsh-persona', { intercept: { tools: ['x'] } }),
+  ])
+  assert.deepEqual(plugins[0].isolate, { compaction: true, toolResultPruner: true })
+  assert.deepEqual(plugins[1].intercept, { tools: ['x'] })
+  // Still only Loader keys: a stray field is dropped as before.
+  const stray = normalizeRows([row('a', '@x/a', { note: 'not a Loader key' })]).plugins[0]
+  assert.equal('note' in stray, false)
+})
+
 test('normalize: a non-list input yields an empty composition, never a throw', () => {
   assert.deepEqual(normalizeRows(undefined), { plugins: [], notes: [] })
   assert.deepEqual(normalizeRows({ name: 'x' }), { plugins: [], notes: [] })
