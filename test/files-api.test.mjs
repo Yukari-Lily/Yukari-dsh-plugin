@@ -157,31 +157,69 @@ test('listing never scans the session index, and roots are cached', async (t) =>
   assert.equal(call.counters.sessions, 0, 'a directory listing does not touch the session index')
 })
 
-test('the preview anchor matches a session cwd that reaches the root through a symlink', async (t) => {
+test('preview returns the text of a small file', async (t) => {
   const root = await workspace(t)
-  const link = path.join(path.dirname(root), `${path.basename(root)}-link`)
-  await symlink(root, link, 'dir')
-  t.after(() => rm(link, { force: true }))
-
-  const call = await mount(root, {
-    sessions: [{ header: { id: 'linked', cwd: link, createdAt: 5 } }],
-  })
-  const res = await call(`/files/api/anchor?root=${encodeURIComponent(root)}`)
+  await writeFile(path.join(root, 'README.md'), '# 标题\n正文\n')
+  const call = await mount(root)
+  const res = await call(`/files/api/preview?root=${encodeURIComponent(root)}&path=README.md`)
   assert.equal(res.statusCode, 200)
-  assert.equal(res.json().sessionId, 'linked')
+  const payload = res.json()
+  assert.equal(payload.kind, 'text')
+  assert.match(payload.text, /标题/)
+  assert.equal(payload.truncated, false)
 })
 
-test('the preview anchor is resolved on demand and reports the newest chat', async (t) => {
+test('preview truncates a large file instead of reading all of it', async (t) => {
   const root = await workspace(t)
-  const call = await mount(root, {
-    sessions: [
-      { header: { id: 'older', cwd: root, createdAt: 1 } },
-      { header: { id: 'newer', cwd: root, createdAt: 2 } },
-      { header: { id: 'other', cwd: '/elsewhere', createdAt: 3 } },
-    ],
-  })
-  const res = await call(`/files/api/anchor?root=${encodeURIComponent(root)}`)
+  await writeFile(path.join(root, 'big.txt'), 'x'.repeat(600 * 1024))
+  const call = await mount(root)
+  const payload = (await call(`/files/api/preview?root=${encodeURIComponent(root)}&path=big.txt`)).json()
+  assert.equal(payload.kind, 'text')
+  assert.equal(payload.truncated, true)
+  assert.ok(payload.text.length <= 512 * 1024, 'the body stays inside the preview budget')
+})
+
+test('preview reports a binary file without returning its bytes', async (t) => {
+  const root = await workspace(t)
+  await writeFile(path.join(root, 'report.pdf'), Buffer.from([0x25, 0x50, 0x44, 0x46, 0x00, 0x01]))
+  const call = await mount(root)
+  const payload = (await call(`/files/api/preview?root=${encodeURIComponent(root)}&path=report.pdf`)).json()
+  assert.equal(payload.kind, 'binary')
+  assert.equal(payload.text, undefined)
+})
+
+test('preview names an image by type so the panel can load it inline', async (t) => {
+  const root = await workspace(t)
+  await writeFile(path.join(root, 'logo.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+  const call = await mount(root)
+  const payload = (await call(`/files/api/preview?root=${encodeURIComponent(root)}&path=logo.png`)).json()
+  assert.equal(payload.kind, 'image')
+  assert.equal(payload.mime, 'image/png')
+})
+
+test('preview refuses a path that leaves the workspace', async (t) => {
+  const root = await workspace(t)
+  const call = await mount(root)
+  const res = await call(`/files/api/preview?root=${encodeURIComponent(root)}&path=${encodeURIComponent('../outside.txt')}`)
+  assert.equal(res.statusCode, 400)
+  assert.equal(res.json().ok, false)
+})
+
+test('an inline download carries the real type and no attachment header', async (t) => {
+  const root = await workspace(t)
+  await writeFile(path.join(root, 'logo.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+  const call = await mount(root)
+  const res = await call(`/files/api/download?root=${encodeURIComponent(root)}&path=logo.png&inline=1`)
   assert.equal(res.statusCode, 200)
-  assert.equal(res.json().sessionId, 'newer')
-  assert.equal(call.counters.sessions, 1)
+  assert.equal(res.headers['content-type'], 'image/png')
+  assert.equal(res.headers['content-disposition'], undefined)
+})
+
+test('a plain download still asks the browser to save the file', async (t) => {
+  const root = await workspace(t)
+  await writeFile(path.join(root, 'logo.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+  const call = await mount(root)
+  const res = await call(`/files/api/download?root=${encodeURIComponent(root)}&path=logo.png`)
+  assert.equal(res.headers['content-type'], 'application/octet-stream')
+  assert.match(String(res.headers['content-disposition']), /^attachment;/)
 })

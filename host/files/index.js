@@ -8,7 +8,7 @@
  * @module yukari-dsh-plugin/files
  */
 import { createReadStream } from 'node:fs'
-import { lstat, readdir, realpath, stat } from 'node:fs/promises'
+import { lstat, open, readdir, realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { markMounted } from '../shared/mounted.js'
 import { writeZip } from './lib/zip-writer.js'
@@ -28,6 +28,56 @@ const ROOTS_TTL_MS = 30_000
 
 /** Files one archive request may contain. */
 const MAX_ARCHIVE_FILES = 5000
+
+/** 面板内预览最多读这么多字节；更大的文件只显示开头并标注截断。 */
+const MAX_PREVIEW_BYTES = 512 * 1024
+
+/** 图片扩展名 → MIME，图片直接交给浏览器解码，不用面板搬运字节。 */
+const IMAGE_MIME = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  svg: 'image/svg+xml',
+  ico: 'image/x-icon',
+  avif: 'image/avif',
+}
+
+/**
+ * 一个文件的预览内容：图片只报类型，文本带上开头若干字节。
+ *
+ * 文本还是二进制不靠扩展名猜：UTF-8 文本里不会出现 NUL 字节，读到的
+ * 前 512KB 里只要有一个就按二进制处理，避免把 PDF、Office 文档塞进代码块。
+ * @param root - 工作区根目录。
+ * @param relative - 相对路径。
+ * @returns `{ kind: 'text' | 'image' | 'binary', size, text?, truncated?, mime? }`。
+ */
+async function previewOf(root, relative) {
+  const file = await resolveInside(root, relative)
+  const info = await stat(file)
+  if (!info.isFile()) throw new Error('只能预览普通文件')
+  const extension = path.extname(file).slice(1).toLowerCase()
+  const image = IMAGE_MIME[extension]
+  if (image !== undefined) return { kind: 'image', size: info.size, mime: image }
+  const handle = await open(file, 'r')
+  try {
+    const length = Math.min(info.size, MAX_PREVIEW_BYTES)
+    const buffer = Buffer.alloc(length)
+    const { bytesRead } = await handle.read(buffer, 0, length, 0)
+    const chunk = buffer.subarray(0, bytesRead)
+    if (chunk.includes(0)) return { kind: 'binary', size: info.size }
+    return {
+      kind: 'text',
+      size: info.size,
+      text: chunk.toString('utf8'),
+      truncated: info.size > bytesRead,
+    }
+  } finally {
+    await handle.close()
+  }
+}
 
 /** Turn any thrown value into a message. */
 /**
@@ -174,51 +224,6 @@ export function apply(ctx, config = {}) {
     return value
   }
 
-  /**
-   * The newest chat whose workspace is this root. Preview addresses are
-   * session-scoped, so it is only asked for when a preview is requested — not
-   * on every directory listing.
-   * @param rootId - resolved workspace root.
-   * @returns the session id, or null when the workspace has no chat.
-   */
-  async function anchorOf(rootId) {
-    const query = ctx.get?.('sessionQuery') ?? ctx.sessionQuery
-    let records = []
-    try {
-      records = (await query?.listSessions?.()) ?? []
-    } catch {
-      return null
-    }
-    // Roots are published as realpaths while a session keeps the cwd it was
-    // started with, so compare filesystem identity rather than spelling.
-    const target = (await canonical(rootId)) ?? rootId
-    let newest = null
-    for (const record of records) {
-      const cwd = record.header?.cwd
-      if (typeof cwd !== 'string' || cwd === '') continue
-      if ((await canonical(cwd)) !== target) continue
-      if (newest === null || (record.header.createdAt ?? 0) > (newest.header.createdAt ?? 0)) newest = record
-    }
-    return newest?.header?.id ?? null
-  }
-
-  /** Filesystem identity of one path, memoised: one probe per distinct session cwd. */
-  const canonicalCache = new Map()
-  async function canonical(value) {
-    if (typeof value !== 'string' || value === '') return null
-    const cached = canonicalCache.get(value)
-    if (cached !== undefined) return cached
-    let real = null
-    try {
-      real = await realpath(value)
-    } catch {
-      real = null
-    }
-    if (canonicalCache.size >= 500) canonicalCache.clear()
-    canonicalCache.set(value, real)
-    return real
-  }
-
   /** Resolve the `root` query value against the allowed roots. */
   async function rootOf(value) {
     const allowed = await roots()
@@ -240,15 +245,16 @@ export function apply(ctx, config = {}) {
             sendJson(res, 200, { ok: true, roots: await roots() })
             return
           }
-          if (action === 'anchor' && req.method === 'GET') {
-            const root = await rootOf(url.searchParams.get('root') ?? '')
-            sendJson(res, 200, { ok: true, sessionId: await anchorOf(root.id) })
-            return
-          }
           if (action === 'list' && req.method === 'GET') {
             const root = await rootOf(url.searchParams.get('root') ?? '')
             const relative = safeRelative(url.searchParams.get('path') ?? '')
             sendJson(res, 200, { ok: true, path: relative, entries: await listDirectory(root.id, relative, fs) })
+            return
+          }
+          if (action === 'preview' && req.method === 'GET') {
+            const root = await rootOf(url.searchParams.get('root') ?? '')
+            const relative = safeRelative(url.searchParams.get('path') ?? '')
+            sendJson(res, 200, { ok: true, ...(await previewOf(root.id, relative)) })
             return
           }
           if (action === 'download' && req.method === 'GET') {
@@ -257,10 +263,15 @@ export function apply(ctx, config = {}) {
             const file = await resolveInside(root.id, relative, fs)
             const info = await stat(file)
             if (!info.isFile()) throw new Error('只能下载普通文件')
+            // inline=1 供面板预览取图：浏览器按真实类型解码，不再强制下载。
+            const inline = url.searchParams.get('inline') === '1'
+            const extension = path.extname(file).slice(1).toLowerCase()
             res.statusCode = 200
-            res.setHeader('content-type', 'application/octet-stream')
+            res.setHeader('content-type', inline ? (IMAGE_MIME[extension] ?? 'text/plain; charset=utf-8') : 'application/octet-stream')
             res.setHeader('content-length', String(info.size))
-            res.setHeader('content-disposition', `attachment; filename*=UTF-8''${encodeURIComponent(path.basename(file))}`)
+            if (!inline) {
+              res.setHeader('content-disposition', `attachment; filename*=UTF-8''${encodeURIComponent(path.basename(file))}`)
+            }
             const stream = createReadStream(file)
             stream.on('error', () => {
               if (!res.writableEnded) res.destroy()

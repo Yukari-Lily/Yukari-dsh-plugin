@@ -7,6 +7,10 @@ window.__ModuleLoader__.load({
     const h = React.createElement
     // 旧宿主没有 Tooltip：按钮照常工作，只少一条提示。
     const Tooltip = primitives.Tooltip ?? (({ children }) => children)
+    // 面板内的文件预览复用宿主的渲染件：markdown 文档与代码高亮。
+    const MarkdownView = primitives.MarkdownText ?? null
+    const CodeView = primitives.CodeBlock ?? null
+    const languageOf = (name) => (typeof primitives.languageForPath === 'function' ? primitives.languageForPath(name) : undefined)
 
     /** Locale namespace of the merged panel. */
     const NS = 'yukari'
@@ -272,9 +276,9 @@ window.__ModuleLoader__.load({
       fEmpty: '该目录为空',
       fEmptyHint: '请切换工作区或返回上级目录。',
       fHint: '已选 {n} 项；仅选文件时逐个下载，包含文件夹或超过 10 个文件时打包下载。',
-      fNoSession: '该工作区暂无会话，无法预览（下载不受影响）',
-      fNoPreview: '当前界面未提供文件预览服务，仅支持下载',
-      fPreviewNoSession: '无法打开预览，请先打开该工作区的会话。',
+      fPreviewHint: '选择文件以查看预览。',
+      fPreviewBinary: '该文件为二进制格式，仅支持下载。',
+      fPreviewTruncated: '文件较大，仅显示开头部分。',
       pEnable: '启用代理',
       pDisable: '停用代理',
       pEnabled: '已接管出站流量',
@@ -730,9 +734,9 @@ window.__ModuleLoader__.load({
       fEmpty: 'This folder is empty',
       fEmptyHint: 'Pick another workspace or go up a level.',
       fHint: '{n} selected; files download one by one, folders or more than ten files are zipped.',
-      fNoSession: 'This workspace has no chats yet, so preview is unavailable (downloading still works)',
-      fNoPreview: 'This interface has no file preview service; only downloading is available',
-      fPreviewNoSession: 'Cannot open the preview; open a chat in this workspace first.',
+      fPreviewHint: 'Select a file to preview it.',
+      fPreviewBinary: 'This file is binary; only downloading is available.',
+      fPreviewTruncated: 'The file is large; only the beginning is shown.',
       pEnable: 'Enable proxy',
       pDisable: 'Disable proxy',
       pEnabled: 'Routing outbound traffic',
@@ -1103,6 +1107,15 @@ window.__ModuleLoader__.load({
 .yk-crumb { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; cursor: pointer; padding: 2px 4px; border-radius: var(--dsw-radius-sm); white-space: nowrap; }
 .yk-crumb:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
 .yk-itemHead { padding-block: 4px; border-bottom: .5px solid var(--yk-line); border-radius: 0; font-size: 11px; color: var(--yk-muted); }
+.yk-filesSplit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: 16px; align-items: start; }
+.yk-preview { display: flex; flex-direction: column; gap: 10px; min-height: 220px; max-height: 62vh; overflow: auto; padding: 12px; border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-base); }
+.yk-previewHead { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.yk-previewName { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yk-previewDoc { font-size: 13px; line-height: 1.6; }
+.yk-previewImage { display: block; max-width: 100%; border-radius: var(--dsw-radius-md); }
+.yk-previewPlain { margin: 0; font: 12px/1.6 var(--dsw-font-mono, monospace); white-space: pre-wrap; overflow-wrap: anywhere; }
+.yk-previewEmpty, .yk-previewNote { color: var(--yk-muted); font-size: 12px; }
+.yk-previewError { margin: 0; color: var(--dsw-alias-state-error-primary); font-size: 12px; }
 .yk-itemHead:hover { background: transparent; }
 .yk-metaRight { margin-left: auto; flex: none; justify-content: flex-end; }
 .yk-itemIcon { display: inline-flex; color: var(--yk-muted); flex: none; }
@@ -1198,6 +1211,7 @@ window.__ModuleLoader__.load({
 .yk-progressBar { height: 100%; border-radius: inherit; background: var(--yk-accent); transition: width .2s; }
 .yk-spin { animation: yk-spin 1s linear infinite; }
 @keyframes yk-spin { to { transform: rotate(360deg); } }
+@container (max-width: 760px) { .yk-filesSplit { grid-template-columns: 1fr; } .yk-preview { max-height: none; } }
 @container (max-width: 720px) { .yk-serviceGrid, .yk-grid { grid-template-columns: 1fr; } .yk-settingRow { grid-template-columns: 1fr auto; } .yk-settingLabel { grid-column: 1 / -1; } .yk-rows-2col { grid-template-columns: 1fr; } .yk-updateText { max-width: 200px; } }
 @container (max-width: 480px) { .yk-form { grid-template-columns: 1fr; } .yk-navTab { padding-inline: 10px; } .yk-navTab svg { display: none; } .yk-btnLabel, .yk-wsPath { display: none; } .yk-importBox { flex-direction: column; align-items: stretch; } .yk-itemActions { flex-wrap: wrap; justify-content: flex-end; } .yk-head { align-items: flex-start; } .yk-updateText { max-width: 150px; } }
 @media(prefers-reduced-motion: reduce) { .yk-page * { animation: none !important; transition: none !important; } }
@@ -2890,66 +2904,8 @@ window.__ModuleLoader__.load({
 
     /* ---------------------------------------------------------------- files */
 
-    /** Build the resource address DSH's own preview understands. */
-    function resourceAddress(sessionId, relative) {
-      const encoded = String(relative).split('/').map((part) => encodeURIComponent(part)).join('/')
-      return `dsh-resource://file/session/${encodeURIComponent(sessionId)}/${encoded}`
-    }
-
-    /**
-     * 打开文件预览。
-     *
-     * 宿主只在「屏上有会话」时放置右侧栏 tab：面板占着主区域时没有会话，
-     * `openResource` 会抛，`openResourceIn` 对未挂载的会话又是静默 no-op——
-     * 直接调用就是点了没反应。所以先切到该会话，等它挂上再打开。
-     * @param options - 侧栏服务、资源地址、会话，以及三处可替换的宿主交互。
-     * @returns 打开完成；等不到会话时抛 `no-session`。
-     */
-    async function openPreview({ right, address, sessionId, onScreen, switchSession, wait }) {
-      if (right === null || right === undefined || typeof right.openResource !== 'function') throw new Error('no-preview')
-      if (onScreen() === sessionId) {
-        right.openResource(address)
-        return
-      }
-      switchSession(sessionId)
-      if (!(await wait(sessionId))) throw new Error('no-session')
-      right.openResource(address)
-    }
-
-    /**
-     * 等主区域挂上某个会话。切会话是异步渲染，固定延时既慢又不可靠。
-     * @param sessionId - 等待的会话。
-     * @param timeoutMs - 最多等多久。
-     * @returns 是否等到。
-     */
-    function waitForSession(sessionId, timeoutMs = 2500) {
-      return new Promise((resolve) => {
-        const selector = `[data-conversation-session="${sessionId}"]`
-        if (typeof document === 'undefined') {
-          resolve(false)
-          return
-        }
-        if (document.querySelector(selector) !== null) {
-          resolve(true)
-          return
-        }
-        const deadline = Date.now() + timeoutMs
-        const timer = setInterval(() => {
-          if (document.querySelector(selector) !== null) {
-            clearInterval(timer)
-            resolve(true)
-            return
-          }
-          if (Date.now() >= deadline) {
-            clearInterval(timer)
-            resolve(false)
-          }
-        }, 100)
-      })
-    }
-
-    /** Breadcrumb + listing of one workspace, with download and preview. */
-    function FilesTab({ t, ui }) {
+    /** Breadcrumb + listing of one workspace, with download and an in-panel preview. */
+    function FilesTab({ t }) {
       const [roots, setRoots] = React.useState(null)
       const [rootId, setRootId] = React.useState('')
       const [path, setPath] = React.useState('')
@@ -2957,7 +2913,10 @@ window.__ModuleLoader__.load({
       const [selected, setSelected] = React.useState([])
       const [busy, setBusy] = React.useState('')
       const [failure, setFailure] = React.useState(null)
-      const [flash, show] = useFlash()
+      const [previewTarget, setPreviewTarget] = React.useState(null)
+      const [previewData, setPreviewData] = React.useState(null)
+      const [previewFailure, setPreviewFailure] = React.useState('')
+      const [previewLoading, setPreviewLoading] = React.useState(false)
       const { signal, alive } = useAbortOnUnmount()
 
       const root = roots === null ? null : roots.find((item) => item.id === rootId) ?? null
@@ -3002,22 +2961,38 @@ window.__ModuleLoader__.load({
       if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'files' }))
 
       const crumbs = path === '' ? [] : path.split('/')
-      const go = (next) => { setPath(next); setSelected([]) }
+      const closePreview = () => {
+        setPreviewTarget(null)
+        setPreviewData(null)
+        setPreviewFailure('')
+        setPreviewLoading(false)
+      }
+      // 换目录时收起预览：右栏留着上一个目录的文件会让人看错。
+      const go = (next) => { setPath(next); setSelected([]); closePreview() }
       const toggle = (entry) => setSelected((current) =>
         current.includes(entry.path) ? current.filter((item) => item !== entry.path) : [...current, entry.path])
 
-      /** Preview needs a session in this workspace as the resource anchor; resolve it on demand. */
-      const preview = async (entry) => {
+      /**
+       * 在面板内打开预览。
+       *
+       * 与会话无关：内容由本组件的 `/files/api/preview` 读，图片直接用同源的
+       * 内联下载地址，所以不需要切会话、也不碰右侧栏。
+       * @param entry - 列表里的一行。
+       */
+      const showPreview = async (entry) => {
         if (root === null || entry.type !== 'file') return
+        setPreviewTarget(entry)
+        setPreviewData(null)
+        setPreviewFailure('')
+        setPreviewLoading(true)
         try {
-          const payload = await getJson(`${API.files}/anchor?root=${encodeURIComponent(root.id)}`, signal)
-          if (payload.sessionId === null || payload.sessionId === undefined) {
-            show('preview', t('fNoSession'))
-            return
-          }
-          await ui.openResource(payload.sessionId, entry.path)
+          const query = `?root=${encodeURIComponent(root.id)}&path=${encodeURIComponent(entry.path)}`
+          const payload = await getJson(`${API.files}/preview${query}`, signal)
+          if (alive.current) setPreviewData(payload)
         } catch (error) {
-          if (error?.name !== 'AbortError') show('preview', messageOf(error))
+          if (alive.current && error?.name !== 'AbortError') setPreviewFailure(messageOf(error))
+        } finally {
+          if (alive.current) setPreviewLoading(false)
         }
       }
 
@@ -3028,6 +3003,55 @@ window.__ModuleLoader__.load({
         anchor.href = `${API.files}/download${query}`
         anchor.download = entry.name
         anchor.click()
+      }
+
+      /**
+       * 右栏内容：文本走宿主的代码块或 markdown，图片走同源内联地址。
+       *
+       * 复用宿主的渲染件而不是自己解析：`MarkdownText` 负责文档排版，
+       * `CodeBlock` 负责高亮与行号，识别不了的扩展名退回等宽文本。
+       * @returns 预览区的节点。
+       */
+      const renderPreview = () => {
+        if (previewTarget === null) return h('div', { className: 'yk-previewEmpty' }, t('fPreviewHint'))
+        const name = previewTarget.name
+        const head = h(
+          'div',
+          { className: 'yk-previewHead' },
+          h('span', { className: 'yk-previewName', title: name }, name),
+          h(
+            'button',
+            { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm', title: t('close'), 'aria-label': t('close'), onClick: closePreview },
+            h(ClearIcon, { width: 13, height: 13 }),
+          ),
+        )
+        let body = null
+        if (previewLoading) {
+          body = h(Loading, { text: t('loading') })
+        } else if (previewFailure !== '') {
+          body = h('p', { className: 'yk-previewError' }, previewFailure)
+        } else if (previewData !== null) {
+          if (previewData.kind === 'image' && root !== null) {
+            const query = `?root=${encodeURIComponent(root.id)}&path=${encodeURIComponent(previewTarget.path)}&inline=1`
+            body = h('img', { className: 'yk-previewImage', alt: name, src: `${API.files}/download${query}` })
+          } else if (previewData.kind === 'binary') {
+            body = h('div', { className: 'yk-previewEmpty' }, t('fPreviewBinary'))
+          } else {
+            const text = typeof previewData.text === 'string' ? previewData.text : ''
+            body = /\.(md|markdown|mdx)$/i.test(name) && MarkdownView !== null
+              ? h('div', { className: 'yk-previewDoc' }, h(MarkdownView, { text }))
+              : CodeView !== null
+                ? h(CodeView, { code: text, lang: languageOf(name), lineNumbers: true, showHeader: false })
+                : h('pre', { className: 'yk-previewPlain' }, text)
+          }
+        }
+        return h(
+          React.Fragment,
+          null,
+          head,
+          body,
+          previewData?.truncated === true ? h('div', { className: 'yk-previewNote' }, t('fPreviewTruncated')) : null,
+        )
       }
 
       /** Files alone go straight to the browser; a folder (or a large batch) becomes one ZIP. */
@@ -3118,79 +3142,83 @@ window.__ModuleLoader__.load({
             packAsZip ? fill(t('fZipN'), { n: selected.length }) : counted(t, 'fDownloadFilesOne', 'fDownloadFilesN', selected.length),
           ),
         ),
-        h(FlashNote, { flash, keys: ['preview'], kind: 'error' }),
         h(Failure, { t, name: 'files', error: failure, onRetry: load }),
 
-        entries.length === 0
-          ? busy === 'load'
-            ? h(Loading, { text: t('loading') })
-            : h(Empty, { icon: h(FolderIcon, { width: 22, height: 22 }), title: t('fEmpty'), hint: t('fEmptyHint') })
-          : h(
-              'div',
-              { className: 'yk-list' },
-              h(
+        h(
+          'div',
+          { className: 'yk-filesSplit' },
+          entries.length === 0
+            ? busy === 'load'
+              ? h(Loading, { text: t('loading') })
+              : h(Empty, { icon: h(FolderIcon, { width: 22, height: 22 }), title: t('fEmpty'), hint: t('fEmptyHint') })
+            : h(
                 'div',
-                { className: 'yk-item yk-itemHead' },
+                { className: 'yk-list' },
                 h(
-                  'button',
-                  {
-                    type: 'button',
-                    className: 'yk-check',
-                    role: 'checkbox',
-                    'aria-checked': allPicked ? 'true' : selected.length > 0 ? 'mixed' : 'false',
-                    'aria-label': t('fSelectAll'),
-                    onClick: () => setSelected(allPicked ? [] : entries.map((entry) => entry.path)),
-                  },
-                  allPicked ? h(CheckIcon, { width: 11, height: 11 }) : null,
-                ),
-                h('span', { className: 'yk-itemTitle' }, t('fName')),
-                h('span', { className: 'yk-itemMeta yk-metaRight' }, t('fSize')),
-              ),
-              entries.map((entry) => {
-                const checked = selected.includes(entry.path)
-                const isDir = entry.type === 'dir'
-                return h(
                   'div',
-                  { className: checked ? 'yk-item yk-item-selected' : 'yk-item', key: entry.path },
+                  { className: 'yk-item yk-itemHead' },
                   h(
                     'button',
                     {
                       type: 'button',
                       className: 'yk-check',
                       role: 'checkbox',
-                      'aria-checked': checked ? 'true' : 'false',
-                      'aria-label': entry.name,
-                      onClick: () => toggle(entry),
+                      'aria-checked': allPicked ? 'true' : selected.length > 0 ? 'mixed' : 'false',
+                      'aria-label': t('fSelectAll'),
+                      onClick: () => setSelected(allPicked ? [] : entries.map((entry) => entry.path)),
                     },
-                    checked ? h(CheckIcon, { width: 11, height: 11 }) : null,
+                    allPicked ? h(CheckIcon, { width: 11, height: 11 }) : null,
                   ),
-                  h(
+                  h('span', { className: 'yk-itemTitle' }, t('fName')),
+                  h('span', { className: 'yk-itemMeta yk-metaRight' }, t('fSize')),
+                ),
+                entries.map((entry) => {
+                  const checked = selected.includes(entry.path)
+                  const isDir = entry.type === 'dir'
+                  return h(
                     'div',
-                    { className: 'yk-itemMain' },
+                    { className: checked ? 'yk-item yk-item-selected' : 'yk-item', key: entry.path },
+                    h(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'yk-check',
+                        role: 'checkbox',
+                        'aria-checked': checked ? 'true' : 'false',
+                        'aria-label': entry.name,
+                        onClick: () => toggle(entry),
+                      },
+                      checked ? h(CheckIcon, { width: 11, height: 11 }) : null,
+                    ),
                     h(
                       'div',
-                      { className: 'yk-itemTitleRow' },
-                      isDir
-                        ? h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => go(entry.path) }, `${entry.name}/`)
-                        : h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => preview(entry), title: t('fPreview') }, entry.name),
-                      entry.type === 'symlink' ? h(Chip, { kind: 'warn' }, t('fSymlink')) : null,
+                      { className: 'yk-itemMain' },
+                      h(
+                        'div',
+                        { className: 'yk-itemTitleRow' },
+                        isDir
+                          ? h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => go(entry.path) }, `${entry.name}/`)
+                          : h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => showPreview(entry), title: t('fPreview') }, entry.name),
+                        entry.type === 'symlink' ? h(Chip, { kind: 'warn' }, t('fSymlink')) : null,
+                      ),
                     ),
-                  ),
-                  h('span', { className: 'yk-itemMeta yk-metaRight yk-mono' }, isDir ? '' : entry.size > 0 ? formatBytes(entry.size) : '—'),
-                  h(
-                    'div',
-                    { className: 'yk-itemActions' },
-                    isDir
-                      ? null
-                      : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm', title: t('fPreview'), 'aria-label': t('fPreview'), onClick: () => preview(entry) }, h(OpenIcon, { width: 14, height: 14 })),
-                    isDir
-                      ? null
-                      : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm', title: t('fDownload'), 'aria-label': t('fDownload'), onClick: () => downloadOne(entry) }, h(DownloadIcon, { width: 14, height: 14 })),
-                  ),
-                )
-              }),
-            ),
+                    h('span', { className: 'yk-itemMeta yk-metaRight yk-mono' }, isDir ? '' : entry.size > 0 ? formatBytes(entry.size) : '—'),
+                    h(
+                      'div',
+                      { className: 'yk-itemActions' },
+                      isDir
+                        ? null
+                        : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm', title: t('fPreview'), 'aria-label': t('fPreview'), onClick: () => showPreview(entry) }, h(OpenIcon, { width: 14, height: 14 })),
+                      isDir
+                        ? null
+                        : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm', title: t('fDownload'), 'aria-label': t('fDownload'), onClick: () => downloadOne(entry) }, h(DownloadIcon, { width: 14, height: 14 })),
+                    ),
+                  )
+                }),
+              ),
 
+          h('section', { className: 'yk-preview', 'aria-label': t('fPreview') }, renderPreview()),
+        ),
         h('div', { className: 'yk-foot' }, fill(t('fHint'), { n: selected.length })),
       )
     }
@@ -5763,7 +5791,7 @@ window.__ModuleLoader__.load({
                 : current === 'sites'
                   ? h(SitesTab, { key: 'sites', t })
                   : current === 'files'
-                    ? h(FilesTab, { key: 'files', t, ui })
+                    ? h(FilesTab, { key: 'files', t })
                   : current === 'rules'
                     ? h(RulesTab, { key: 'rules', t })
                   : current === 'presets'
@@ -6305,35 +6333,6 @@ window.__ModuleLoader__.load({
         ctx.effect(() => ctx.locale.register(NS, 'zh', zh))
         const t = ctx.locale.bind(NS)
         const ui = {
-          /** Open a file in DSH's own preview by its resource address. */
-          /**
-           * Open a file in DSH's own preview.
-           *
-           * `openResourceIn` is a no-op for a session whose right sidebar is not
-           * mounted, and the panel usually shows another session — so try the
-           * mounted surface first and let the caller fall back to switching.
-           */
-          openResource: async (sessionId, relative) => {
-            const right = (typeof ctx.get === 'function' ? ctx.get('sidebarRight') : undefined) ?? ctx.sidebarRight
-            try {
-              await openPreview({
-                right,
-                address: resourceAddress(sessionId, relative),
-                sessionId,
-                onScreen: () =>
-                  document.querySelector('[data-conversation-session]')?.getAttribute('data-conversation-session') ?? '',
-                switchSession: (id) => {
-                  if (ctx.uiWorkspace === undefined || typeof ctx.uiWorkspace.openSession !== 'function') throw new Error('no-session')
-                  ctx.uiWorkspace.openSession(id)
-                },
-                wait: (id) => waitForSession(id),
-              })
-            } catch (error) {
-              if (error?.message === 'no-preview') throw new Error(t('fNoPreview'))
-              if (error?.message === 'no-session') throw new Error(t('fPreviewNoSession'))
-              throw new Error(messageOf(error))
-            }
-          },
           openSession: (id) => {
             if (ctx.uiWorkspace === undefined || typeof ctx.uiWorkspace.openSession !== 'function') {
               throw new Error('uiWorkspace is unavailable')
