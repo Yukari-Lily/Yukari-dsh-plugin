@@ -1118,7 +1118,7 @@ window.__ModuleLoader__.load({
 .yk-crumb:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
 .yk-itemHead { padding-block: 4px; border-bottom: .5px solid var(--yk-line); border-radius: 0; font-size: 11px; color: var(--yk-muted); }
 .yk-filesBody { display: block; }
-.yk-filesSplit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); gap: 16px; align-items: start; }
+.yk-filesSplit { display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 45%, 420px); gap: 16px; align-items: start; }
 .yk-preview { display: flex; flex-direction: column; gap: 10px; min-height: 220px; max-height: 62vh; overflow: auto; padding: 12px; border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-base); }
 .yk-previewHead { display: flex; align-items: center; gap: 4px; min-width: 0; min-height: 32px; }
 .yk-previewPath { flex: 1; min-width: 0; padding-right: 4px; font-size: 13px; color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -1231,7 +1231,6 @@ window.__ModuleLoader__.load({
 .yk-progressBar { height: 100%; border-radius: inherit; background: var(--yk-accent); transition: width .2s; }
 .yk-spin { animation: yk-spin 1s linear infinite; }
 @keyframes yk-spin { to { transform: rotate(360deg); } }
-@container (max-width: 760px) { .yk-filesSplit { grid-template-columns: 1fr; } .yk-preview { max-height: none; } }
 @container (max-width: 720px) { .yk-serviceGrid, .yk-grid { grid-template-columns: 1fr; } .yk-settingRow { grid-template-columns: 1fr auto; } .yk-settingLabel { grid-column: 1 / -1; } .yk-rows-2col { grid-template-columns: 1fr; } .yk-updateText { max-width: 200px; } }
 @container (max-width: 480px) { .yk-form { grid-template-columns: 1fr; } .yk-navTab { padding-inline: 10px; } .yk-navTab svg { display: none; } .yk-btnLabel, .yk-wsPath { display: none; } .yk-importBox { flex-direction: column; align-items: stretch; } .yk-itemActions { flex-wrap: wrap; justify-content: flex-end; } .yk-head { align-items: flex-start; } .yk-updateText { max-width: 150px; } }
 @media(prefers-reduced-motion: reduce) { .yk-page * { animation: none !important; transition: none !important; } }

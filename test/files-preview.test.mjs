@@ -36,10 +36,10 @@ test('the preview stays out of the way until a file is chosen', async () => {
   assert.ok(body.includes("previewTarget === null ? null : h('section', { className: 'yk-preview'"), 'no preview surface is rendered without a target')
 })
 
-test('the listing and the preview share one split, collapsing when narrow', async () => {
+test('the preview always sits to the right of the listing', async () => {
   const { text } = await filesTab()
-  assert.ok(text.includes('.yk-filesSplit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px);'), 'the layout is a two-column split')
-  assert.ok(text.includes('@container (max-width: 760px) { .yk-filesSplit { grid-template-columns: 1fr; }'), 'a narrow panel stacks them')
+  assert.ok(text.includes('.yk-filesSplit { display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 45%, 420px);'), 'the layout is a two-column split that never stacks')
+  assert.equal(text.includes('.yk-filesSplit { grid-template-columns: 1fr; }'), false, 'a narrow panel keeps the preview on the right')
   assert.ok(text.includes(".yk-preview { display: flex; flex-direction: column;"), 'the preview is a bordered surface')
 })
 
