@@ -30,6 +30,7 @@ test('the bundle registers every component under its own row id', async () => {
       'yukari',
       'yukari-chats',
       'yukari-sites',
+      'yukari-rewind',
       'yukari-files',
       'yukari-rules',
       'yukari-proxy',

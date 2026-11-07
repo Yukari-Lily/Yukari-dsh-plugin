@@ -131,3 +131,26 @@ test('the workspace checkbox selects only the chats the filter shows', async () 
   assert.ok(group.includes('String(shown.length)'), 'the header count matches what the list shows')
   assert.ok(group.includes('ask({ ids, workspace: group })'), 'deleting the whole workspace still passes every id it owns')
 })
+
+test('the rewind button rides the official user row without replacing it', async () => {
+  const text = await source()
+  assert.ok(text.includes("slots.entries('conversation.chat.node')"), 'it takes over the registered row entries')
+  assert.ok(text.includes("new Set(['user', 'steering'])"), 'only user and steering rows carry the action')
+  assert.ok(text.includes('extraActions'), 'the action is injected through the official actions row')
+  assert.ok(text.includes('entry.component = replacement'), 'the registered identity is replaced in place')
+  assert.ok(text.includes('entry.component = record.original'), 'and restored on unload')
+  assert.equal(text.includes("if (typeof buildActions !== 'function') return row"), true, 'an unexpected row shape is returned untouched')
+  assert.ok(text.includes("postJson(`${API.rewind}/plan`"), 'the button asks the host for a plan first')
+})
+
+test('a rewound span is hidden in the transcript, never deleted', async () => {
+  const text = await source()
+  assert.ok(text.includes('data-yk-rewind'), 'rows are tagged with their session and seq')
+  assert.ok(text.includes("querySelectorAll('[data-chat-flow-key]')"), 'the span walks the transcript rows in order')
+  assert.ok(text.includes("row.style.display = 'none'"), 'hiding is a reversible display change')
+  assert.ok(text.includes('releaseRewindHiding'), 'teardown restores every row it hid')
+  assert.ok(text.includes("postJson(`${API.rewind}/apply`"), 'the confirm calls the host apply endpoint')
+  // 样式要能在对话页独立存在：面板没打开时也有按钮样式。
+  assert.ok(text.includes('const REWIND_STYLES'), 'the action ships its own stylesheet')
+  assert.ok(text.includes("style.setAttribute('data-yk-rewind', '')"), 'the stylesheet is injected on install')
+})

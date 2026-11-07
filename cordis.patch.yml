@@ -24,6 +24,9 @@
         maxFiles: 10000
         keep: 5
 
+    - id: yukari-rewind
+      name: yukari-dsh-plugin/rewind
+
     - id: yukari-files
       name: yukari-dsh-plugin/files
       config:
