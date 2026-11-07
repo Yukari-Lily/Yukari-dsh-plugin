@@ -110,3 +110,11 @@ test('controls in one toolbar share height, radius and type scale', async () => 
   const stray = [...sizes].filter((value) => !['11', '12', '13', '14', '15', '16', '18'].includes(value))
   assert.deepEqual(stray, [], 'font sizes outside the scale')
 })
+
+test('borders stay hairline, like the host controls', async () => {
+  const text = await source()
+  const heavy = [...text.matchAll(/border(?:-top|-bottom|-left|-right)?:\s*1px solid (?!transparent)/g)].map((m) => m[0])
+  assert.deepEqual(heavy, [], 'visible borders are .5px, not 1px')
+  assert.ok(text.includes('border-radius: var(--dsw-radius-xs); border: .5px solid'), 'the row checkbox keeps its square 4px corner')
+  assert.ok(text.includes('outline: var(--dsw-focus-ring-width) solid'), 'focus rings use the host tokens')
+})

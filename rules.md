@@ -60,6 +60,10 @@
   - 间距：2 / 4 / 6 / 8 / 10 / 12 / 16 / 20。页面内边距 `0 clamp(16px, 3vw, 36px) 40px`，区块间距 20，内容最宽 980。树形缩进 22 / 26、空态留白 48 是结构值，别改；复选框和文字的 1–3px 基线微调不算间距。
   - 圆角：`--dsw-radius-sm` 小控件、`--dsw-radius-md` 按钮和输入框、`--dsw-radius-lg` 卡片。
 - 颜色只取宿主 token；面板自己的派生值集中在 `.yk-page` 上的 `--yk-line` / `--yk-soft` / `--yk-muted` / `--yk-accent`，别在别处再造颜色。
+- 边框一律 hairline `.5px`：输入、搜索、下拉用 `--dsw-alias-border-l4`，卡片和容器用 `--yk-line`（= `border-l2`）。不要 1px 实线，比宿主自己的控件重一档。
+- 焦点环、过渡都用宿主 token：`outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary))`，`transition: … var(--ds-transition-duration) var(--ds-ease-in-out)`。
+- 复选框是 16px + `--dsw-radius-xs`（方角）：`--dsw-radius-sm` 在 16px 盒子上就是个圆点，看着像单选。
+- 按钮底色用 `--dsw-alias-button-primary-fill/hover`（主操作）。`--dsw-alias-button-tool-bar-fill` 是 50% 灰，只在灰色工具栏里用；白底面板上白色 + hairline 边框更轻。
 - 浅色里"看着还行"不算数：`--dsw-alias-bg-layer-2/3` 在浅色主题和白底同色，浮层要么用 layer-3 打底加 `--dsw-shadow-lv3`，要么用 `--dsw-specific-menu`（它半透明，别压在文字上）。
 - 破坏性只用一个来源 `--dsw-alias-state-error-primary`，底色 `color-mix(..., 6~10%, transparent)`，不要另写红。
 - 每个区块最多一个主操作：`yk-btn-solid` 主、`yk-btn` 普通、`yk-btn-ghost` 取消和轻操作、`yk-btn-danger` 会丢东西。行内二次确认只把文字变红（`yk-dangerText`），不弹窗、不加框、不把别的行挤动。
