@@ -402,7 +402,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
     const workspacePath = typeof request.workspacePath === 'string' ? request.workspacePath.trim() : ''
     // `deleteWorkspace`: the request removes a whole workspace (its registration too).
     const deleteWorkspace = request.deleteWorkspace === true || deleteWorkspaceDir
-    if (ids.length === 0 && !deleteWorkspace) throw new Error('没有指定要删除的会话')
+    if (ids.length === 0 && !deleteWorkspace) throw new Error('未指定要删除的会话')
 
     const records = await query.listSessions()
     const headers = new Map(records.map((record) => [String(record.header.id), record.header]))
@@ -432,7 +432,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
         return typeof cwd === 'string' && path.resolve(cwd) === target && !ids.includes(String(record.header.id))
       })
       if (survivors.length > 0) {
-        throw new Error(`这个目录里还有 ${survivors.length} 个没被选中的会话，先把它们一起选中再删目录`)
+        throw new Error(`该目录中还有 ${survivors.length} 个未选中的会话，请一并选中后再删除目录`)
       }
     }
 
@@ -542,10 +542,10 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
   async function setArchived(request = {}) {
     const registry = optional('workspaceRegistry')
     if (registry === undefined || typeof registry.archiveSession !== 'function') {
-      throw new Error('这个组合没有提供归档能力（缺少 workspaceRegistry 服务），归档和取消归档都用不了')
+      throw new Error('当前组合未提供归档能力（缺少 workspaceRegistry 服务），无法归档或取消归档')
     }
     const id = typeof request.id === 'string' ? request.id.trim() : ''
-    if (id === '') throw new Error('没有指定会话')
+    if (id === '') throw new Error('未指定会话')
     const archived = request.archived === true
     if (archived) await registry.archiveSession(id)
     else await registry.unarchiveSession(id)

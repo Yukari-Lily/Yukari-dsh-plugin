@@ -43,3 +43,27 @@ test("every t('key') in the client bundle resolves in both dictionaries", async 
   const missing = [...used].filter((key) => !zh.has(key) || !en.has(key))
   assert.deepEqual(missing, [], 'a lookup without an entry renders the raw key in the panel')
 })
+
+test('both dictionaries interpolate the same placeholders', async () => {
+  const text = await readFile(new URL('../client.js', import.meta.url), 'utf8')
+  const entries = (name) => {
+    const start = text.indexOf(`    const ${name} = {`)
+    assert.notEqual(start, -1, `${name} dictionary not found`)
+    const end = text.indexOf('\n    }', start)
+    const block = text.slice(start, end)
+    const out = new Map()
+    for (const match of block.matchAll(/^\s{6}(?:'([\w-]+)'|([A-Za-z]\w*)):\s*(['`])([\s\S]*?)\3,?$/gm)) {
+      out.set(match[1] ?? match[2], match[4])
+    }
+    return out
+  }
+  const zh = entries('zh')
+  const en = entries('en')
+  const missing = []
+  for (const [key, value] of zh) {
+    const a = [...value.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort()
+    const b = [...(en.get(key) ?? '').matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort()
+    if (a.join() !== b.join()) missing.push(`${key}: zh {${a.join(', ')}} vs en {${b.join(', ')}}`)
+  }
+  assert.deepEqual(missing, [], 'a placeholder present in one language must exist in the other')
+})

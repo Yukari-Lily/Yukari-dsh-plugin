@@ -107,8 +107,8 @@ function apiError(response, body) {
   const remaining = response.headers.get('x-ratelimit-remaining')
   if (status === 401) return new GitHubApiError('令牌无效或已过期（GitHub 401）', { status })
   if (status === 403 && remaining === '0') return new GitHubApiError('GitHub API 限流，稍后再试', { status, rateLimited: true })
-  if (status === 403) return new GitHubApiError(`令牌没有访问权限（GitHub 403${detail === '' ? '' : `：${detail}`}）`, { status })
-  if (status === 404) return new GitHubApiError('仓库不存在，或这枚令牌没有被授权访问它（GitHub 404）', { status })
+  if (status === 403) return new GitHubApiError(`令牌无访问权限（GitHub 403${detail === '' ? '' : `：${detail}`}）`, { status })
+  if (status === 404) return new GitHubApiError('仓库不存在，或该令牌未获授权访问（GitHub 404）', { status })
   if (status === 429) return new GitHubApiError('GitHub API 限流，稍后再试', { status, rateLimited: true })
   if (status >= 500) return new GitHubApiError(`GitHub 暂时不可用（${status}）`, { status })
   return new GitHubApiError(`GitHub API ${status}${detail === '' ? '' : `：${detail}`}`, { status })
@@ -142,7 +142,7 @@ async function requestJson(path, token, { fetchImpl = fetch } = {}) {
   } catch (error) {
     if (error instanceof GitHubApiError) throw error
     if (error?.name === 'AbortError') throw new GitHubApiError('连接 GitHub API 超时（检查网络或代理）')
-    throw new GitHubApiError(`连不上 GitHub API（${messageOf(error)}）`)
+    throw new GitHubApiError(`无法连接 GitHub API（${messageOf(error)}）`)
   } finally {
     clearTimeout(timer)
   }

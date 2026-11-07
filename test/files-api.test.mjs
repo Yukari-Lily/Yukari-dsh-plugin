@@ -107,7 +107,7 @@ test('the API lists a workspace and refuses paths outside it', async (t) => {
 
   const unknown = await call(`/files/api/list?root=${encodeURIComponent('/etc')}&path=`)
   assert.equal(unknown.statusCode, 400)
-  assert.match(unknown.json().error, /未知的工作区/u)
+  assert.match(unknown.json().error, /未知工作区/u)
 })
 
 test('a single file downloads with an attachment header', async (t) => {

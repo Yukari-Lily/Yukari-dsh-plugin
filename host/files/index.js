@@ -124,7 +124,7 @@ async function collectFiles(root, requested, fs) {
   }
   for (const item of requested) {
     const clean = safeRelative(item)
-    if (clean === '') throw new Error('请选择具体文件或文件夹，不能是整个工作区')
+    if (clean === '') throw new Error('请选择具体文件或文件夹，不能是工作区根目录')
     await resolveInside(root, clean, fs)
     await visit(clean)
   }
@@ -223,7 +223,7 @@ export function apply(ctx, config = {}) {
   async function rootOf(value) {
     const allowed = await roots()
     const found = allowed.find((root) => root.id === value)
-    if (found === undefined) throw new Error('未知的工作区')
+    if (found === undefined) throw new Error('未知工作区')
     return found
   }
 
@@ -278,7 +278,7 @@ export function apply(ctx, config = {}) {
             const requested = Array.isArray(body.paths) ? body.paths.filter((item) => typeof item === 'string') : []
             if (requested.length === 0) throw new Error('请至少选择一个文件或文件夹')
             const { files, skipped } = await collectFiles(root.id, requested, fs)
-            if (files.length === 0) throw new Error('没有可打包的内容：所选项目都是符号链接')
+            if (files.length === 0) throw new Error('没有可打包的内容：所选项目均为符号链接')
             const name = `${path.basename(root.path) || 'workspace'}-${new Date().toISOString().slice(0, 10)}.zip`
             res.statusCode = 200
             res.setHeader('content-type', 'application/zip')

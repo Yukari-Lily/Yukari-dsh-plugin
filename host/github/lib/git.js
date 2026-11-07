@@ -145,10 +145,10 @@ export class GitCredential {
       await this.#addInclude()
       const includes = await this.#includes()
       if (!includes.includes(this.#paths.includeFile)) {
-        return { ok: false, error: 'git 没有接受 include.path，请检查 ~/.gitconfig 是否可写。' }
+        return { ok: false, error: 'git 未接受 include.path，请检查 ~/.gitconfig 是否可写。' }
       }
       if (!(await this.#exists(this.#paths.helperFile))) {
-        return { ok: false, error: 'git 凭据助手文件没有写成功。' }
+        return { ok: false, error: 'git 凭据助手文件写入失败。' }
       }
       return { ok: true }
     } catch (error) {

@@ -415,7 +415,7 @@ test('delete: the default preset is refused, and stays registered', async (t) =>
   plugin.setDefault('yk-demo')
   const refused = await plugin.post('delete', { id: 'yk-demo' })
   assert.equal(refused.status, 400)
-  assert.match(refused.json.error, /默认预设/u)
+  assert.match(refused.json.error, /当前默认/u)
   assert.ok(plugin.registered.has('yk-demo'))
 })
 

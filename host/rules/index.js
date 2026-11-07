@@ -294,7 +294,7 @@ export function apply(ctx, config = {}) {
   function workspaceOf(id) {
     const text = typeof id === 'string' ? id : ''
     const found = workspaceList(ctx).find((workspace) => workspace.id === text)
-    if (found === undefined) throw new Error('未知的工作区')
+    if (found === undefined) throw new Error('未知工作区')
     return found
   }
 

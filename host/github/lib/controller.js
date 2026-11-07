@@ -47,7 +47,7 @@ function publicAccount(raw) {
 /** Validate and normalize the pasted token. */
 function normalizeToken(raw) {
   const token = String(raw ?? '').trim()
-  if (token === '') throw new Error('请粘贴 GitHub 令牌')
+  if (token === '') throw new Error('请填写 GitHub 令牌')
   if (/\s/.test(token)) throw new Error('令牌里不能有空白字符')
   if (token.length > TOKEN_LIMIT) throw new Error('令牌长度不合法')
   return token
@@ -241,7 +241,7 @@ export class GitHubController {
   /** Serialize mutating actions so a double click cannot race the token file. */
   async #serial(action) {
     await this.#ready
-    if (this.#busy) throw new Error('另一个 Github 操作正在进行')
+    if (this.#busy) throw new Error('另一个 GitHub 操作正在进行')
     this.#busy = true
     try {
       return await action()

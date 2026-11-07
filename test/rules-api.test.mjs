@@ -206,7 +206,7 @@ test('http: unknown workspaces, oversized documents and symlink targets are refu
 
   const unknown = await call(routes[0], 'GET', '/rules/api/doc?scope=workspace&id=nope')
   assert.equal(unknown.status, 400)
-  assert.match(unknown.json.error, /未知的工作区/u)
+  assert.match(unknown.json.error, /未知工作区/u)
 
   const huge = await call(routes[0], 'POST', '/rules/api/doc', { scope: 'global', text: 'x'.repeat(16385) })
   assert.equal(huge.status, 400)

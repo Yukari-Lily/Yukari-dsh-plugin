@@ -174,7 +174,7 @@ const BUSY_LABELS = { check: '检查更新', update: '安装更新' }
       try {
         const versions = await npm.versions()
         const latest = pickLatest(versions, channel)
-        update = { latest: latest ?? null, checkedAt: at, error: latest === undefined ? '没有匹配该通道的版本' : null }
+        update = { latest: latest ?? null, checkedAt: at, error: latest === undefined ? '该通道没有匹配的版本' : null }
         lastAction = { kind: 'check', at, ok: true, detail: update.latest }
         return { versions: versions.length, latest: update.latest, checkedAt: at }
       } catch (error) {
@@ -196,7 +196,7 @@ const BUSY_LABELS = { check: '检查更新', update: '安装更新' }
       if (target === null) {
         const versions = await npm.versions()
         target = pickLatest(versions, channel) ?? null
-        if (target === null) throw new Error(`没有匹配通道 ${channel} 的版本`)
+        if (target === null) throw new Error(`通道 ${channel} 没有匹配的版本`)
         update = { latest: target, checkedAt: at, error: null }
       }
       const before = (await installState(true)).value

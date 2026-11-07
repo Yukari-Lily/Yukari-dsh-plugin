@@ -221,7 +221,7 @@ export async function apply(ctx) {
 
   function findEntry(id) {
     const entry = store.entries.find((candidate) => candidate.id === id)
-    if (entry === undefined) throw new Error(`没有叫「${id}」的预设存档`)
+    if (entry === undefined) throw new Error(`找不到预设存档「${id}」`)
     if (entry.problem) throw new Error(`这个预设的存档有问题：${entry.problem}`)
     return entry
   }
@@ -296,10 +296,10 @@ export async function apply(ctx) {
   async function updateDeclared(id, body) {
     if (id === '') throw new Error('缺少预设标识')
     const editor = typeof ctx.get === 'function' ? ctx.get('configEditor') : undefined
-    if (!editor || typeof editor.edit !== 'function') throw new Error('这个 profile 没有 configEditor，改不了声明式预设')
+    if (!editor || typeof editor.edit !== 'function') throw new Error('当前 profile 未提供 configEditor，无法修改声明式预设')
     const declared = declaredPresets(ctx)
     const row = declared.rows.get(id)
-    if (row === undefined) throw new Error(`没有叫「${id}」的预设`)
+    if (row === undefined) throw new Error(`找不到预设「${id}」`)
     if (isBuiltinRow(id, row.config)) throw new Error('内置预设只读；先复制一份自己的预设再改。')
     const { name, description, order } = readMeta(body, { requireName: false })
     const source = Array.isArray(body.plugins) ? body.plugins : row.plugins
@@ -325,9 +325,9 @@ export async function apply(ctx) {
     const id = typeof body.id === 'string' ? body.id.trim() : ''
     // A damaged entry is still deletable: that is how a broken store gets repaired.
     const entry = store.entries.find((candidate) => candidate.id === id)
-    if (entry === undefined) throw new Error(`没有叫「${id}」的预设存档`)
+    if (entry === undefined) throw new Error(`找不到预设存档「${id}」`)
     if (ctx.agentPresets.defaultId === id) {
-      throw new Error('它是当前默认预设；先到「设置 → 智能体预设」把默认切到别的模式，再删。')
+      throw new Error('该预设为当前默认；请先在「设置 → 智能体预设」中将默认切换到其他模式后再删除。')
     }
     const previous = definitionOf(entry)
     await releaseEntry(id)

@@ -201,7 +201,7 @@ test('a folder delete is refused while chats in it were not selected', async () 
   const f = await fixture()
   await assert.rejects(
     () => f.admin.remove({ ids: [], deleteWorkspaceDir: true, workspaceId: 'ws-1' }),
-    /没被选中/,
+    /未选中/,
   )
   assert.equal(await exists(f.ws), true, 'the folder survives')
   await fs.rm(f.tmp, { recursive: true, force: true })
@@ -244,5 +244,5 @@ test('a composition without the registry says so instead of pretending to archiv
   const admin = createAdmin({ ctx: { sessionQuery: { listSessions: async () => [] } }, config: {} })
   const snapshot = await admin.snapshot()
   assert.equal(snapshot.canArchive, false)
-  await assert.rejects(admin.setArchived({ id: 's1', archived: true }), /没有提供归档能力/)
+  await assert.rejects(admin.setArchived({ id: 's1', archived: true }), /未提供归档能力/)
 })

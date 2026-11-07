@@ -41,7 +41,7 @@ export const SOURCES = ['store', 'declared', 'builtin', 'runtime']
 export function declaredPresets(ctx) {
   const editor = typeof ctx.get === 'function' ? ctx.get('configEditor') : undefined
   if (!editor || typeof editor.entries !== 'function') {
-    return { available: false, rows: new Map(), error: '这个 profile 没有 configEditor，读不到声明式预设' }
+    return { available: false, rows: new Map(), error: '当前 profile 未提供 configEditor，无法读取声明式预设' }
   }
   try {
     const rows = new Map()

@@ -70,7 +70,7 @@ test('the error boundary keeps client mistakes at 400 and host failures at 500',
     return res
   }
 
-  const plain = await run(new Error('未知的工作区'))
+  const plain = await run(new Error('未知工作区'))
   assert.equal(plain.statusCode, 400)
 
   const coded = await run(Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' }))

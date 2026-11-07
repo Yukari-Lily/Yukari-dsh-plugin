@@ -106,7 +106,7 @@ export function readStore(file) {
  * @param entries - full entry list (`problem` is not persisted).
  */
 export function writeStore(file, entries) {
-  if (!file) throw new Error('这个环境没有 DSH_HOME，无法保存预设')
+  if (!file) throw new Error('当前环境未设置 DSH_HOME，无法保存预设')
   if (entries.length > MAX_PRESETS) throw new Error(`最多保存 ${MAX_PRESETS} 个预设`)
   const presets = entries.map((entry) => {
     const row = { id: entry.id, plugins: clone(entry.plugins ?? []) }
