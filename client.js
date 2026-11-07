@@ -5782,6 +5782,22 @@ window.__ModuleLoader__.load({
 .yk-rewindGo:disabled, .yk-rewindCancel:disabled { opacity: .5; cursor: default; }
 `
 
+    /** 宿主的 UI primitives；对话页的按钮要跟原生控件同一个提示气泡。 */
+    const rewindPrimitives = (() => {
+      try {
+        return require('@deepseek-ai/dsh-client-ui-primitives')
+      } catch {
+        return null
+      }
+    })()
+
+    /** 用原生提示气泡包一层；没有 primitives 时保持裸元素。 */
+    function withRewindTip(label, node) {
+      const Tooltip = rewindPrimitives?.Tooltip
+      if (typeof Tooltip !== 'function') return node
+      return h(Tooltip, { label, side: 'bottom' }, node)
+    }
+
     /** 回撤区间在 flow item 上的标记：`sessionId:seq`。 */
     const REWIND_ATTR = 'data-yk-rewind'
 
@@ -6009,16 +6025,18 @@ window.__ModuleLoader__.load({
       return h(
         'span',
         { className: 'yk-rewind', ref: rootRef },
-        h(
-          'button',
-          {
-            type: 'button',
-            className: 'yk-rewindBtn',
-            title: t('rwButton'),
-            'aria-label': t('rwButton'),
-            onClick: phase === 'idle' ? open : close,
-          },
-          h(RewindIcon),
+        withRewindTip(
+          t('rwButton'),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'yk-rewindBtn',
+              'aria-label': t('rwButton'),
+              onClick: phase === 'idle' ? open : close,
+            },
+            h(RewindIcon),
+          ),
         ),
         phase === 'idle' || placement === null
           ? null
@@ -6171,8 +6189,13 @@ window.__ModuleLoader__.load({
       }
       const observer = new MutationObserver(schedule)
       observer.observe(document.body, { childList: true, subtree: true })
+      // React 重渲染可能把行上的 display 改回去，而属性变化不进观察范围；低频补一遍。
+      const timer = setInterval(() => {
+        if ([...rewindCuts.values()].some((cuts) => cuts.length > 0)) applyRewindHiding()
+      }, 300)
       return () => {
         stopped = true
+        clearInterval(timer)
         observer.disconnect()
         if (scheduled !== 0) cancelAnimationFrame(scheduled)
         ;(rewindTeardown ?? teardown)()
