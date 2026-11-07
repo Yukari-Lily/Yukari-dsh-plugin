@@ -72,6 +72,9 @@
 - 每个标签页走同一条骨架：`yk-body`（或 `yk-tabPanel`）→ `yk-toolbar`（筛选在左、`yk-grow` 撑开、操作在右）→ `Failure`（带重试）→ `Loading` / `Empty` / 列表或卡片。新页面照这个顺序写，不另造一套。
 - 先挑现成组件：`Card`、`Row`、`Banner`、`Empty`、`Loading`、`Option`、`Segmented`、`SearchBox`、`RefreshButton`、`Chip`、`ConfirmStrip`、`FlashNote`。
 - 行内 `style` 只留给随数据变的尺寸（进度条、logo 边长），静态尺寸进样式表——`test/ui-structure.test.mjs` 会挡。
+- 往宿主已有的行或控件里加东西，尺寸、圆角、内边距、悬停全部抄那个原生控件：消息操作行是 `calc(28px + var(--dsh-content-font-delta))`、`--dsw-radius-sm`、`padding: 6px`、无边框、无 hover 底色、图标 15px。不要另起一套，尺寸和悬停一变就能看出来。
+- 浮层（确认框、菜单）一律 `position: fixed`，按锚点的 `getBoundingClientRect()` 算位置：下方空间不足就翻到上方，左右夹在视口内留 8px，`max-height` 顶到视口边界并允许内部滚动，打开期间跟随 `scroll` / `resize` 重新定位。不许出现"露出一半"。
+- 挂在对话页的组件不依赖面板：样式自己注入 `<head>`（带 `data-yk-*` 标记），卸载时一并移除；只取宿主 token，类名仍用 `yk-` 前缀。
 
 ## 六、文案
 
@@ -85,3 +88,5 @@
 - 术语固定：`会话`、`工作区`、`预设`、`能力行`、`注入`、`约束`（不写「强约束」）、`GitHub`（不写 Github）。同一个东西全篇一个叫法。
 - 改文案会让断言旧文案的用例失败：更新断言里的旧文案，别为了测试把文案改回去。
 - 面板文案改中英两份，键一一对应；同一句话的 `{占位符}` 必须两种语言一致——`test/i18n.test.mjs` 会挡。
+- 按钮文案用二字动词：`回撤`、`保存`、`关闭`、`复制`。不要写成「回撤到此处」这类带位置的长句。
+- 一个动作的行为已经确定时不要再给勾选框：例如回撤默认就还原文件，不再问「同时还原文件」。只有真的可选、且默认值与用户预期不同时才给开关。
