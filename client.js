@@ -276,9 +276,7 @@ window.__ModuleLoader__.load({
       fHint: '已选 {n} 项；仅选文件时逐个下载，包含文件夹或超过 10 个文件时打包下载。',
       fPreviewBinary: '该文件为二进制格式，仅支持下载。',
       fPreviewTruncated: '文件较大，仅显示开头部分。',
-      fViewerText: '文本',
-      fViewerMarkdown: 'Markdown',
-      fViewerImage: '图片',
+      fRevealInTree: '在文件树中显示',
       fWrap: '自动换行',
       fAutoRefresh: '自动刷新',
       fCopyAll: '复制内容',
@@ -742,9 +740,7 @@ window.__ModuleLoader__.load({
       fHint: '{n} selected; files download one by one, folders or more than ten files are zipped.',
       fPreviewBinary: 'This file is binary; only downloading is available.',
       fPreviewTruncated: 'The file is large; only the beginning is shown.',
-      fViewerText: 'Text',
-      fViewerMarkdown: 'Markdown',
-      fViewerImage: 'Image',
+      fRevealInTree: 'Reveal in file tree',
       fWrap: 'Wrap lines',
       fAutoRefresh: 'Auto refresh',
       fCopyAll: 'Copy content',
@@ -1124,11 +1120,10 @@ window.__ModuleLoader__.load({
 .yk-filesBody { display: block; }
 .yk-filesSplit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); gap: 16px; align-items: start; }
 .yk-preview { display: flex; flex-direction: column; gap: 10px; min-height: 220px; max-height: 62vh; overflow: auto; padding: 12px; border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-base); }
-.yk-previewHead { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.yk-previewName { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yk-previewHead { display: flex; align-items: center; gap: 4px; min-width: 0; min-height: 32px; }
+.yk-previewPath { flex: 1; min-width: 0; padding-right: 4px; font-size: 13px; color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .yk-previewDoc { font-size: 13px; line-height: 1.6; }
 .yk-previewImage { display: block; max-width: 100%; border-radius: var(--dsw-radius-md); }
-.yk-previewViewer { padding: 0 2px; font-size: 11px; color: var(--yk-muted); white-space: nowrap; }
 .yk-previewCode-nowrap { overflow-x: auto; }
 .yk-previewCode-nowrap .yk-previewLine { grid-template-columns: 3.2em max-content; }
 .yk-previewCode-nowrap .yk-previewLineText { white-space: pre; }
@@ -3072,6 +3067,19 @@ window.__ModuleLoader__.load({
         anchor.click()
       }
 
+      /** 在左侧列表里定位当前预览的文件：切到它所在目录，滚到那一行。 */
+      const revealInTree = () => {
+        const target = previewTarget
+        if (target === null) return
+        const cut = target.path.lastIndexOf('/')
+        const directory = cut === -1 ? '' : target.path.slice(0, cut)
+        if (directory !== path) setPath(directory)
+        window.requestAnimationFrame(() => {
+          const row = document.querySelector(`[data-yk-file="${CSS.escape(target.path)}"]`)
+          row?.scrollIntoView({ block: 'center' })
+        })
+      }
+
       /** 顶栏的一个图标按钮：尺寸与面板里其它图标按钮一致，必带 title 与 aria-label。 */
       const barButton = (label, pressed, onClick, Icon) =>
         h(
@@ -3101,7 +3109,6 @@ window.__ModuleLoader__.load({
         const isMarkdown = /\.(md|markdown|mdx)$/i.test(name)
         const isImage = previewData?.kind === 'image'
         const isText = previewData?.kind === 'text'
-        const viewer = isImage ? t('fViewerImage') : isMarkdown ? t('fViewerMarkdown') : isText ? t('fViewerText') : ''
         const imageUrl =
           isImage && root !== null
             ? `${API.files}/download?root=${encodeURIComponent(root.id)}&path=${encodeURIComponent(previewTarget.path)}&inline=1`
@@ -3118,16 +3125,22 @@ window.__ModuleLoader__.load({
           }
         }
 
+        // 路径行照宿主文档预览的样子：左边完整路径，右边工具按钮依次排开。
         const head = h(
           'div',
           { className: 'yk-previewHead' },
-          h('span', { className: 'yk-previewName', title: name }, name),
-          viewer === '' ? null : h('span', { className: 'yk-previewViewer' }, viewer),
+          h(
+            'span',
+            // 行里放工作区相对路径：面板只有这么宽，绝对路径会把工具按钮挤掉；完整路径放 title。
+            { className: 'yk-previewPath', title: `${root === null ? '' : `${root.path}/`}${previewTarget.path}` },
+            previewTarget.path,
+          ),
           isText ? barButton(t('fWrap'), wrapLines, () => setWrapLines((value) => !value), WrapIcon) : null,
           isText ? barButton(t('fAutoRefresh'), autoRefresh, () => setAutoRefresh((value) => !value), autoRefresh ? PauseIcon : PlayIcon) : null,
           isText ? barButton(copied ? t('copied') : t('fCopyAll'), undefined, copyAll, copied ? CheckIcon : CopyIcon) : null,
           isImage ? barButton(t('fFullscreen'), undefined, () => setZoom(1), FullscreenIcon) : null,
           barButton(t('refresh'), undefined, () => showPreview(previewTarget), RefreshIcon),
+          barButton(t('fRevealInTree'), undefined, revealInTree, FolderIcon),
           barButton(t('close'), undefined, closePreview, ClearIcon),
         )
 
@@ -3334,7 +3347,7 @@ window.__ModuleLoader__.load({
                   const isDir = entry.type === 'dir'
                   return h(
                     'div',
-                    { className: checked ? 'yk-item yk-item-selected' : 'yk-item', key: entry.path },
+                    { className: checked ? 'yk-item yk-item-selected' : 'yk-item', key: entry.path, 'data-yk-file': entry.path },
                     h(
                       'button',
                       {

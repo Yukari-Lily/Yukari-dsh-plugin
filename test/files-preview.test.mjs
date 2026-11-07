@@ -58,12 +58,14 @@ test('the preview opens from the row name and from the row action', async () => 
 
 test('the preview bar carries the controls the session viewer has', async () => {
   const { body, text } = await filesTab()
-  for (const label of ['fWrap', 'fAutoRefresh', 'fCopyAll', 'fFullscreen', 'fViewerText']) {
+  for (const label of ['fWrap', 'fAutoRefresh', 'fCopyAll', 'fFullscreen', 'fRevealInTree']) {
     assert.ok(body.includes(`t('${label}')`), `${label} is wired into the bar`)
   }
   assert.ok(body.includes("t('refresh')") && body.includes("t('close')"), 'reload and close sit at the end')
   assert.ok(body.includes('barButton('), 'every control is one shared icon button')
-  assert.ok(body.includes("h('span', { className: 'yk-previewViewer' }, viewer)"), 'the viewer name is shown')
+  assert.ok(body.includes("className: 'yk-previewPath'"), 'the bar shows the path, as the session viewer does')
+  assert.ok(body.includes("'data-yk-file': entry.path"), 'rows carry the path so reveal can find them')
+  assert.ok(body.includes('scrollIntoView'), 'reveal scrolls the listing to the file')
   assert.ok(text.includes('.yk-previewCode-nowrap .yk-previewLineText { white-space: pre; }'), 'turning wrap off keeps the line intact')
   assert.ok(text.includes('.yk-lightbox { position: fixed;'), 'the image opens in a fixed overlay')
 })
