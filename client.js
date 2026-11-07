@@ -274,6 +274,7 @@ window.__ModuleLoader__.load({
       fHint: '已选 {n} 项；仅选文件时逐个下载，包含文件夹或超过 10 个文件时打包下载。',
       fNoSession: '该工作区暂无会话，无法预览（下载不受影响）',
       fNoPreview: '当前界面未提供文件预览服务，仅支持下载',
+      fPreviewNoSession: '无法打开预览，请先打开该工作区的会话。',
       pEnable: '启用代理',
       pDisable: '停用代理',
       pEnabled: '已接管出站流量',
@@ -731,6 +732,7 @@ window.__ModuleLoader__.load({
       fHint: '{n} selected; files download one by one, folders or more than ten files are zipped.',
       fNoSession: 'This workspace has no chats yet, so preview is unavailable (downloading still works)',
       fNoPreview: 'This interface has no file preview service; only downloading is available',
+      fPreviewNoSession: 'Cannot open the preview; open a chat in this workspace first.',
       pEnable: 'Enable proxy',
       pDisable: 'Disable proxy',
       pEnabled: 'Routing outbound traffic',
@@ -2894,6 +2896,58 @@ window.__ModuleLoader__.load({
       return `dsh-resource://file/session/${encodeURIComponent(sessionId)}/${encoded}`
     }
 
+    /**
+     * 打开文件预览。
+     *
+     * 宿主只在「屏上有会话」时放置右侧栏 tab：面板占着主区域时没有会话，
+     * `openResource` 会抛，`openResourceIn` 对未挂载的会话又是静默 no-op——
+     * 直接调用就是点了没反应。所以先切到该会话，等它挂上再打开。
+     * @param options - 侧栏服务、资源地址、会话，以及三处可替换的宿主交互。
+     * @returns 打开完成；等不到会话时抛 `no-session`。
+     */
+    async function openPreview({ right, address, sessionId, onScreen, switchSession, wait }) {
+      if (right === null || right === undefined || typeof right.openResource !== 'function') throw new Error('no-preview')
+      if (onScreen() === sessionId) {
+        right.openResource(address)
+        return
+      }
+      switchSession(sessionId)
+      if (!(await wait(sessionId))) throw new Error('no-session')
+      right.openResource(address)
+    }
+
+    /**
+     * 等主区域挂上某个会话。切会话是异步渲染，固定延时既慢又不可靠。
+     * @param sessionId - 等待的会话。
+     * @param timeoutMs - 最多等多久。
+     * @returns 是否等到。
+     */
+    function waitForSession(sessionId, timeoutMs = 2500) {
+      return new Promise((resolve) => {
+        const selector = `[data-conversation-session="${sessionId}"]`
+        if (typeof document === 'undefined') {
+          resolve(false)
+          return
+        }
+        if (document.querySelector(selector) !== null) {
+          resolve(true)
+          return
+        }
+        const deadline = Date.now() + timeoutMs
+        const timer = setInterval(() => {
+          if (document.querySelector(selector) !== null) {
+            clearInterval(timer)
+            resolve(true)
+            return
+          }
+          if (Date.now() >= deadline) {
+            clearInterval(timer)
+            resolve(false)
+          }
+        }, 100)
+      })
+    }
+
     /** Breadcrumb + listing of one workspace, with download and preview. */
     function FilesTab({ t, ui }) {
       const [roots, setRoots] = React.useState(null)
@@ -2961,16 +3015,9 @@ window.__ModuleLoader__.load({
             show('preview', t('fNoSession'))
             return
           }
-          try {
-            ui.openResource(payload.sessionId, entry.path)
-          } catch {
-            // Nothing is mounted for that session yet: switch to it, then open.
-            ui.openSession(payload.sessionId)
-            await new Promise((resolve) => setTimeout(resolve, 400))
-            ui.openResource(payload.sessionId, entry.path)
-          }
+          await ui.openResource(payload.sessionId, entry.path)
         } catch (error) {
-          if (alive.current && error?.name !== 'AbortError') show('preview', messageOf(error))
+          if (error?.name !== 'AbortError') show('preview', messageOf(error))
         }
       }
 
@@ -6266,20 +6313,26 @@ window.__ModuleLoader__.load({
            * mounted, and the panel usually shows another session — so try the
            * mounted surface first and let the caller fall back to switching.
            */
-          openResource: (sessionId, relative) => {
+          openResource: async (sessionId, relative) => {
             const right = (typeof ctx.get === 'function' ? ctx.get('sidebarRight') : undefined) ?? ctx.sidebarRight
-            if (right === undefined || right === null) throw new Error(t('fNoPreview'))
-            const address = resourceAddress(sessionId, relative)
-            if (typeof right.openResource === 'function') {
-              try {
-                right.openResource(address)
-                return
-              } catch {
-                /* no session surface is mounted: try the named session below */
-              }
+            try {
+              await openPreview({
+                right,
+                address: resourceAddress(sessionId, relative),
+                sessionId,
+                onScreen: () =>
+                  document.querySelector('[data-conversation-session]')?.getAttribute('data-conversation-session') ?? '',
+                switchSession: (id) => {
+                  if (ctx.uiWorkspace === undefined || typeof ctx.uiWorkspace.openSession !== 'function') throw new Error('no-session')
+                  ctx.uiWorkspace.openSession(id)
+                },
+                wait: (id) => waitForSession(id),
+              })
+            } catch (error) {
+              if (error?.message === 'no-preview') throw new Error(t('fNoPreview'))
+              if (error?.message === 'no-session') throw new Error(t('fPreviewNoSession'))
+              throw new Error(messageOf(error))
             }
-            if (typeof right.openResourceIn !== 'function') throw new Error(t('fNoPreview'))
-            right.openResourceIn(sessionId, address)
           },
           openSession: (id) => {
             if (ctx.uiWorkspace === undefined || typeof ctx.uiWorkspace.openSession !== 'function') {
