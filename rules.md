@@ -49,3 +49,22 @@
 - 一次性的验证脚本放 `/tmp`，不要塞进仓库；能留在仓库的只有回归测试。
 - 不要直接访问操作者的部署入口（面板 GUI 的域名/端口）去测试或抓页面：挡回来是正常的，
   也不该拿线上站点做试验。要验浏览器行为就本地造页面，在无头 Chromium 里跑。
+
+## 五、面板长相
+
+样式全在 `client.js` 的 `styles` 模板串里，类名 `yk-` 前缀；没有 CSS 文件、没有构建。改完在浅色和深色（`body[data-ds-dark-theme]`）下都看一眼。
+
+- 刻度只用这些值，别造半档：
+  - 控件高度：输入框 / 搜索框 / 下拉 / 分段控件 34，按钮 32，小按钮 28，图标按钮 32（小号 28），标签 21，导航标签 36。
+  - 字号：11 元信息、12 提示与脚注、13 正文与小按钮、14 正文与卡片标题、15 列表标题、16 子页标题、18 页面标题。
+  - 间距：2 / 4 / 6 / 8 / 10 / 12 / 16 / 20。页面内边距 `0 clamp(16px, 3vw, 36px) 40px`，区块间距 20，内容最宽 980。树形缩进 22 / 26、空态留白 48 是结构值，别改；复选框和文字的 1–3px 基线微调不算间距。
+  - 圆角：`--dsw-radius-sm` 小控件、`--dsw-radius-md` 按钮和输入框、`--dsw-radius-lg` 卡片。
+- 颜色只取宿主 token；面板自己的派生值集中在 `.yk-page` 上的 `--yk-line` / `--yk-soft` / `--yk-muted` / `--yk-accent`，别在别处再造颜色。
+- 浅色里"看着还行"不算数：`--dsw-alias-bg-layer-2/3` 在浅色主题和白底同色，浮层要么用 layer-3 打底加 `--dsw-shadow-lv3`，要么用 `--dsw-specific-menu`（它半透明，别压在文字上）。
+- 破坏性只用一个来源 `--dsw-alias-state-error-primary`，底色 `color-mix(..., 6~10%, transparent)`，不要另写红。
+- 每个区块最多一个主操作：`yk-btn-solid` 主、`yk-btn` 普通、`yk-btn-ghost` 取消和轻操作、`yk-btn-danger` 会丢东西。行内二次确认只把文字变红（`yk-dangerText`），不弹窗、不加框、不把别的行挤动。
+- 图标按钮固定 `yk-btn yk-btn-ghost yk-iconBtn`，必须带 `title` 和 `aria-label`。
+- 文字层级：`.yk-cardText` 段落说明（13，句号结尾）、`.yk-cardHint` / `.yk-cardNote` 12 补充、`.yk-itemMeta` 11 元信息、`.yk-foot` 12 脚注、`.yk-chip` 11 标签。说明句带「。」，短标签不带。
+- 每个标签页走同一条骨架：`yk-body`（或 `yk-tabPanel`）→ `yk-toolbar`（筛选在左、`yk-grow` 撑开、操作在右）→ `Failure`（带重试）→ `Loading` / `Empty` / 列表或卡片。新页面照这个顺序写，不另造一套。
+- 先挑现成组件：`Card`、`Row`、`Banner`、`Empty`、`Loading`、`Option`、`Segmented`、`SearchBox`、`RefreshButton`、`Chip`、`ConfirmStrip`、`FlashNote`。
+- 行内 `style` 只留给随数据变的尺寸（进度条、logo 边长），静态尺寸进样式表——`test/ui-structure.test.mjs` 会挡。
