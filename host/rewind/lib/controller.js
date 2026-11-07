@@ -91,7 +91,7 @@ export function createRewind({ ctx, store }) {
     if (event === undefined || event.type !== 'user/message') throw failure(409, '只能回撤到用户消息。')
     const cut = planCut(events, seq)
     if (cut === null) throw failure(409, '这条消息已经不在当前对话里。')
-    if (cut.shadowed.length <= 1) throw failure(409, '这条消息之后没有内容。')
+    if (cut.shadowed.length === 0) throw failure(409, '这条消息之后没有内容。')
     return { event, cut }
   }
 

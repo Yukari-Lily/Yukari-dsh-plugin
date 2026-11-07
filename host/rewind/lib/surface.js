@@ -46,6 +46,9 @@ export function surfaceNodes(events) {
 
 /**
  * 计算回撤到某条消息时要替换掉的 surface 区间。
+ *
+ * 目标消息留在对话里（它的图片、格式、@引用都还在），被替换的是它**之后**的
+ * 所有 surface 节点；没有后继节点时 `shadowed` 为空。
  * @param events - 按 seq 连续排列的事件。
  * @param targetSeq - 目标用户消息的序号。
  * @returns `{ startSeq, endSeq, shadowed }`，目标不在 surface 上时返回 null。
@@ -54,8 +57,8 @@ export function planCut(events, targetSeq) {
   const nodes = surfaceNodes(events)
   const index = nodes.indexOf(targetSeq)
   if (index === -1) return null
-  const shadowed = nodes.slice(index)
-  return { startSeq: targetSeq, endSeq: shadowed[shadowed.length - 1], shadowed }
+  const shadowed = nodes.slice(index + 1)
+  return { startSeq: shadowed[0] ?? null, endSeq: shadowed[shadowed.length - 1] ?? null, shadowed }
 }
 
 /** 一条标记事件的正文。 */
@@ -69,7 +72,7 @@ function markerText(event) {
 /**
  * 从日志里已有的标记事件推导出每一次回撤的区间。
  * @param events - 按 seq 连续排列的事件。
- * @returns `[{ target, marker }]`，target 是目标消息序号，marker 是标记事件序号。
+ * @returns `[{ start, marker }]`：start 是第一个被隐藏的节点，marker 是标记事件。
  */
 export function cutsOf(events) {
   const cuts = []
@@ -77,7 +80,7 @@ export function cutsOf(events) {
     if (event.type !== 'user/message' || !replaced(event)) continue
     if (markerText(event) !== MARKER_TEXT) continue
     const { startSeq } = event.surfaceOp
-    if (Number.isSafeInteger(startSeq)) cuts.push({ target: startSeq, marker: event.seq })
+    if (Number.isSafeInteger(startSeq)) cuts.push({ start: startSeq, marker: event.seq })
   }
   return cuts
 }

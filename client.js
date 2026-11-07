@@ -222,15 +222,12 @@ window.__ModuleLoader__.load({
       cLockedByParent: '随主会话一同选中，无法单独取消',
       cArchivedTag: '已归档',
       cEvents: '{n} 条事件',
-      rwButton: '回撤到此处',
+      rwButton: '回撤',
       rwTitle: '回撤到此处？',
       rwHint: '将撤下 {n} 条消息，并还原 {m} 个文件。',
-      rwNoFiles: '没有需要还原的文件。',
-      rwRestore: '同时还原文件',
+      rwHintNoFiles: '将撤下 {n} 条消息。',
       rwApply: '回撤',
       rwBusy: '回撤中…',
-      rwDone: '已回撤',
-      rwUnavailable: '会话回撤组件未启用。',
       cReason_running: '会话仍在运行，无法删除。',
       cReason_unknown: '找不到会话。',
       'cReason_io-error': '删除文件失败。',
@@ -682,15 +679,12 @@ window.__ModuleLoader__.load({
       cLockedByParent: 'Selected with its parent chat and cannot be unticked alone',
       cArchivedTag: 'Archived',
       cEvents: '{n} events',
-      rwButton: 'Rewind to here',
+      rwButton: 'Rewind',
       rwTitle: 'Rewind to this message?',
       rwHint: 'Removes {n} messages and restores {m} files.',
-      rwNoFiles: 'No files need restoring.',
-      rwRestore: 'Also restore files',
+      rwHintNoFiles: 'Removes {n} messages.',
       rwApply: 'Rewind',
       rwBusy: 'Rewinding…',
-      rwDone: 'Rewound',
-      rwUnavailable: 'The rewind component is off.',
       cReason_running: 'the chat is still running and cannot be deleted.',
       cReason_unknown: 'the chat was not found.',
       'cReason_io-error': 'deleting the files failed.',
@@ -5769,11 +5763,12 @@ window.__ModuleLoader__.load({
      * 只用宿主 token 和本组件自己的类名，不依赖面板里的 `.yk-btn` 等规则。
      */
     const REWIND_STYLES = `
-.yk-rewind { position: relative; display: inline-flex; align-items: center; }
-.yk-rewindBtn { appearance: none; width: 28px; height: 28px; padding: 0; display: inline-grid; place-items: center; border: .5px solid transparent; border-radius: var(--dsw-radius-md); background: transparent; color: var(--dsw-alias-label-tertiary); cursor: pointer; transition: background var(--ds-transition-duration) var(--ds-ease-in-out), color var(--ds-transition-duration) var(--ds-ease-in-out); }
-.yk-rewindBtn:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
+.yk-rewind { display: inline-flex; align-items: center; }
+/* 与宿主消息操作行里的复制按钮同尺寸、同底色：28px（跟随字号缩放）、6px 内边距。 */
+.yk-rewindBtn { appearance: none; width: calc(28px + var(--dsh-content-font-delta, 0px)); height: calc(28px + var(--dsh-content-font-delta, 0px)); padding: 6px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: var(--dsw-radius-sm); background: none; color: var(--dsw-alias-label-tertiary); cursor: pointer; }
+.yk-rewindBtn svg { width: calc(15px + var(--dsh-content-font-delta, 0px)); height: calc(15px + var(--dsh-content-font-delta, 0px)); }
 .yk-rewindBtn:focus-visible, .yk-rewindCancel:focus-visible, .yk-rewindGo:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
-.yk-rewindPanel { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; width: min(260px, calc(100vw - 40px)); padding: 12px; display: flex; flex-direction: column; gap: 8px; border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-layer-3); box-shadow: var(--dsw-shadow-lv3); text-align: left; }
+.yk-rewindPanel { position: fixed; z-index: 40; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-layer-3); box-shadow: var(--dsw-shadow-lv3); text-align: left; }
 .yk-rewindTitle { font-size: 13px; font-weight: 600; color: var(--dsw-alias-label-primary); }
 .yk-rewindHint { font-size: 12px; line-height: 1.5; color: var(--dsw-alias-label-secondary); }
 .yk-rewindError { color: var(--dsw-alias-state-error-primary); }
@@ -5801,20 +5796,6 @@ window.__ModuleLoader__.load({
     /** 当前安装的清理函数。 */
     let rewindTeardown = null
 
-    /** 把目标消息的文本放回输入框；已有草稿时不覆盖。 */
-    function refillComposer(sessionId, text) {
-      if (typeof text !== 'string' || text.trim() === '') return
-      const scope = document.querySelector(`[data-conversation-session="${sessionId}"]`) ?? document
-      const input = scope.querySelector('[data-composer-input]')
-      if (input === null || input.textContent.trim() !== '') return
-      try {
-        input.focus()
-        document.execCommand('insertText', false, text)
-      } catch {
-        /* 编辑器不接受合成输入时保持原样，不阻断回撤 */
-      }
-    }
-
     /** 按区间隐藏 flow item：未打序号的行跟随上一条打过的行（同一轮）。 */
     function applyRewindHiding() {
       for (const [sessionId, cuts] of rewindCuts) {
@@ -5827,7 +5808,7 @@ window.__ModuleLoader__.load({
             const seq = Number(tag.slice(tag.lastIndexOf(':') + 1))
             if (Number.isSafeInteger(seq)) effective = seq
           }
-          const hidden = cuts.some((cut) => effective >= cut.target && effective <= cut.marker)
+          const hidden = cuts.some((cut) => effective >= cut.start && effective <= cut.marker)
           const known = rewindHidden.has(row)
           if (hidden === known) continue
           if (hidden) {
@@ -5871,16 +5852,31 @@ window.__ModuleLoader__.load({
      *
      * 行渲染时拿不到 sessionId（槽位只给 node 和行内工具），从对话容器的
      * `data-conversation-session` 读：隐藏逻辑本来也要按这段 DOM 对齐。
-     * @param props - 文案、消息序号与该消息的文本。
+     * @param props - 文案与消息序号。
      */
-    function RewindButton({ t, seq, text }) {
+    function RewindButton({ t, seq }) {
       const [phase, setPhase] = React.useState('idle')
       const [plan, setPlan] = React.useState(null)
-      const [restore, setRestore] = React.useState(true)
       const [failure, setFailure] = React.useState('')
+      const [placement, setPlacement] = React.useState(null)
       const rootRef = React.useRef(null)
 
       const sessionOf = () => rootRef.current?.closest('[data-conversation-session]')?.getAttribute('data-conversation-session') ?? ''
+
+      /** 面板贴着按钮放：下方放不下就翻到上方，左右夹在视口内。 */
+      const place = () => {
+        const rect = rootRef.current?.getBoundingClientRect()
+        if (rect === undefined) return
+        const width = Math.min(268, window.innerWidth - 16)
+        const left = Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8)
+        const below = window.innerHeight - rect.bottom - 10
+        const above = rect.top - 10
+        if (below < 180 && above > below) {
+          setPlacement({ left, width, bottom: window.innerHeight - rect.top + 6, maxHeight: Math.max(120, above) })
+          return
+        }
+        setPlacement({ left, width, top: rect.bottom + 6, maxHeight: Math.max(120, below) })
+      }
 
       // 行内打上会话与序号，隐藏逻辑靠它对齐区间。
       React.useEffect(() => {
@@ -5893,15 +5889,28 @@ window.__ModuleLoader__.load({
         applyRewindHiding()
       }, [seq])
 
+      // 面板打开时跟随滚动与缩放重新定位，避免露出一半。
+      React.useEffect(() => {
+        if (phase === 'idle') return undefined
+        place()
+        const update = () => place()
+        window.addEventListener('scroll', update, true)
+        window.addEventListener('resize', update)
+        return () => {
+          window.removeEventListener('scroll', update, true)
+          window.removeEventListener('resize', update)
+        }
+      }, [phase])
+
       const open = async () => {
         setFailure('')
+        place()
+        setPhase('confirm')
         try {
           const payload = await postJson(`${API.rewind}/plan`, { sessionId: sessionOf(), seq })
           setPlan(payload)
-          setPhase('confirm')
         } catch (error) {
           setFailure(messageOf(error))
-          setPhase('confirm')
         }
       }
 
@@ -5910,10 +5919,9 @@ window.__ModuleLoader__.load({
         setFailure('')
         const sessionId = sessionOf()
         try {
-          const payload = await postJson(`${API.rewind}/apply`, { sessionId, seq, restoreFiles: restore })
+          const payload = await postJson(`${API.rewind}/apply`, { sessionId, seq, restoreFiles: true })
           if (Array.isArray(payload.cuts)) rewindCuts.set(sessionId, payload.cuts)
           applyRewindHiding()
-          refillComposer(sessionId, text)
           setPhase('idle')
           setPlan(null)
         } catch (error) {
@@ -5927,6 +5935,14 @@ window.__ModuleLoader__.load({
         setPlan(null)
         setFailure('')
       }
+
+      const hint = failure !== ''
+        ? failure
+        : plan === null
+          ? t('rwBusy')
+          : plan.files.length === 0
+            ? fill(t('rwHintNoFiles'), { n: plan.hidden })
+            : fill(t('rwHint'), { n: plan.hidden, m: plan.files.length })
 
       return h(
         'span',
@@ -5942,23 +5958,23 @@ window.__ModuleLoader__.load({
           },
           h(RewindIcon),
         ),
-        phase === 'idle'
+        phase === 'idle' || placement === null
           ? null
           : h(
               'div',
-              { className: 'yk-rewindPanel', role: 'alertdialog', 'aria-label': t('rwTitle') },
+              {
+                className: 'yk-rewindPanel',
+                role: 'alertdialog',
+                'aria-label': t('rwTitle'),
+                style: {
+                  left: `${placement.left}px`,
+                  width: `${placement.width}px`,
+                  ...(placement.top === undefined ? { bottom: `${placement.bottom}px` } : { top: `${placement.top}px` }),
+                  maxHeight: `${placement.maxHeight}px`,
+                },
+              },
               h('div', { className: 'yk-rewindTitle' }, t('rwTitle')),
-              h(
-                'div',
-                failure === '' ? 'yk-rewindHint' : 'yk-rewindHint yk-rewindError',
-                failure === '' ? (plan === null ? t('rwBusy') : plan.files.length === 0 ? t('rwNoFiles') : fill(t('rwHint'), { n: plan.hidden, m: plan.files.length })) : failure,
-              ),
-              h(
-                'label',
-                { className: 'yk-rewindOption' },
-                h('input', { type: 'checkbox', checked: restore, onChange: (event) => setRestore(event.target.checked) }),
-                h('span', null, t('rwRestore')),
-              ),
+              h('div', failure === '' ? 'yk-rewindHint' : 'yk-rewindHint yk-rewindError', hint),
               h(
                 'div',
                 { className: 'yk-rewindActions' },
