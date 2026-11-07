@@ -5937,6 +5937,7 @@ window.__ModuleLoader__.load({
       const [plan, setPlan] = React.useState(null)
       const [failure, setFailure] = React.useState('')
       const [placement, setPlacement] = React.useState(null)
+      const [tail, setTail] = React.useState(0)
       const rootRef = React.useRef(null)
 
       const sessionOf = () => rootRef.current?.closest('[data-conversation-session]')?.getAttribute('data-conversation-session') ?? ''
@@ -5987,8 +5988,19 @@ window.__ModuleLoader__.load({
       /** 失败信息带上状态码：界面上一眼能看出是哪个环节被拒。 */
       const describe = (error) => `${messageOf(error)}${Number.isInteger(error?.status) ? `（HTTP ${error.status}）` : ''}`
 
+      /** 目标行之后（含它自己）还有多少行——就是界面上会消失的行数。 */
+      const rowsFromHere = () => {
+        const scope = rootRef.current?.closest('[data-conversation-session]')
+        const row = rootRef.current?.closest('[data-chat-flow-key]')
+        if (scope === null || scope === undefined || row === null || row === undefined) return 0
+        const rows = [...scope.querySelectorAll('[data-chat-flow-key]')]
+        const index = rows.indexOf(row)
+        return index === -1 ? 0 : rows.length - index
+      }
+
       const open = async () => {
         setFailure('')
+        setTail(rowsFromHere())
         place()
         setPhase('confirm')
         try {
@@ -6028,8 +6040,8 @@ window.__ModuleLoader__.load({
         : plan === null
           ? t('rwBusy')
           : plan.files.length === 0
-            ? fill(t('rwHintNoFiles'), { n: plan.hidden })
-            : fill(t('rwHint'), { n: plan.hidden, m: plan.files.length })
+            ? fill(t('rwHintNoFiles'), { n: tail })
+            : fill(t('rwHint'), { n: tail, m: plan.files.length })
 
       return h(
         'span',
