@@ -7,7 +7,7 @@
  */
 
 import { messageOf } from '../../shared/http.js'
-import { markerData, markerOptions } from './marker.js'
+import { MARKER_TEXT, markerData, markerOptions } from './marker.js'
 import { cutsOf, planCut } from './surface.js'
 
 /** 等一次运行中的回合停下来最多多久。 */
@@ -108,6 +108,9 @@ export function createRewind({ ctx, store }) {
     return {
       startSeq: cut.startSeq,
       endSeq: cut.endSeq,
+      // 界面显示的是"撤下几条对话"，也就是区间里用户自己发的消息条数；
+      // surface 节点数与屏幕上行数都不直观（一次对话可能带很多工具调用行）。
+      human: humanMessages(events, cut.shadowed),
       hidden: cut.shadowed.length,
       tail: Math.max(0, events.length - 1 - seq),
       files: files.files,
@@ -162,6 +165,26 @@ export function createRewind({ ctx, store }) {
   }
 
   return { plan, apply, cuts, capture }
+}
+
+/**
+ * 区间里用户自己发的消息条数（排除注入给模型的上下文消息与助手消息）。
+ * @param events - 按 seq 连续排列的事件。
+ * @param shadowed - 被替换的 surface 节点序号。
+ * @returns 用户消息条数。
+ */
+function humanMessages(events, shadowed) {
+  let count = 0
+  for (const seq of shadowed) {
+    const event = events[seq]
+    if (event?.type !== 'user/message') continue
+    if (event.data?.source?.kind !== 'user') continue
+    // 回撤标记本身也是 user/message，别把它算成一条对话。
+    const text = Array.isArray(event.data.content) ? event.data.content.find((block) => block?.type === 'text')?.text : undefined
+    if (text === MARKER_TEXT) continue
+    count += 1
+  }
+  return count
 }
 
 /**

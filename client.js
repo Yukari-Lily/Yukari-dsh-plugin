@@ -6035,13 +6035,15 @@ window.__ModuleLoader__.load({
         setFailure('')
       }
 
+      // 「撤下几条」按用户自己发的消息数算：一次对话带多少工具行不该算进去。
+      const count = plan === null ? tail : plan.human > 0 ? plan.human : plan.hidden
       const hint = failure !== ''
         ? failure
         : plan === null
           ? t('rwBusy')
           : plan.files.length === 0
-            ? fill(t('rwHintNoFiles'), { n: tail })
-            : fill(t('rwHint'), { n: tail, m: plan.files.length })
+            ? fill(t('rwHintNoFiles'), { n: count })
+            : fill(t('rwHint'), { n: count, m: plan.files.length })
 
       return h(
         'span',

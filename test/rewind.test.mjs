@@ -12,7 +12,10 @@ import { createRewind } from '../host/rewind/lib/controller.js'
 const appended = (seq, type = 'user/message', text = `m${seq}`) => ({
   seq,
   type,
-  data: { content: [{ type: 'text', text }] },
+  data: {
+    content: [{ type: 'text', text }],
+    ...(type === 'user/message' ? { source: { kind: 'user' } } : {}),
+  },
   surfaceOp: 'append',
 })
 
@@ -171,6 +174,7 @@ test('plan and apply run against a fake session', async () => {
   assert.equal(plan.endSeq, 3)
   assert.equal(plan.tail, 2)
   assert.equal(plan.hidden, 3)
+  assert.equal(plan.human, 2, '只有用户自己发的两条算进去')
 
   // 只能撤用户消息。
   await assert.rejects(rewind.plan({ sessionId: 's1', seq: 2 }), /只能回撤到用户消息/)
