@@ -118,3 +118,16 @@ test('borders stay hairline, like the host controls', async () => {
   assert.ok(text.includes('border-radius: var(--dsw-radius-xs); border: .5px solid'), 'the row checkbox keeps its square 4px corner')
   assert.ok(text.includes('outline: var(--dsw-focus-ring-width) solid'), 'focus rings use the host tokens')
 })
+
+test('the workspace checkbox selects only the chats the filter shows', async () => {
+  const text = await source()
+  const start = text.indexOf('const renderGroup = (group)')
+  assert.notEqual(start, -1, 'renderGroup exists')
+  const group = text.slice(start, text.indexOf('\n      return h(', start))
+  assert.ok(group.includes('const selectable = shown.map((row) => row.id)'), 'the selection scope is derived from the filtered rows')
+  assert.ok(group.includes('!selectable.includes(id)'), 'deselecting uses the visible set')
+  assert.ok(group.includes('[...new Set([...current, ...selectable])]'), 'selecting uses the visible set')
+  assert.equal(group.includes('!ids.includes(id)'), false, 'the hidden rows are not part of the checkbox')
+  assert.ok(group.includes('String(shown.length)'), 'the header count matches what the list shows')
+  assert.ok(group.includes('ask({ ids, workspace: group })'), 'deleting the whole workspace still passes every id it owns')
+})

@@ -2488,8 +2488,11 @@ window.__ModuleLoader__.load({
         const isCollapsed = collapsed.includes(group.id)
         const ids = group.rows.map((row) => row.id)
         const shown = group.rows.filter((row) => visibleIds.has(row.id))
-        const picked = ids.filter((id) => selected.includes(id)).length
-        const allPicked = ids.length > 0 && picked === ids.length
+        // 勾选范围跟着当前筛选走：在「已归档」里点工作区，选中的只能是看得到的那些；
+        // 删除工作区仍然用全部 ids，那是整组连同目录一起删，另有确认和目录校验。
+        const selectable = shown.map((row) => row.id)
+        const picked = selectable.filter((id) => selected.includes(id)).length
+        const allPicked = selectable.length > 0 && picked === selectable.length
         const roots = shown.filter((row) => !row.parentSession || !shown.some((candidate) => candidate.id === row.parentSession))
         return h(
           'section',
@@ -2505,7 +2508,7 @@ window.__ModuleLoader__.load({
                 role: 'checkbox',
                 'aria-checked': allPicked ? 'true' : picked > 0 ? 'mixed' : 'false',
                 'aria-label': `${t('cSelectWorkspace')} ${group.title}`,
-                onClick: () => setSelected((current) => (allPicked ? current.filter((id) => !ids.includes(id)) : [...new Set([...current, ...ids])])),
+                onClick: () => setSelected((current) => (allPicked ? current.filter((id) => !selectable.includes(id)) : [...new Set([...current, ...selectable])])),
               },
               allPicked ? h(CheckIcon, { width: 11, height: 11 }) : null,
             ),
@@ -2521,7 +2524,7 @@ window.__ModuleLoader__.load({
               h(isCollapsed ? ChevronRightIcon : ChevronDownIcon, { width: 14, height: 14 }),
               h(FolderIcon, { width: 15, height: 15 }),
               h('span', { className: 'yk-wsTitle' }, group.title),
-              h('span', { className: 'yk-wsCount' }, String(group.rows.length)),
+              h('span', { className: 'yk-wsCount' }, String(shown.length)),
               group.path ? h('span', { className: 'yk-wsPath', title: group.path }, group.path) : null,
             ),
             group.path
