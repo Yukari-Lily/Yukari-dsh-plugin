@@ -75,7 +75,7 @@ test('planCut leaves the target in place and takes everything after it', () => {
 
 test('cutsOf reads the spans back out of the log', () => {
   const events = [appended(0, 'system/message'), appended(1), appended(2), replacement(3, 2, 2)]
-  assert.deepEqual(cutsOf(events), [{ start: 2, target: 2, marker: 3 }])
+  assert.deepEqual(cutsOf(events), [{ start: 2, target: 2, marker: 3, ids: [] }])
   // 普通用户消息不会被当成标记。
   assert.deepEqual(cutsOf([appended(0, 'system/message'), appended(1)]), [])
 })
@@ -182,7 +182,7 @@ test('plan and apply run against a fake session', async () => {
   assert.deepEqual(events[4].sourceEventSeqs, [2, 3])
   // 目标消息留在 surface 上，标记收在它后面。
   assert.deepEqual(surfaceNodes(events), [0, 1, 4])
-  assert.deepEqual(await rewind.cuts('s1'), [{ start: 2, target: 2, marker: 4 }])
+  assert.deepEqual(await rewind.cuts('s1'), [{ start: 2, target: 2, marker: 4, ids: [] }])
 
   await assert.rejects(rewind.plan({ sessionId: 's1', seq: 3 }), /已经不在当前对话里/)
   await fs.rm(root, { recursive: true, force: true })

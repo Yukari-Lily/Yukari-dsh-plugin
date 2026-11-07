@@ -5793,33 +5793,85 @@ window.__ModuleLoader__.load({
     const rewindRetries = new Map()
     /** 被我们隐藏过的行 → 原来的 display，取消回撤或卸载时还原。 */
     const rewindHidden = new Map()
+    /** 已挂载的回撤按钮根元素：隐藏时从它们反查所属的会话容器。 */
+    const rewindRoots = new Set()
     /** 当前安装的清理函数。 */
     let rewindTeardown = null
 
-    /** 按区间隐藏 flow item：未打序号的行跟随上一条打过的行（同一轮）。 */
+    /**
+     * 按区间隐藏 flow item。
+     *
+     * 先用区间里的消息 id 去匹配行（`data-chat-node-key` 以 id 结尾），命中就从第一个
+     * 命中的行隐藏到最后一个；命中不到时退回按序号打标（未打标的行跟随上一条）。
+     * 作用域取自按钮自己所在的会话容器——页面上可能同时挂着多个会话容器。
+     * @returns `{ rows, tagged, hidden }`，用于界面与控制台核对。
+     */
     function applyRewindHiding() {
-      for (const [sessionId, cuts] of rewindCuts) {
-        const scope = document.querySelector(`[data-conversation-session="${sessionId}"]`)
-        if (scope === null) continue
-        let effective = Number.NEGATIVE_INFINITY
-        for (const row of scope.querySelectorAll('[data-chat-flow-key]')) {
-          const tag = row.getAttribute(REWIND_ATTR)
-          if (tag !== null) {
-            const seq = Number(tag.slice(tag.lastIndexOf(':') + 1))
-            if (Number.isSafeInteger(seq)) effective = seq
+      const scopes = new Set()
+      for (const root of rewindRoots) {
+        const scope = root.closest?.('[data-conversation-session]')
+        if (scope !== null && scope !== undefined) scopes.add(scope)
+      }
+      let rows = 0
+      let tagged = 0
+      let hidden = 0
+      for (const scope of scopes) {
+        const sessionId = scope.getAttribute('data-conversation-session') ?? ''
+        const cuts = rewindCuts.get(sessionId) ?? []
+        const list = [...scope.querySelectorAll('[data-chat-flow-key]')]
+        rows += list.length
+        const wanted = new Set()
+        for (const cut of cuts) {
+          const ids = Array.isArray(cut.ids) ? cut.ids : []
+          const hits = []
+          if (ids.length > 0) {
+            list.forEach((row, index) => {
+              const key = row.getAttribute('data-chat-node-key') ?? ''
+              if (key !== '' && ids.some((id) => key.endsWith(id))) hits.push(index)
+            })
           }
-          const hidden = cuts.some((cut) => effective >= (cut.start ?? cut.target) && effective <= cut.marker)
-          const known = rewindHidden.has(row)
-          if (hidden === known) continue
-          if (hidden) {
-            rewindHidden.set(row, row.style.display)
-            row.style.display = 'none'
-          } else {
+          if (hits.length > 0) {
+            // 命中之后，一直隐藏到"下一条属于本次回撤之后"的已打标行为止——
+            // 结尾的助手/工具行没有 id 可匹配，靠这条边界才收得干净。
+            let end = list.length - 1
+            for (let index = hits[0]; index < list.length; index += 1) {
+              const tag = list[index].getAttribute(REWIND_ATTR)
+              if (tag === null) continue
+              const seq = Number(tag.slice(tag.lastIndexOf(':') + 1))
+              if (Number.isSafeInteger(seq) && seq > cut.marker) {
+                end = index - 1
+                break
+              }
+            }
+            for (let index = hits[0]; index <= end; index += 1) wanted.add(list[index])
+            continue
+          }
+          let effective = Number.NEGATIVE_INFINITY
+          for (const row of list) {
+            const tag = row.getAttribute(REWIND_ATTR)
+            if (tag !== null) {
+              const seq = Number(tag.slice(tag.lastIndexOf(':') + 1))
+              if (Number.isSafeInteger(seq)) effective = seq
+            }
+            if (effective >= (cut.start ?? cut.target) && effective <= cut.marker) wanted.add(row)
+          }
+        }
+        for (const row of list) {
+          if (row.getAttribute(REWIND_ATTR) !== null) tagged += 1
+          const should = wanted.has(row)
+          if (should) {
+            if (row.style.display !== 'none') {
+              if (!rewindHidden.has(row)) rewindHidden.set(row, row.style.display)
+              row.style.display = 'none'
+            }
+            hidden += 1
+          } else if (row.style.display === 'none' && rewindHidden.has(row)) {
             row.style.display = rewindHidden.get(row) ?? ''
             rewindHidden.delete(row)
           }
         }
       }
+      return { rows, tagged, hidden }
     }
 
     /** 还原所有被隐藏的行。 */
@@ -5859,6 +5911,7 @@ window.__ModuleLoader__.load({
       const [plan, setPlan] = React.useState(null)
       const [failure, setFailure] = React.useState('')
       const [placement, setPlacement] = React.useState(null)
+      const [done, setDone] = React.useState('')
       const rootRef = React.useRef(null)
 
       const sessionOf = () => rootRef.current?.closest('[data-conversation-session]')?.getAttribute('data-conversation-session') ?? ''
@@ -5880,13 +5933,17 @@ window.__ModuleLoader__.load({
 
       // 行内打上会话与序号，隐藏逻辑靠它对齐区间。
       React.useEffect(() => {
+        const element = rootRef.current
+        if (element === null) return undefined
+        rewindRoots.add(element)
         const sessionId = sessionOf()
-        if (sessionId === '') return
-        const row = rootRef.current?.closest('[data-chat-flow-key]')
-        if (row === null || row === undefined) return
-        row.setAttribute(REWIND_ATTR, `${sessionId}:${seq}`)
-        loadRewindCuts(sessionId)
+        const row = element.closest('[data-chat-flow-key]')
+        if (row !== null && sessionId !== '') row.setAttribute(REWIND_ATTR, `${sessionId}:${seq}`)
+        if (sessionId !== '') loadRewindCuts(sessionId)
         applyRewindHiding()
+        return () => {
+          rewindRoots.delete(element)
+        }
       }, [seq])
 
       // 面板打开时跟随滚动与缩放重新定位，避免露出一半。
@@ -5924,9 +5981,10 @@ window.__ModuleLoader__.load({
         try {
           const payload = await postJson(`${API.rewind}/apply`, { sessionId, seq, restoreFiles: true })
           if (Array.isArray(payload.cuts)) rewindCuts.set(sessionId, payload.cuts)
-          applyRewindHiding()
-          setPhase('idle')
-          setPlan(null)
+          const stats = applyRewindHiding()
+          console.info('[yukari-rewind] 回撤完成', { sessionId, markerSeq: payload.markerSeq, cuts: payload.cuts, ...stats })
+          setDone(`已回撤 · 标记 #${payload.markerSeq} · 命中 ${stats.hidden}/${stats.rows} 行（打标 ${stats.tagged}）`)
+          setPhase('done')
         } catch (error) {
           setFailure(describe(error))
           setPhase('confirm')
@@ -5937,6 +5995,7 @@ window.__ModuleLoader__.load({
         setPhase('idle')
         setPlan(null)
         setFailure('')
+        setDone('')
       }
 
       const hint = failure !== ''
@@ -5963,6 +6022,22 @@ window.__ModuleLoader__.load({
         ),
         phase === 'idle' || placement === null
           ? null
+          : phase === 'done'
+          ? h(
+              'div',
+              {
+                className: 'yk-rewindPanel',
+                role: 'status',
+                style: {
+                  left: `${placement.left}px`,
+                  width: `${placement.width}px`,
+                  ...(placement.top === undefined ? { bottom: `${placement.bottom}px` } : { top: `${placement.top}px` }),
+                  maxHeight: `${placement.maxHeight}px`,
+                },
+              },
+              h('div', { className: 'yk-rewindHint' }, done),
+              h('div', { className: 'yk-rewindActions' }, h('button', { type: 'button', className: 'yk-rewindCancel', onClick: close }, t('close'))),
+            )
           : h(
               'div',
               {

@@ -70,18 +70,39 @@ function markerText(event) {
 }
 
 /**
+ * 一条消息事件在界面节点里的 id；界面用 `${kind.length}:${kind}${id}` 做节点 key。
+ * @param event - 任意事件。
+ * @returns 消息 id，或 null。
+ */
+export function messageIdOf(event) {
+  if (event?.type === 'user/message') return typeof event.data?.id === 'string' ? event.data.id : null
+  if (event?.type === 'assistant/message' || event?.type === 'tool/result') {
+    return typeof event.data?.message?.id === 'string' ? event.data.message.id : null
+  }
+  return null
+}
+
+/**
  * 从日志里已有的标记事件推导出每一次回撤的区间。
+ *
+ * `ids` 是被隐藏节点里的消息 id：界面按 DOM 节点 key 的后缀匹配它们，比按序号
+ * 打标记更稳（重新渲染、滚动、多容器都不会错位）。
  * @param events - 按 seq 连续排列的事件。
- * @returns `[{ start, target, marker }]`：start 是第一个被隐藏的节点（`target` 是同一
- *   个值的兼容别名，旧版客户端读的是它），marker 是标记事件。
+ * @returns `[{ start, target, marker, ids }]`：start 是第一个被隐藏的节点（`target`
+ *   是同值兼容别名），marker 是标记事件，ids 是可匹配的消息 id 列表。
  */
 export function cutsOf(events) {
+  const bySeq = new Map(events.map((event) => [event.seq, event]))
   const cuts = []
   for (const event of events) {
     if (event.type !== 'user/message' || !replaced(event)) continue
     if (markerText(event) !== MARKER_TEXT) continue
     const { startSeq } = event.surfaceOp
-    if (Number.isSafeInteger(startSeq)) cuts.push({ start: startSeq, target: startSeq, marker: event.seq })
+    if (!Number.isSafeInteger(startSeq)) continue
+    const ids = (Array.isArray(event.sourceEventSeqs) ? event.sourceEventSeqs : [])
+      .map((seq) => messageIdOf(bySeq.get(seq)))
+      .filter((id) => typeof id === 'string' && id !== '')
+    cuts.push({ start: startSeq, target: startSeq, marker: event.seq, ids })
   }
   return cuts
 }
