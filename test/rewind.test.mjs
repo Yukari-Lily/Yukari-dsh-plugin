@@ -60,7 +60,7 @@ test('surfaceNodes ignores a replacement whose range left the surface', () => {
   assert.deepEqual(surfaceNodes(events), [0, 2])
 })
 
-test('planCut leaves the target in place and takes everything after it', () => {
+test('planCut takes the target and everything after it', () => {
   const events = [
     appended(0, 'system/message'),
     appended(1),
@@ -68,8 +68,8 @@ test('planCut leaves the target in place and takes everything after it', () => {
     appended(3),
     appended(4, 'assistant/message'),
   ]
-  assert.deepEqual(planCut(events, 3), { startSeq: 4, endSeq: 4, shadowed: [4] })
-  assert.deepEqual(planCut(events, 4), { startSeq: null, endSeq: null, shadowed: [] })
+  assert.deepEqual(planCut(events, 3), { startSeq: 3, endSeq: 4, shadowed: [3, 4] })
+  assert.deepEqual(planCut(events, 4), { startSeq: 4, endSeq: 4, shadowed: [4] })
   assert.equal(planCut(events, 9), null)
 })
 
@@ -167,22 +167,21 @@ test('plan and apply run against a fake session', async () => {
   const rewind = createRewind({ ctx, store })
 
   const plan = await rewind.plan({ sessionId: 's1', seq: 1 })
-  assert.equal(plan.startSeq, 2)
+  assert.equal(plan.startSeq, 1)
   assert.equal(plan.endSeq, 3)
   assert.equal(plan.tail, 2)
-  assert.equal(plan.hidden, 2)
+  assert.equal(plan.hidden, 3)
 
-  // 只能撤用户消息；最后一条消息后面没有内容，也不做空操作。
+  // 只能撤用户消息。
   await assert.rejects(rewind.plan({ sessionId: 's1', seq: 2 }), /只能回撤到用户消息/)
-  await assert.rejects(rewind.plan({ sessionId: 's1', seq: 3 }), /之后没有内容/)
 
   const applied = await rewind.apply({ sessionId: 's1', seq: 1, restoreFiles: false })
   assert.equal(applied.markerSeq, 4)
   assert.equal(events[4].surfaceOp.op, 'replace')
-  assert.deepEqual(events[4].sourceEventSeqs, [2, 3])
-  // 目标消息留在 surface 上，标记收在它后面。
-  assert.deepEqual(surfaceNodes(events), [0, 1, 4])
-  assert.deepEqual(await rewind.cuts('s1'), [{ start: 2, target: 2, marker: 4, ids: [] }])
+  assert.deepEqual(events[4].sourceEventSeqs, [1, 2, 3])
+  // 目标消息也收起了，surface 停在标记上。
+  assert.deepEqual(surfaceNodes(events), [0, 4])
+  assert.deepEqual(await rewind.cuts('s1'), [{ start: 1, target: 1, marker: 4, ids: [] }])
 
   await assert.rejects(rewind.plan({ sessionId: 's1', seq: 3 }), /已经不在当前对话里/)
   await fs.rm(root, { recursive: true, force: true })

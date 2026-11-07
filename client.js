@@ -5765,7 +5765,10 @@ window.__ModuleLoader__.load({
     const REWIND_STYLES = `
 .yk-rewind { display: inline-flex; align-items: center; }
 /* 与宿主消息操作行里的复制按钮同尺寸、同底色：28px（跟随字号缩放）、6px 内边距。 */
-.yk-rewindBtn { appearance: none; width: calc(28px + var(--dsh-content-font-delta, 0px)); height: calc(28px + var(--dsh-content-font-delta, 0px)); padding: 6px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: var(--dsw-radius-sm); background: none; color: var(--dsw-alias-label-tertiary); cursor: pointer; }
+.yk-rewindBtn { appearance: none; position: relative; width: calc(28px + var(--dsh-content-font-delta, 0px)); height: calc(28px + var(--dsh-content-font-delta, 0px)); padding: 6px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: var(--dsw-radius-sm); background: none; color: var(--dsw-alias-label-tertiary); cursor: pointer; }
+/* 悬浮提示：用宿主 Tooltip 的同一套样式（背景 token、3px 7px 内边距、小圆角）。 */
+.yk-rewindBtn::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 60; padding: 3px 7px; border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-tooltip-bg); color: var(--dsw-static-neutral-bluish-00); font-size: 13px; line-height: 20px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 150ms var(--ds-ease-in-out); }
+.yk-rewindBtn:hover::after, .yk-rewindBtn:focus-visible::after { opacity: 1; }
 .yk-rewindBtn svg { width: calc(15px + var(--dsh-content-font-delta, 0px)); height: calc(15px + var(--dsh-content-font-delta, 0px)); }
 .yk-rewindBtn:focus-visible, .yk-rewindCancel:focus-visible, .yk-rewindGo:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
 .yk-rewindPanel { position: fixed; z-index: 40; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-layer-3); box-shadow: var(--dsw-shadow-lv3); text-align: left; }
@@ -5781,22 +5784,6 @@ window.__ModuleLoader__.load({
 .yk-rewindGo:hover:not(:disabled) { background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent); }
 .yk-rewindGo:disabled, .yk-rewindCancel:disabled { opacity: .5; cursor: default; }
 `
-
-    /** 宿主的 UI primitives；对话页的按钮要跟原生控件同一个提示气泡。 */
-    const rewindPrimitives = (() => {
-      try {
-        return require('@deepseek-ai/dsh-client-ui-primitives')
-      } catch {
-        return null
-      }
-    })()
-
-    /** 用原生提示气泡包一层；没有 primitives 时保持裸元素。 */
-    function withRewindTip(label, node) {
-      const Tooltip = rewindPrimitives?.Tooltip
-      if (typeof Tooltip !== 'function') return node
-      return h(Tooltip, { label, side: 'bottom' }, node)
-    }
 
     /** 回撤区间在 flow item 上的标记：`sessionId:seq`。 */
     const REWIND_ATTR = 'data-yk-rewind'
@@ -5890,6 +5877,29 @@ window.__ModuleLoader__.load({
       return { rows, tagged, hidden }
     }
 
+    /**
+     * 把撤下的那条消息放回输入框：只在输入框为空时回填，不覆盖已有草稿。
+     * 文本走宿主的 setDraft，图片按附件 id 走 addAttachments——都是官方输入面动作，
+     * 所以格式与附件元数据都保留。
+     * @param sessionId - 会话 id。
+     * @param content - 消息文本、图片附件 id 与输入面动作。
+     */
+    function refill(sessionId, { text, images, inputActions }) {
+      if (inputActions === undefined || inputActions === null) {
+        console.warn('[yukari-rewind] 输入面动作不可用，撤下的消息没有回填到输入框')
+        return
+      }
+      const scope = document.querySelector(`[data-conversation-session="${sessionId}"]`)
+      const composer = scope?.querySelector('[data-composer-input]')
+      if (composer !== null && composer !== undefined && composer.textContent.trim() !== '') return
+      try {
+        if (typeof text === 'string' && text !== '' && typeof inputActions.setDraft === 'function') inputActions.setDraft(text)
+        if (Array.isArray(images) && images.length > 0 && typeof inputActions.addAttachments === 'function') inputActions.addAttachments(images)
+      } catch {
+        /* 输入面锁定（正在发送）时保持原样，不阻断回撤 */
+      }
+    }
+
     /** 还原所有被隐藏的行。 */
     function releaseRewindHiding() {
       for (const [row, display] of rewindHidden) row.style.display = display
@@ -5922,12 +5932,11 @@ window.__ModuleLoader__.load({
      * `data-conversation-session` 读：隐藏逻辑本来也要按这段 DOM 对齐。
      * @param props - 文案与消息序号。
      */
-    function RewindButton({ t, seq }) {
+    function RewindButton({ t, seq, text, images, inputActions }) {
       const [phase, setPhase] = React.useState('idle')
       const [plan, setPlan] = React.useState(null)
       const [failure, setFailure] = React.useState('')
       const [placement, setPlacement] = React.useState(null)
-      const [done, setDone] = React.useState('')
       const rootRef = React.useRef(null)
 
       const sessionOf = () => rootRef.current?.closest('[data-conversation-session]')?.getAttribute('data-conversation-session') ?? ''
@@ -5998,9 +6007,10 @@ window.__ModuleLoader__.load({
           const payload = await postJson(`${API.rewind}/apply`, { sessionId, seq, restoreFiles: true })
           if (Array.isArray(payload.cuts)) rewindCuts.set(sessionId, payload.cuts)
           const stats = applyRewindHiding()
-          console.info('[yukari-rewind] 回撤完成', { sessionId, markerSeq: payload.markerSeq, cuts: payload.cuts, ...stats })
-          setDone(`已回撤 · 标记 #${payload.markerSeq} · 命中 ${stats.hidden}/${stats.rows} 行（打标 ${stats.tagged}）`)
-          setPhase('done')
+          console.info('[yukari-rewind] 回撤完成', { sessionId, markerSeq: payload.markerSeq, ...stats })
+          refill(sessionId, { text, images, inputActions })
+          setPhase('idle')
+          setPlan(null)
         } catch (error) {
           setFailure(describe(error))
           setPhase('confirm')
@@ -6011,7 +6021,6 @@ window.__ModuleLoader__.load({
         setPhase('idle')
         setPlan(null)
         setFailure('')
-        setDone('')
       }
 
       const hint = failure !== ''
@@ -6025,37 +6034,19 @@ window.__ModuleLoader__.load({
       return h(
         'span',
         { className: 'yk-rewind', ref: rootRef },
-        withRewindTip(
-          t('rwButton'),
-          h(
-            'button',
-            {
-              type: 'button',
-              className: 'yk-rewindBtn',
-              'aria-label': t('rwButton'),
-              onClick: phase === 'idle' ? open : close,
-            },
-            h(RewindIcon),
-          ),
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'yk-rewindBtn',
+            'data-tip': t('rwButton'),
+            'aria-label': t('rwButton'),
+            onClick: phase === 'idle' ? open : close,
+          },
+          h(RewindIcon),
         ),
         phase === 'idle' || placement === null
           ? null
-          : phase === 'done'
-          ? h(
-              'div',
-              {
-                className: 'yk-rewindPanel',
-                role: 'status',
-                style: {
-                  left: `${placement.left}px`,
-                  width: `${placement.width}px`,
-                  ...(placement.top === undefined ? { bottom: `${placement.bottom}px` } : { top: `${placement.top}px` }),
-                  maxHeight: `${placement.maxHeight}px`,
-                },
-              },
-              h('div', { className: 'yk-rewindHint' }, done),
-              h('div', { className: 'yk-rewindActions' }, h('button', { type: 'button', className: 'yk-rewindCancel', onClick: close }, t('close'))),
-            )
           : h(
               'div',
               {
@@ -6112,7 +6103,12 @@ window.__ModuleLoader__.load({
             const actionsRow = buildActions(value)
             if (!React.isValidElement(actionsRow)) return actionsRow
             try {
-              const button = h(RewindButton, { key: 'yk-rewind', t, seq: data.seq, text: typeof value === 'string' ? value : '' })
+              const content = Array.isArray(data.content) ? data.content : []
+              const text = content.map((block) => (block?.type === 'text' && typeof block.text === 'string' ? block.text : '')).join('')
+              const images = content
+                .filter((block) => block?.type === 'image' && typeof block.attachment?.attachmentId === 'string')
+                .map((block) => block.attachment.attachmentId)
+              const button = h(RewindButton, { key: 'yk-rewind', t, seq: data.seq, text, images, inputActions: props.inputActions })
               const existing = actionsRow.props?.extraActions
               return React.cloneElement(actionsRow, { extraActions: h(React.Fragment, null, existing, button) })
             } catch {

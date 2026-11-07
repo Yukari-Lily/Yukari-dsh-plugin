@@ -47,8 +47,8 @@ export function surfaceNodes(events) {
 /**
  * 计算回撤到某条消息时要替换掉的 surface 区间。
  *
- * 目标消息留在对话里（它的图片、格式、@引用都还在），被替换的是它**之后**的
- * 所有 surface 节点；没有后继节点时 `shadowed` 为空。
+ * 目标消息本身也在区间里：它从对话中收起，内容回到输入框（图片按附件 id 一起带
+ * 回去）。区间一直取到 surface 末尾。
  * @param events - 按 seq 连续排列的事件。
  * @param targetSeq - 目标用户消息的序号。
  * @returns `{ startSeq, endSeq, shadowed }`，目标不在 surface 上时返回 null。
@@ -57,8 +57,8 @@ export function planCut(events, targetSeq) {
   const nodes = surfaceNodes(events)
   const index = nodes.indexOf(targetSeq)
   if (index === -1) return null
-  const shadowed = nodes.slice(index + 1)
-  return { startSeq: shadowed[0] ?? null, endSeq: shadowed[shadowed.length - 1] ?? null, shadowed }
+  const shadowed = nodes.slice(index)
+  return { startSeq: targetSeq, endSeq: shadowed[shadowed.length - 1], shadowed }
 }
 
 /** 一条标记事件的正文。 */
