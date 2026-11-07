@@ -154,3 +154,36 @@ test('a rewound span is hidden in the transcript, never deleted', async () => {
   assert.ok(text.includes('const REWIND_STYLES'), 'the action ships its own stylesheet')
   assert.ok(text.includes("style.setAttribute('data-yk-rewind', '')"), 'the stylesheet is injected on install')
 })
+
+test('the rewind action uses host overlays and hides its internal marker', async () => {
+  const text = await source()
+  assert.ok(text.includes("const primitives = require('@deepseek-ai/dsh-client-ui-primitives')"), 'the native tooltip is available')
+  assert.ok(text.includes("const ReactDOM = require('react-dom')"), 'the confirmation can leave the clipped actions row')
+  assert.ok(text.includes('const Tooltip = primitives.Tooltip'), 'the tooltip is the host component, not a pseudo-element imitation')
+  assert.ok(text.includes('ReactDOM.createPortal('), 'the confirmation is portalled to document.body')
+  assert.ok(text.includes("blocks.length === 1 && blocks[0]?.type === 'text' && blocks[0].text === MARKER_TEXT"), 'the marker is recognized by shape and content')
+  assert.ok(text.includes('blocks[0].text === MARKER_TEXT) return null'), 'the marker renders no bubble or action without deleting its log event')
+  assert.equal(text.includes('.yk-rewindBtn::after'), false, 'no clipped pseudo-element tooltip remains')
+  assert.ok(text.includes('.yk-rewindBtn:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-secondary); }'), 'hover matches the native copy action')
+})
+
+test('panel controls keep one scale at every nesting level', async () => {
+  const text = await source()
+  const rule = (selector) => {
+    const match = new RegExp(`^${selector.replaceAll('.', '\\.')} \\{([^}]*)\\}`, 'm').exec(text)
+    assert.notEqual(match, null, `${selector} exists`)
+    return match[1]
+  }
+  assert.ok(rule('.yk-btn-sm').includes('font-size: 13px'), 'small buttons use body-sized text')
+  assert.equal(text.includes('.yk-childWrap .yk-check { width: 13px; height: 13px; }'), false, 'nested checkboxes stay 16px')
+  assert.equal(text.includes('.yk-childWrap .yk-btn.yk-iconBtn { width: 26px; min-height: 26px; }'), false, 'nested icon buttons stay 28px')
+  assert.ok(
+    /^\.yk-option input, \.yk-itemMain-row input\[type="checkbox"\] \{ flex: none; width: 16px; height: 16px;/m.test(text),
+    'native checkbox options use the same 16px square control',
+  )
+  assert.ok(text.includes('container-type: inline-size'), 'layout responds to the sidebar width')
+  assert.ok(text.includes('@container (max-width: 720px)'), 'desktop windows with a narrow sidebar still collapse')
+  assert.ok(rule('.yk-tabPanel, .yk-body').includes('gap: 20px'), 'sections use the shared 20px gap')
+  assert.equal(text.includes('min-height: 30px'), false, 'no half-step button height remains')
+  assert.equal(text.includes('border: 1px dashed'), false, 'dashed outlines are hairlines too')
+})

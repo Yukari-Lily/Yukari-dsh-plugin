@@ -63,6 +63,20 @@ test('the browser row carries no eager provisioning flag of its own', async () =
   assert.match(block, /sandbox: auto/u)
 })
 
+test('the web client declares every module it requires at runtime', async () => {
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  const inject = pkg.dsh?.client?.inject ?? []
+  const text = await readFile(new URL('../client.js', import.meta.url), 'utf8')
+  const required = [...text.matchAll(/require\('(@deepseek-ai\/[^']+)'\)/g)].map((match) => match[1])
+  assert.ok(required.includes('@deepseek-ai/dsh-client-ui-primitives'), 'the panel uses the host primitives')
+  // 基础模块（react、react-dom）由宿主直接提供；其余必须写进 inject，否则运行时解析失败。
+  const basic = new Set(['react', 'react-dom'])
+  for (const name of required) {
+    if (basic.has(name)) continue
+    assert.ok(inject.includes(name), `${name} is required but not injected`)
+  }
+})
+
 test('every component row resolves to a package export', async () => {
   const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
   for (const name of ['chats', 'sites', 'files', 'rules', 'presets', 'proxy', 'github', 'purge', 'browser', 'runtime']) {
@@ -79,7 +93,7 @@ const TAB_NAMES = {
   rules: '约束',
   presets: '预设',
   proxy: '代理',
-  github: 'Github',
+  github: 'GitHub',
   purge: '无限制模式',
   browser: '无头浏览器',
   runtime: '状态',

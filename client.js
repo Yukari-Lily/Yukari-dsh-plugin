@@ -2,7 +2,11 @@ window.__ModuleLoader__.load({
   id: 'yukari-dsh-plugin',
   factory(require) {
     const React = require('react')
+    const ReactDOM = require('react-dom')
+    const primitives = require('@deepseek-ai/dsh-client-ui-primitives')
     const h = React.createElement
+    // 旧宿主没有 Tooltip：按钮照常工作，只少一条提示。
+    const Tooltip = primitives.Tooltip ?? (({ children }) => children)
 
     /** Locale namespace of the merged panel. */
     const NS = 'yukari'
@@ -960,6 +964,7 @@ window.__ModuleLoader__.load({
   overflow-y: auto; overflow-x: hidden;
   color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-base);
   font-size: 14px; line-height: 1.5; scrollbar-gutter: stable;
+  container-type: inline-size;
   -webkit-font-smoothing: antialiased;
 }
 .yk-page *, .yk-page *::before, .yk-page *::after { box-sizing: border-box; }
@@ -980,7 +985,7 @@ window.__ModuleLoader__.load({
 .yk-navTab:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
 .yk-navTab[aria-selected="true"] { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-active); }
 .yk-navTab:focus-visible, .yk-btn:focus-visible, .yk-cardAction:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
-.yk-tabPanel, .yk-body { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.yk-tabPanel, .yk-body { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .yk-subpageHead { display: flex; align-items: flex-start; gap: 10px; min-width: 0; padding: 2px 0 4px; }
 .yk-backBtn { flex: none; margin-left: -8px; }
 .yk-subpageTitle { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding-top: 5px; }
@@ -998,7 +1003,7 @@ window.__ModuleLoader__.load({
 .yk-btn-solid:hover:not(:disabled) { background: var(--dsw-alias-button-primary-hover); border-color: transparent; }
 .yk-btn-danger { color: var(--dsw-alias-state-error-primary); border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 30%, transparent); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent); }
 .yk-btn-ghost { border-color: transparent; background: transparent; color: var(--dsw-alias-label-secondary); }
-.yk-btn-sm { min-height: 28px; padding: 0 10px; font-size: 12px; }
+.yk-btn-sm { min-height: 28px; padding: 0 10px; font-size: 13px; }
 .yk-iconBtn { width: 32px; padding: 0; flex: none; }
 .yk-iconBtn.yk-btn-sm { width: 28px; }
 .yk-dangerHover:hover:not(:disabled) { color: var(--dsw-alias-state-error-primary); }
@@ -1013,7 +1018,7 @@ window.__ModuleLoader__.load({
 .yk-chip-toggle:hover:not(:disabled) { border-color: var(--dsw-alias-border-l3); color: var(--dsw-alias-label-primary); }
 .yk-chip-toggle[aria-pressed="true"] { border-color: color-mix(in srgb, var(--yk-accent) 45%, transparent); background: color-mix(in srgb, var(--yk-accent) 9%, transparent); color: var(--dsw-alias-label-primary); }
 .yk-chip-toggle[aria-pressed="true"] .yk-chip-dot { background: var(--yk-accent); }
-.yk-chip-toggle[aria-pressed="false"] .yk-chip-dot { background: transparent; box-shadow: inset 0 0 0 1px currentColor; }
+.yk-chip-toggle[aria-pressed="false"] .yk-chip-dot { background: transparent; box-shadow: inset 0 0 0 .5px currentColor; }
 .yk-chip-toggle:disabled { opacity: .5; cursor: default; }
 .yk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .yk-card { background: var(--dsw-alias-bg-base); border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-lg); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
@@ -1073,9 +1078,6 @@ window.__ModuleLoader__.load({
 .yk-childWrap .yk-item { padding: 4px 8px; gap: 8px; border-radius: var(--dsw-radius-sm); }
 .yk-childWrap .yk-itemTitle { font-size: 12px; }
 .yk-childWrap .yk-itemMeta { font-size: 11px; gap: 4px 8px; }
-.yk-childWrap .yk-check { width: 13px; height: 13px; }
-.yk-childWrap .yk-chip { font-size: 11px; min-height: 18px; padding: 0 6px; }
-.yk-childWrap .yk-btn.yk-iconBtn { width: 26px; min-height: 26px; }
 .yk-childWrap .yk-itemActions { opacity: .6; transition: opacity var(--ds-transition-duration) var(--ds-ease-in-out); }
 .yk-childWrap .yk-item:hover .yk-itemActions, .yk-childWrap .yk-itemActions:focus-within { opacity: 1; }
 .yk-check-locked { opacity: .45; cursor: default; }
@@ -1133,7 +1135,7 @@ window.__ModuleLoader__.load({
 .yk-presetRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-md); }
 .yk-presetRowHead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 0; }
 .yk-presetRowName { font-family: var(--dsw-font-mono, monospace); font-size: 12px; overflow-wrap: anywhere; }
-.yk-customRow { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px dashed var(--yk-line); border-radius: var(--dsw-radius-md); }
+.yk-customRow { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: .5px dashed var(--yk-line); border-radius: var(--dsw-radius-md); }
 .yk-confirmWrap { padding-left: 12px; }
 .yk-footError { color: var(--dsw-alias-state-error-primary); }
 .yk-outTall { max-height: 46vh; }
@@ -1158,7 +1160,8 @@ window.__ModuleLoader__.load({
 .yk-confirmActions { display: flex; gap: 8px; }
 .yk-options { display: flex; flex-direction: column; gap: 8px; }
 .yk-option { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 13px; }
-.yk-option input { margin: 3px 0 0; accent-color: var(--yk-accent); }
+.yk-option input, .yk-itemMain-row input[type="checkbox"] { flex: none; width: 16px; height: 16px; margin: 3px 0 0; border-radius: var(--dsw-radius-xs); accent-color: var(--yk-accent); }
+.yk-itemMain-row input[type="checkbox"] { margin-top: 0; }
 .yk-option-danger { color: var(--dsw-alias-state-error-primary); }
 .yk-optionText { display: flex; flex-direction: column; gap: 2px; }
 .yk-optionHint { font-size: 12px; color: var(--yk-muted); }
@@ -1173,7 +1176,7 @@ window.__ModuleLoader__.load({
 .yk-mono { font-family: var(--ds-font-family-code, var(--dsw-font-mono, monospace)); }
 .yk-out { margin: 0; padding: 10px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-layer-3); color: var(--dsw-alias-label-secondary); font: 11px/1.5 var(--dsw-font-mono, monospace); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow: auto; }
 .yk-update, .yk-updatePill { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
-.yk-updatePill { appearance: none; font: inherit; min-height: 30px; padding: 0 10px; border-radius: var(--dsw-radius-md); font-size: 12px; border: .5px solid var(--yk-line); background: transparent; color: var(--dsw-alias-label-secondary); }
+.yk-updatePill { appearance: none; font: inherit; min-height: 32px; padding: 0 10px; border-radius: var(--dsw-radius-md); font-size: 12px; border: .5px solid var(--yk-line); background: transparent; color: var(--dsw-alias-label-secondary); }
 .yk-updatePill-click { cursor: pointer; }
 .yk-updatePill-click:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
 .yk-updateText { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px; }
@@ -1193,8 +1196,8 @@ window.__ModuleLoader__.load({
 .yk-progressBar { height: 100%; border-radius: inherit; background: var(--yk-accent); transition: width .2s; }
 .yk-spin { animation: yk-spin 1s linear infinite; }
 @keyframes yk-spin { to { transform: rotate(360deg); } }
-@media(max-width: 720px) { .yk-page { padding-inline: 14px; } .yk-serviceGrid, .yk-grid { grid-template-columns: 1fr; } .yk-settingRow { grid-template-columns: 1fr auto; } .yk-settingLabel { grid-column: 1 / -1; } .yk-rows-2col { grid-template-columns: 1fr; } .yk-updateText { max-width: 200px; } }
-@media(max-width: 480px) { .yk-form { grid-template-columns: 1fr; } .yk-navTab { padding-inline: 10px; } .yk-navTab svg { display: none; } .yk-btnLabel, .yk-wsPath { display: none; } .yk-importBox { flex-direction: column; align-items: stretch; } .yk-itemActions { flex-wrap: wrap; justify-content: flex-end; } .yk-head { align-items: flex-start; } .yk-updateText { max-width: 150px; } }
+@container (max-width: 720px) { .yk-serviceGrid, .yk-grid { grid-template-columns: 1fr; } .yk-settingRow { grid-template-columns: 1fr auto; } .yk-settingLabel { grid-column: 1 / -1; } .yk-rows-2col { grid-template-columns: 1fr; } .yk-updateText { max-width: 200px; } }
+@container (max-width: 480px) { .yk-form { grid-template-columns: 1fr; } .yk-navTab { padding-inline: 10px; } .yk-navTab svg { display: none; } .yk-btnLabel, .yk-wsPath { display: none; } .yk-importBox { flex-direction: column; align-items: stretch; } .yk-itemActions { flex-wrap: wrap; justify-content: flex-end; } .yk-head { align-items: flex-start; } .yk-updateText { max-width: 150px; } }
 @media(prefers-reduced-motion: reduce) { .yk-page * { animation: none !important; transition: none !important; } }
 `
 
@@ -1511,7 +1514,7 @@ window.__ModuleLoader__.load({
         ],
         props,
       )
-    /** Github: a branch with a commit, distinct from the proxy route. */
+    /** GitHub: a branch with a commit, distinct from the proxy route. */
     const GithubIcon = (props) =>
       glyph(
         [
@@ -2030,7 +2033,6 @@ window.__ModuleLoader__.load({
       return h(
         'div',
         { className: 'yk-body' },
-        h(Failure, { t, name: 'overview', error: failure, onRetry: load }),
         h(
           'div',
           { className: 'yk-toolbar' },
@@ -2038,6 +2040,7 @@ window.__ModuleLoader__.load({
           h('span', { className: 'yk-grow' }),
           h(RefreshButton, { t, onClick: load, spinning: busy }),
         ),
+        h(Failure, { t, name: 'overview', error: failure, onRetry: load }),
         state === null && busy
           ? h(Loading, { text: t('loading') })
           : h(
@@ -5759,31 +5762,31 @@ window.__ModuleLoader__.load({
     /* --------------------------------------------------------------- rewind */
 
     /**
-     * 回撤自己的样式。对话页不加载面板，所以这组规则在安装时注入 `<head>`，
-     * 只用宿主 token 和本组件自己的类名，不依赖面板里的 `.yk-btn` 等规则。
+     * 回撤自己的样式。对话页不加载面板，所以这组规则在安装时注入 `<head>`。
+     * Tooltip 使用宿主组件，按钮尺寸与悬停状态逐字对齐消息操作行。
      */
     const REWIND_STYLES = `
 .yk-rewind { display: inline-flex; align-items: center; }
-/* 与宿主消息操作行里的复制按钮同尺寸、同底色：28px（跟随字号缩放）、6px 内边距。 */
-.yk-rewindBtn { appearance: none; position: relative; width: calc(28px + var(--dsh-content-font-delta, 0px)); height: calc(28px + var(--dsh-content-font-delta, 0px)); padding: 6px; display: inline-flex; align-items: center; justify-content: center; border: none; border-radius: var(--dsw-radius-sm); background: none; color: var(--dsw-alias-label-tertiary); cursor: pointer; }
-/* 悬浮提示：用宿主 Tooltip 的同一套样式（背景 token、3px 7px 内边距、小圆角）。 */
-.yk-rewindBtn::after { content: attr(data-tip); position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 60; padding: 3px 7px; border-radius: var(--dsw-radius-sm); background: var(--dsw-alias-tooltip-bg); color: var(--dsw-static-neutral-bluish-00); font-size: 13px; line-height: 20px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 150ms var(--ds-ease-in-out); }
-.yk-rewindBtn:hover::after, .yk-rewindBtn:focus-visible::after { opacity: 1; }
+.yk-rewindBtn { appearance: none; width: calc(28px + var(--dsh-content-font-delta, 0px)); height: calc(28px + var(--dsh-content-font-delta, 0px)); border-radius: var(--dsw-radius-sm); color: var(--dsw-alias-label-tertiary); cursor: pointer; background: none; border: none; justify-content: center; align-items: center; padding: 6px; display: inline-flex; }
 .yk-rewindBtn svg { width: calc(15px + var(--dsh-content-font-delta, 0px)); height: calc(15px + var(--dsh-content-font-delta, 0px)); }
+@media (hover: hover) { .yk-rewindBtn:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-secondary); } }
 .yk-rewindBtn:focus-visible, .yk-rewindCancel:focus-visible, .yk-rewindGo:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
-.yk-rewindPanel { position: fixed; z-index: 40; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-layer-3); box-shadow: var(--dsw-shadow-lv3); text-align: left; }
-.yk-rewindTitle { font-size: 13px; font-weight: 600; color: var(--dsw-alias-label-primary); }
-.yk-rewindHint { font-size: 12px; line-height: 1.5; color: var(--dsw-alias-label-secondary); }
+.yk-rewindPanel { position: fixed; z-index: 100; box-sizing: border-box; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-layer-3); box-shadow: var(--dsw-shadow-lv3); color: var(--dsw-alias-label-primary); font-family: var(--dsw-font-family); font-size: 13px; line-height: 1.5; text-align: left; }
+.yk-rewindPanel *, .yk-rewindPanel *::before, .yk-rewindPanel *::after { box-sizing: border-box; }
+.yk-rewindTitle { font-size: 14px; font-weight: 600; color: var(--dsw-alias-label-primary); }
+.yk-rewindHint { font-size: 12px; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
 .yk-rewindError { color: var(--dsw-alias-state-error-primary); }
-.yk-rewindOption { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--dsw-alias-label-secondary); cursor: pointer; }
-.yk-rewindOption input { width: 16px; height: 16px; margin: 0; border-radius: var(--dsw-radius-xs); accent-color: var(--dsw-alias-state-business-primary); }
-.yk-rewindActions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
-.yk-rewindCancel, .yk-rewindGo { appearance: none; min-height: 28px; padding: 0 10px; border: .5px solid transparent; border-radius: var(--dsw-radius-md); background: transparent; font: inherit; font-size: 12px; color: var(--dsw-alias-label-secondary); cursor: pointer; }
-.yk-rewindCancel:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
-.yk-rewindGo { color: var(--dsw-alias-state-error-primary); font-weight: 600; }
-.yk-rewindGo:hover:not(:disabled) { background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent); }
-.yk-rewindGo:disabled, .yk-rewindCancel:disabled { opacity: .5; cursor: default; }
+.yk-rewindActions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 4px; }
+.yk-rewindCancel, .yk-rewindGo { appearance: none; min-height: 28px; padding: 0 10px; border: .5px solid transparent; border-radius: var(--dsw-radius-md); background: transparent; font: inherit; font-size: 13px; color: var(--dsw-alias-label-secondary); cursor: pointer; transition: background var(--ds-transition-duration) var(--ds-ease-in-out), color var(--ds-transition-duration) var(--ds-ease-in-out); }
+.yk-rewindCancel:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
+.yk-rewindGo { color: var(--dsw-alias-state-error-primary); font-weight: 600; background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent); }
+.yk-rewindGo:hover:not(:disabled) { background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 14%, transparent); }
+.yk-rewindGo:disabled, .yk-rewindCancel:disabled { opacity: .45; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .yk-rewindPanel * { transition: none !important; } }
 `
+
+    /** 标记与用户消息保持同构，避免把 "(empty message)" 当成真实对话渲染。 */
+    const MARKER_TEXT = '(empty message)'
 
     /** 回撤区间在 flow item 上的标记：`sessionId:seq`。 */
     const REWIND_ATTR = 'data-yk-rewind'
@@ -5939,12 +5942,16 @@ window.__ModuleLoader__.load({
       const [placement, setPlacement] = React.useState(null)
       const [tail, setTail] = React.useState(0)
       const rootRef = React.useRef(null)
+      const buttonRef = React.useRef(null)
+      const panelRef = React.useRef(null)
+      const mountedRef = React.useRef(true)
+      React.useEffect(() => () => { mountedRef.current = false }, [])
 
       const sessionOf = () => rootRef.current?.closest('[data-conversation-session]')?.getAttribute('data-conversation-session') ?? ''
 
       /** 面板贴着按钮放：下方放不下就翻到上方，左右夹在视口内。 */
       const place = () => {
-        const rect = rootRef.current?.getBoundingClientRect()
+        const rect = buttonRef.current?.getBoundingClientRect()
         if (rect === undefined) return
         const width = Math.min(268, window.innerWidth - 16)
         const left = Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8)
@@ -5977,11 +5984,29 @@ window.__ModuleLoader__.load({
         if (phase === 'idle') return undefined
         place()
         const update = () => place()
+        const pointerDown = (event) => {
+          if (rootRef.current?.contains(event.target) || panelRef.current?.contains(event.target)) return
+          setPhase('idle')
+          setPlan(null)
+          setFailure('')
+        }
+        const keyDown = (event) => {
+          if (event.key === 'Escape') {
+            setPhase('idle')
+            setPlan(null)
+            setFailure('')
+            buttonRef.current?.focus()
+          }
+        }
         window.addEventListener('scroll', update, true)
         window.addEventListener('resize', update)
+        document.addEventListener('pointerdown', pointerDown)
+        document.addEventListener('keydown', keyDown)
         return () => {
           window.removeEventListener('scroll', update, true)
           window.removeEventListener('resize', update)
+          document.removeEventListener('pointerdown', pointerDown)
+          document.removeEventListener('keydown', keyDown)
         }
       }, [phase])
 
@@ -6005,9 +6030,9 @@ window.__ModuleLoader__.load({
         setPhase('confirm')
         try {
           const payload = await postJson(`${API.rewind}/plan`, { sessionId: sessionOf(), seq })
-          setPlan(payload)
+          if (mountedRef.current) setPlan(payload)
         } catch (error) {
-          setFailure(describe(error))
+          if (mountedRef.current) setFailure(describe(error))
         }
       }
 
@@ -6049,31 +6074,38 @@ window.__ModuleLoader__.load({
         'span',
         { className: 'yk-rewind', ref: rootRef },
         h(
-          'button',
-          {
-            type: 'button',
-            className: 'yk-rewindBtn',
-            'data-tip': t('rwButton'),
-            'aria-label': t('rwButton'),
-            onClick: phase === 'idle' ? open : close,
-          },
-          h(RewindIcon),
+          Tooltip,
+          { label: t('rwButton'), side: 'bottom', portal: true },
+          h(
+            'button',
+            {
+              ref: buttonRef,
+              type: 'button',
+              className: 'yk-rewindBtn',
+              'aria-label': t('rwButton'),
+              'aria-expanded': phase !== 'idle' ? 'true' : 'false',
+              onClick: phase === 'idle' ? open : close,
+            },
+            h(RewindIcon),
+          ),
         ),
         phase === 'idle' || placement === null
           ? null
-          : h(
-              'div',
-              {
-                className: 'yk-rewindPanel',
-                role: 'alertdialog',
-                'aria-label': t('rwTitle'),
-                style: {
-                  left: `${placement.left}px`,
-                  width: `${placement.width}px`,
-                  ...(placement.top === undefined ? { bottom: `${placement.bottom}px` } : { top: `${placement.top}px` }),
-                  maxHeight: `${placement.maxHeight}px`,
+          : ReactDOM.createPortal(
+              h(
+                'div',
+                {
+                  ref: panelRef,
+                  className: 'yk-rewindPanel',
+                  role: 'alertdialog',
+                  'aria-label': t('rwTitle'),
+                  style: {
+                    left: `${placement.left}px`,
+                    width: `${placement.width}px`,
+                    ...(placement.top === undefined ? { bottom: `${placement.bottom}px` } : { top: `${placement.top}px` }),
+                    maxHeight: `${placement.maxHeight}px`,
+                  },
                 },
-              },
               h('div', { className: 'yk-rewindTitle' }, t('rwTitle')),
               h('div', failure === '' ? 'yk-rewindHint' : 'yk-rewindHint yk-rewindError', hint),
               h(
@@ -6083,6 +6115,8 @@ window.__ModuleLoader__.load({
                 h('button', { type: 'button', className: 'yk-rewindGo', onClick: run, disabled: phase === 'busy' || plan === null }, t('rwApply')),
               ),
             ),
+            document.body,
+          ),
       )
     }
 
@@ -6111,15 +6145,17 @@ window.__ModuleLoader__.load({
           const row = official(props)
           const data = props?.node?.data
           if (typeof data?.seq !== 'number' || !React.isValidElement(row)) return row
+          const blocks = Array.isArray(data.content) ? data.content : []
+          // 回撤标记只记录替换区间，不是一条对话：整行不渲染，日志里的那条事件保留。
+          if (blocks.length === 1 && blocks[0]?.type === 'text' && blocks[0].text === MARKER_TEXT) return null
           const buildActions = row.props?.actions
           if (typeof buildActions !== 'function') return row
           const wrapped = (value) => {
             const actionsRow = buildActions(value)
             if (!React.isValidElement(actionsRow)) return actionsRow
             try {
-              const content = Array.isArray(data.content) ? data.content : []
-              const text = content.map((block) => (block?.type === 'text' && typeof block.text === 'string' ? block.text : '')).join('')
-              const images = content
+              const text = blocks.map((block) => (block?.type === 'text' && typeof block.text === 'string' ? block.text : '')).join('')
+              const images = blocks
                 .filter((block) => block?.type === 'image' && typeof block.attachment?.attachmentId === 'string')
                 .map((block) => block.attachment.attachmentId)
               const button = h(RewindButton, { key: 'yk-rewind', t, seq: data.seq, text, images, inputActions: props.inputActions })
