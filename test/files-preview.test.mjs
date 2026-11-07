@@ -55,3 +55,21 @@ test('the preview opens from the row name and from the row action', async () => 
   assert.equal((body.match(/onClick: \(\) => showPreview\(entry\)/g) ?? []).length, 2, 'both entry points open the panel preview')
   assert.equal(body.includes('onClick: () => preview(entry)'), false, 'the old session-scoped call is gone')
 })
+
+test('the preview bar carries the controls the session viewer has', async () => {
+  const { body, text } = await filesTab()
+  for (const label of ['fWrap', 'fAutoRefresh', 'fCopyAll', 'fFullscreen', 'fViewerText']) {
+    assert.ok(body.includes(`t('${label}')`), `${label} is wired into the bar`)
+  }
+  assert.ok(body.includes("t('refresh')") && body.includes("t('close')"), 'reload and close sit at the end')
+  assert.ok(body.includes('barButton('), 'every control is one shared icon button')
+  assert.ok(body.includes("h('span', { className: 'yk-previewViewer' }, viewer)"), 'the viewer name is shown')
+  assert.ok(text.includes('.yk-previewCode-nowrap .yk-previewLineText { white-space: pre; }'), 'turning wrap off keeps the line intact')
+  assert.ok(text.includes('.yk-lightbox { position: fixed;'), 'the image opens in a fixed overlay')
+})
+
+test('auto refresh reloads on an interval and stops with the preview', async () => {
+  const { body } = await filesTab()
+  assert.ok(body.includes("setInterval(() => { void showPreview(previewTarget, true) }, 3000)"), 'the tick re-reads the file quietly')
+  assert.ok(body.includes('return () => clearInterval(timer)'), 'the tick stops when the panel goes away')
+})

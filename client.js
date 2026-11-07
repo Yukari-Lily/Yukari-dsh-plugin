@@ -274,9 +274,17 @@ window.__ModuleLoader__.load({
       fEmpty: '该目录为空',
       fEmptyHint: '请切换工作区或返回上级目录。',
       fHint: '已选 {n} 项；仅选文件时逐个下载，包含文件夹或超过 10 个文件时打包下载。',
-      fPreviewHint: '选择文件以查看预览。',
       fPreviewBinary: '该文件为二进制格式，仅支持下载。',
       fPreviewTruncated: '文件较大，仅显示开头部分。',
+      fViewerText: '文本',
+      fViewerMarkdown: 'Markdown',
+      fViewerImage: '图片',
+      fWrap: '自动换行',
+      fAutoRefresh: '自动刷新',
+      fCopyAll: '复制内容',
+      fFullscreen: '全屏查看',
+      fZoomIn: '放大',
+      fZoomOut: '缩小',
       pEnable: '启用代理',
       pDisable: '停用代理',
       pEnabled: '已接管出站流量',
@@ -732,9 +740,17 @@ window.__ModuleLoader__.load({
       fEmpty: 'This folder is empty',
       fEmptyHint: 'Pick another workspace or go up a level.',
       fHint: '{n} selected; files download one by one, folders or more than ten files are zipped.',
-      fPreviewHint: 'Select a file to preview it.',
       fPreviewBinary: 'This file is binary; only downloading is available.',
       fPreviewTruncated: 'The file is large; only the beginning is shown.',
+      fViewerText: 'Text',
+      fViewerMarkdown: 'Markdown',
+      fViewerImage: 'Image',
+      fWrap: 'Wrap lines',
+      fAutoRefresh: 'Auto refresh',
+      fCopyAll: 'Copy content',
+      fFullscreen: 'Full screen',
+      fZoomIn: 'Zoom in',
+      fZoomOut: 'Zoom out',
       pEnable: 'Enable proxy',
       pDisable: 'Disable proxy',
       pEnabled: 'Routing outbound traffic',
@@ -1112,6 +1128,13 @@ window.__ModuleLoader__.load({
 .yk-previewName { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .yk-previewDoc { font-size: 13px; line-height: 1.6; }
 .yk-previewImage { display: block; max-width: 100%; border-radius: var(--dsw-radius-md); }
+.yk-previewViewer { padding: 0 2px; font-size: 11px; color: var(--yk-muted); white-space: nowrap; }
+.yk-previewCode-nowrap { overflow-x: auto; }
+.yk-previewCode-nowrap .yk-previewLine { grid-template-columns: 3.2em max-content; }
+.yk-previewCode-nowrap .yk-previewLineText { white-space: pre; }
+.yk-lightbox { position: fixed; inset: 0; z-index: 1100; display: grid; place-items: center; padding: 24px; overflow: hidden; background: var(--dsw-alias-bg-mask-1); }
+.yk-lightboxImage { max-width: 100%; max-height: calc(100vh - 96px); border-radius: var(--dsw-radius-md); transition: transform var(--ds-transition-duration) var(--ds-ease-in-out); }
+.yk-lightboxBar { position: fixed; right: 24px; bottom: 24px; display: flex; gap: 4px; padding: 4px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-layer-3); box-shadow: var(--dsw-shadow-lv3); }
 .yk-previewCode { margin: 0; display: flex; flex-direction: column; font: 12px/1.65 var(--dsw-font-mono, monospace); color: var(--dsw-alias-label-primary); }
 .yk-previewLine { display: grid; grid-template-columns: 3.2em minmax(0, 1fr); gap: 8px; }
 .yk-previewLineNo { color: var(--yk-muted); text-align: right; user-select: none; }
@@ -1551,6 +1574,23 @@ window.__ModuleLoader__.load({
           stroke('M4 8.4 12 4.2l8 4.2-8 4.2-8-4.2Z', { key: 'a' }),
           stroke('M4 12.4l8 4.2 8-4.2', { key: 'b' }),
           stroke('M4 16.2l8 4.2 8-4.2', { key: 'c' }),
+        ],
+        props,
+      )
+    /** 自动换行：三段线条，最后一段折回。 */
+    const WrapIcon = (props) =>
+      glyph([stroke('M4 6.5h16', { key: 'a' }), stroke('M4 12h11a3 3 0 0 1 0 6h-3.2', { key: 'b' }), stroke('M9.4 16.2 6.8 18.8l2.6 2.6', { key: 'c' })], props)
+    const PlayIcon = (props) => glyph([stroke('M8.6 5.8 17 12l-8.4 6.2V5.8Z', { key: 'a' })], props)
+    const PauseIcon = (props) => glyph([stroke('M9.6 6v12', { key: 'a' }), stroke('M14.4 6v12', { key: 'b' })], props)
+    const PlusIcon = (props) => glyph([stroke('M12 6.4v11.2', { key: 'a' }), stroke('M6.4 12h11.2', { key: 'b' })], props)
+    const MinusIcon = (props) => glyph([stroke('M6.4 12h11.2', { key: 'a' })], props)
+    const FullscreenIcon = (props) =>
+      glyph(
+        [
+          stroke('M4.6 9.4V4.6h4.8', { key: 'a' }),
+          stroke('M14.6 4.6h4.8v4.8', { key: 'b' }),
+          stroke('M19.4 14.6v4.8h-4.8', { key: 'c' }),
+          stroke('M9.4 19.4H4.6v-4.8', { key: 'd' }),
         ],
         props,
       )
@@ -2922,6 +2962,11 @@ window.__ModuleLoader__.load({
       const [previewData, setPreviewData] = React.useState(null)
       const [previewFailure, setPreviewFailure] = React.useState('')
       const [previewLoading, setPreviewLoading] = React.useState(false)
+      // 预览顶栏的状态：与宿主文档预览一致的那几项开关。
+      const [wrapLines, setWrapLines] = React.useState(true)
+      const [autoRefresh, setAutoRefresh] = React.useState(false)
+      const [copied, setCopied] = React.useState(false)
+      const [zoom, setZoom] = React.useState(0)
       const { signal, alive } = useAbortOnUnmount()
 
       const root = roots === null ? null : roots.find((item) => item.id === rootId) ?? null
@@ -2984,12 +3029,14 @@ window.__ModuleLoader__.load({
        * 内联下载地址，所以不需要切会话、也不碰右侧栏。
        * @param entry - 列表里的一行。
        */
-      const showPreview = async (entry) => {
+      const showPreview = async (entry, quiet = false) => {
         if (root === null || entry.type !== 'file') return
         setPreviewTarget(entry)
-        setPreviewData(null)
+        if (!quiet) {
+          setPreviewData(null)
+          setPreviewLoading(true)
+        }
         setPreviewFailure('')
-        setPreviewLoading(true)
         try {
           const query = `?root=${encodeURIComponent(root.id)}&path=${encodeURIComponent(entry.path)}`
           const payload = await getJson(`${API.files}/preview${query}`, signal)
@@ -3001,6 +3048,21 @@ window.__ModuleLoader__.load({
         }
       }
 
+      // 自动刷新：与宿主的自动刷新同一语义，只是这里按固定间隔重新读一次。
+      React.useEffect(() => {
+        if (!autoRefresh || previewTarget === null) return undefined
+        const timer = setInterval(() => { void showPreview(previewTarget, true) }, 3000)
+        return () => clearInterval(timer)
+      }, [autoRefresh, previewTarget])
+
+      // 放大查看期间按 Esc 退出。
+      React.useEffect(() => {
+        if (zoom === 0) return undefined
+        const onKey = (event) => { if (event.key === 'Escape') setZoom(0) }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+      }, [zoom])
+
       const downloadOne = (entry) => {
         if (root === null) return
         const query = `?root=${encodeURIComponent(root.id)}&path=${encodeURIComponent(entry.path)}`
@@ -3010,46 +3072,90 @@ window.__ModuleLoader__.load({
         anchor.click()
       }
 
+      /** 顶栏的一个图标按钮：尺寸与面板里其它图标按钮一致，必带 title 与 aria-label。 */
+      const barButton = (label, pressed, onClick, Icon) =>
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm',
+            title: label,
+            'aria-label': label,
+            ...(pressed === undefined ? {} : { 'aria-pressed': pressed ? 'true' : 'false' }),
+            onClick,
+          },
+          h(Icon, { width: 14, height: 14 }),
+        )
+
       /**
-       * 右栏内容：markdown 交给宿主的渲染件，其余文本按宿主的文档预览排版，图片走同源内联地址。
+       * 右栏内容：顶栏 + 正文。
        *
-       * 与右侧栏里的原生预览对齐：同一套 markdown 渲染，代码不加高亮、只保留行号与空白。
+       * 顶栏照宿主文档预览那一排：查看器名称、换行、自动刷新、复制、刷新、关闭；
+       * markdown 交给宿主的渲染件，其余文本按原生排版（等宽、行号、不加高亮），
+       * 图片走同源内联地址，点开可整屏放大。
        * @returns 预览区的节点。
        */
       const renderPreview = () => {
-        if (previewTarget === null) return h('div', { className: 'yk-previewEmpty' }, t('fPreviewHint'))
+        if (previewTarget === null) return null
         const name = previewTarget.name
+        const isMarkdown = /\.(md|markdown|mdx)$/i.test(name)
+        const isImage = previewData?.kind === 'image'
+        const isText = previewData?.kind === 'text'
+        const viewer = isImage ? t('fViewerImage') : isMarkdown ? t('fViewerMarkdown') : isText ? t('fViewerText') : ''
+        const imageUrl =
+          isImage && root !== null
+            ? `${API.files}/download?root=${encodeURIComponent(root.id)}&path=${encodeURIComponent(previewTarget.path)}&inline=1`
+            : ''
+
+        const copyAll = async () => {
+          const text = typeof previewData?.text === 'string' ? previewData.text : ''
+          try {
+            await navigator.clipboard.writeText(text)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1800)
+          } catch {
+            /* 剪贴板被拒时保持原样，不打断阅读 */
+          }
+        }
+
         const head = h(
           'div',
           { className: 'yk-previewHead' },
           h('span', { className: 'yk-previewName', title: name }, name),
-          h(
-            'button',
-            { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm', title: t('close'), 'aria-label': t('close'), onClick: closePreview },
-            h(ClearIcon, { width: 13, height: 13 }),
-          ),
+          viewer === '' ? null : h('span', { className: 'yk-previewViewer' }, viewer),
+          isText ? barButton(t('fWrap'), wrapLines, () => setWrapLines((value) => !value), WrapIcon) : null,
+          isText ? barButton(t('fAutoRefresh'), autoRefresh, () => setAutoRefresh((value) => !value), autoRefresh ? PauseIcon : PlayIcon) : null,
+          isText ? barButton(copied ? t('copied') : t('fCopyAll'), undefined, copyAll, copied ? CheckIcon : CopyIcon) : null,
+          isImage ? barButton(t('fFullscreen'), undefined, () => setZoom(1), FullscreenIcon) : null,
+          barButton(t('refresh'), undefined, () => showPreview(previewTarget), RefreshIcon),
+          barButton(t('close'), undefined, closePreview, ClearIcon),
         )
+
         let body = null
         if (previewLoading) {
           body = h(Loading, { text: t('loading') })
         } else if (previewFailure !== '') {
           body = h('p', { className: 'yk-previewError' }, previewFailure)
         } else if (previewData !== null) {
-          if (previewData.kind === 'image' && root !== null) {
-            const query = `?root=${encodeURIComponent(root.id)}&path=${encodeURIComponent(previewTarget.path)}&inline=1`
-            body = h('img', { className: 'yk-previewImage', alt: name, src: `${API.files}/download${query}` })
+          if (isImage) {
+            body = h('img', {
+              className: 'yk-previewImage',
+              alt: name,
+              src: imageUrl,
+              onClick: () => setZoom(1),
+            })
           } else if (previewData.kind === 'binary') {
             body = h('div', { className: 'yk-previewEmpty' }, t('fPreviewBinary'))
           } else {
             const text = typeof previewData.text === 'string' ? previewData.text : ''
-            if (/\.(md|markdown|mdx)$/i.test(name) && MarkdownView !== null) {
+            if (isMarkdown && MarkdownView !== null) {
               body = h('div', { className: 'yk-previewDoc' }, h(MarkdownView, { text }))
             } else {
               // 与宿主的文档预览同一形态：等宽、保留空白、左侧行号；行数封顶，避免几万行撑死。
               const lines = text.split('\n').slice(0, MAX_PREVIEW_LINES)
               body = h(
-                'pre',
-                { className: 'yk-previewCode' },
+                'div',
+                { className: wrapLines ? 'yk-previewCode' : 'yk-previewCode yk-previewCode-nowrap' },
                 lines.map((line, index) =>
                   h(
                     'div',
@@ -3062,12 +3168,45 @@ window.__ModuleLoader__.load({
             }
           }
         }
+
         return h(
           React.Fragment,
           null,
           head,
           body,
           previewData?.truncated === true ? h('div', { className: 'yk-previewNote' }, t('fPreviewTruncated')) : null,
+          zoom === 0 || !isImage
+            ? null
+            : ReactDOM.createPortal(
+                h(
+                  'div',
+                  {
+                    className: 'yk-lightbox',
+                    role: 'dialog',
+                    'aria-label': name,
+                    onClick: () => setZoom(0),
+                    onWheel: (event) => {
+                      event.preventDefault()
+                      setZoom((value) => Math.min(8, Math.max(0.25, value - event.deltaY * 0.0016)))
+                    },
+                  },
+                  h('img', {
+                    className: 'yk-lightboxImage',
+                    alt: name,
+                    src: imageUrl,
+                    style: { transform: `scale(${zoom})` },
+                    onClick: (event) => event.stopPropagation(),
+                  }),
+                  h(
+                    'div',
+                    { className: 'yk-lightboxBar', onClick: (event) => event.stopPropagation() },
+                    barButton(t('fZoomOut'), undefined, () => setZoom((value) => Math.max(0.25, value - 0.25)), MinusIcon),
+                    barButton(t('fZoomIn'), undefined, () => setZoom((value) => Math.min(8, value + 0.25)), PlusIcon),
+                    barButton(t('close'), undefined, () => setZoom(0), ClearIcon),
+                  ),
+                ),
+                document.body,
+              ),
         )
       }
 
