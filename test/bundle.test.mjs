@@ -104,3 +104,14 @@ test('each component exposes locale metadata and its exports resolve', async () 
   assert.equal(root.meta.title, 'Yukari插件合集')
   assert.equal(typeof pkg.exports['./locale/*.json'], 'string', 'the package root exports its locale files')
 })
+
+test('every component module loads and exports apply with its services', async () => {
+  const table = await rows()
+  for (const [id] of table) {
+    if (id === 'yukari') continue
+    const name = id.replace('yukari-', '')
+    const module = await import(new URL(`../host/${name}/index.js`, import.meta.url))
+    assert.equal(typeof module.apply, 'function', `${id} exports apply`)
+    assert.ok(Array.isArray(module.inject), `${id} declares the services it needs`)
+  }
+})

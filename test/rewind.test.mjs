@@ -195,3 +195,51 @@ test('apply refuses a session that is not loaded', async () => {
   await assert.rejects(rewind.apply({ sessionId: 'nope', seq: 1 }), /没有在运行中的 Host 里加载/)
   await fs.rm(root, { recursive: true, force: true })
 })
+
+test('the component mounts against a minimal context', async () => {
+  const module = await import('../host/rewind/index.js')
+  const disposers = []
+  const routes = []
+  const ctx = {
+    root: {},
+    get: (name) => (name === 'sessions' ? { get: () => undefined } : undefined),
+    effect: (run) => {
+      const dispose = run()
+      disposers.push(dispose)
+    },
+    on: () => () => {},
+    connection: { requestRejection: () => undefined },
+    webServer: {
+      register: (route) => {
+        routes.push(route)
+        return () => {}
+      },
+    },
+  }
+  assert.doesNotThrow(() => module.apply(ctx))
+  assert.equal(routes.length, 1, 'the route is registered')
+  assert.equal(routes[0].path, '/rewind/api')
+  assert.equal(typeof routes[0].handler, 'function')
+  for (const dispose of disposers) assert.equal(typeof dispose, 'function', 'every effect returns its disposer')
+
+  // 真的走一遍路由：没有持久化服务时，读一个不存在的会话得到 404 JSON。
+  const response = {
+    statusCode: 0,
+    headers: {},
+    setHeader(name, value) {
+      this.headers[name] = value
+    },
+    end(body) {
+      this.body = body
+    },
+  }
+  await routes[0].handler({ url: '/rewind/api/cuts?sessionId=s1', method: 'GET' }, response)
+  assert.equal(response.statusCode, 404)
+  assert.deepEqual(JSON.parse(response.body), { ok: false, error: '找不到会话。' })
+})
+
+test('a client module without the rewind route does not mount the button', async () => {
+  // 客户端在 404 时放弃接管；这里只锁住这个判断，避免组件关掉后还改渲染身份。
+  const client = await fs.readFile(new URL('../client.js', import.meta.url), 'utf8')
+  assert.ok(client.includes("return error?.status !== 404"), 'a missing host half reads as unavailable')
+})

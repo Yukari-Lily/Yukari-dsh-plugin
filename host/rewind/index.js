@@ -11,12 +11,13 @@
 
 import path from 'node:path'
 import { markMounted } from '../shared/mounted.js'
-import { API_PATH, guardRoute, readJsonBody, sendJson } from '../shared/http.js'
+import { guardRoute, readJsonBody, sendJson } from '../shared/http.js'
 import { resolveDshHome } from '../shared/home.js'
 import { createRewind } from './lib/controller.js'
 import { createSnapshotStore } from './lib/store.js'
 
-export { API_PATH }
+/** Route prefix the client calls. */
+export const API_PATH = '/rewind/api'
 
 /** Services this component needs. */
 export const inject = ['sessions', 'sessionPersistence', 'agents', 'webServer', 'connection']
