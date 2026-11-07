@@ -63,3 +63,18 @@ test('the three pages share the panel primitives rather than private layout', as
   assert.ok(text.includes("h(Disclosure, { title: t('kDetails') }"), 'rules details are collapsed behind a disclosure')
   assert.ok(text.includes("h(Disclosure, {\n            { title: t('pAdvanced')") || text.includes("title: t('pAdvanced')"), 'preset JSON uses the disclosure')
 })
+
+test('a chat row confirms inside its own actions, without hiding the row', async () => {
+  const text = await source()
+  const start = text.indexOf('const renderRow = (row, group')
+  assert.notEqual(start, -1, 'renderRow exists')
+  const row = text.slice(start, text.indexOf('const renderGroup', start))
+  assert.equal(row.includes('yk-confirmInline'), false, 'nothing is pushed in under the row')
+  assert.equal(row.includes('yk-itemConfirm'), false, 'the row itself is not replaced')
+  assert.ok(row.includes('h(ConfirmActions, {'), 'only the actions area turns into the confirm')
+  assert.ok(row.includes("'yk-itemActions yk-itemActionsConfirm'"), 'the confirm keeps the row layout')
+  assert.ok(text.includes('.yk-dangerText { color: var(--dsw-alias-state-error-primary);'), 'the confirm label is the only red thing')
+  const confirm = text.slice(text.indexOf('function ConfirmActions'), text.indexOf('function OffState'))
+  assert.equal(confirm.includes('yk-confirmHint'), false, 'no hint paragraph in the confirm')
+  assert.equal(confirm.includes('yk-itemConfirm'), false, 'no box or separate row')
+})

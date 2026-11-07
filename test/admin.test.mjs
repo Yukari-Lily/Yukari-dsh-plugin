@@ -67,24 +67,60 @@ async function fixture(options = {}) {
     workspaceRegistry: registry,
   }
   const admin = createAdmin({ ctx, config: { sessionsRoot: sessions } })
-  return { tmp, ws, artifact, admin, registry, created, createdRelative, updated, outside, events }
+  return { tmp, ws, artifact, admin, registry, persistence, header, created, createdRelative, updated, outside, events }
 }
 
-test('a chat loaded in this process is refused, even when files are gone', async () => {
+test('a chat loaded in this process is deleted and leaves the listing', async () => {
   const f = await fixture()
-  const loaded = { ...f.admin }
-  // A store that knows this chat: the same condition the Host uses for "已加载".
+  const sessionsRoot = path.dirname(path.dirname(f.artifact))
   const ctx = {
-    sessionQuery: { listSessions: async () => [{ header: { id: 'session-123', cwd: f.ws, createdAt: Date.now() }, live: true }] },
-    sessionPersistence: { root: path.dirname(path.dirname(f.artifact)) },
-    sessions: { get: (id) => (id === 'session-123' ? { id } : undefined) },
+    sessionQuery: { listSessions: async () => [{ header: f.header, live: true }] },
+    sessionPersistence: f.persistence,
+    sessions: { get: (id) => (id === f.header.id ? { id } : undefined) },
     workspaceRegistry: { list: () => [], unarchiveSession: async () => {}, unpinSession: async () => {} },
   }
-  const admin = createAdmin({ ctx, config: { sessionsRoot: path.dirname(path.dirname(f.artifact)) } })
-  const res = await admin.remove({ ids: ['session-123'] })
+  const admin = createAdmin({ ctx, config: { sessionsRoot } })
+  const res = await admin.remove({ ids: [f.header.id] })
+  assert.equal(res.deleted, 1)
+  assert.deepEqual(res.failed, [])
+  assert.equal(await exists(f.artifact), false, 'the artifact is removed')
+  // The store keeps the chat alive, so the listing has to be told to forget it.
+  assert.deepEqual(res.state.sessions.map((row) => row.id), [])
+  await fs.rm(f.tmp, { recursive: true, force: true })
+})
+
+test('a loaded chat with no artifact yet still leaves the listing', async () => {
+  const f = await fixture()
+  const sessionsRoot = path.dirname(path.dirname(f.artifact))
+  const header = { id: 'session-new', cwd: f.ws, createdAt: Date.now() }
+  const ctx = {
+    sessionQuery: { listSessions: async () => [{ header, live: true }] },
+    sessionPersistence: { root: sessionsRoot },
+    sessions: { get: (id) => (id === 'session-new' ? { id } : undefined) },
+    workspaceRegistry: { list: () => [], unarchiveSession: async () => {}, unpinSession: async () => {} },
+  }
+  const admin = createAdmin({ ctx, config: { sessionsRoot } })
+  const res = await admin.remove({ ids: ['session-new'] })
+  assert.equal(res.deleted, 1, 'nothing on disk to remove, but the row still goes')
+  assert.deepEqual(res.state.sessions.map((row) => row.id), [])
+  await fs.rm(f.tmp, { recursive: true, force: true })
+})
+
+test('a chat whose turn is still running stays on disk', async () => {
+  const f = await fixture()
+  const sessionsRoot = path.dirname(path.dirname(f.artifact))
+  const ctx = {
+    sessionQuery: { listSessions: async () => [{ header: f.header, live: true }] },
+    sessionPersistence: f.persistence,
+    sessions: { get: (id) => (id === f.header.id ? { id } : undefined) },
+    agents: { get: () => ({ status: 'running' }) },
+    workspaceRegistry: { list: () => [], unarchiveSession: async () => {}, unpinSession: async () => {} },
+  }
+  const admin = createAdmin({ ctx, config: { sessionsRoot } })
+  const res = await admin.remove({ ids: [f.header.id] })
   assert.equal(res.deleted, 0)
-  assert.deepEqual(res.failed, [{ id: 'session-123', reason: 'live' }])
-  assert.equal(await exists(f.artifact), true, 'the artifact survives a refused delete')
+  assert.deepEqual(res.failed, [{ id: f.header.id, reason: 'running' }])
+  assert.equal(await exists(f.artifact), true, 'the log survives while a turn is writing to it')
   await fs.rm(f.tmp, { recursive: true, force: true })
 })
 

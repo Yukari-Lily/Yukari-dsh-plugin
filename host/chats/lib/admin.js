@@ -104,6 +104,15 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
    */
   const optional = (name) => optionalService(ctx, name)
 
+  /**
+   * Ids whose artifact was deleted while the chat was still loaded in this
+   * process. The Session store keeps such a chat until its Agent is released,
+   * and `sessionQuery.listSessions()` merges live sessions into its listing, so
+   * without this the row would come straight back as a missing record.
+   * Process-local on purpose: after a restart the store holds neither.
+   */
+  const removed = new Set()
+
   const titleBudget = Number.isFinite(Number(config.titleBudget)) && Number(config.titleBudget) >= 0
     ? Math.floor(Number(config.titleBudget))
     : DEFAULT_TITLE_BUDGET
@@ -250,6 +259,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
     for (const record of records) {
       const header = record.header
       const id = String(header.id)
+      if (removed.has(id)) continue
       const session = store !== undefined && typeof store.get === 'function' ? store.get(id) : undefined
       const live = session !== undefined || record.live === true
       const agents = optional('agents')
@@ -372,8 +382,10 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
   }
 
   /**
-   * Delete stored chats.
-   * @param request - ids and whether a live Session may be removed too.
+   * Delete stored chats. A chat that is merely loaded goes too; only one whose
+   * turn is still running stays, because its remaining events would have
+   * nowhere to land.
+   * @param request - ids, plus the optional file and workspace cleanup flags.
    * @returns how many artifacts were removed, and why the rest stayed.
    */
   async function remove(request = {}) {
@@ -437,17 +449,26 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
         failed.push({ id, reason: 'unknown' })
         continue
       }
-      // A chat loaded in this process cannot be removed safely: its files would
-      // vanish while the in-memory session keeps trying to append to them.
-      if (session !== undefined) {
-        failed.push({ id, reason: 'live' })
+      // A turn in flight is not safe to delete: its remaining events would have
+      // nowhere to land. A chat that is merely loaded is fine — it is remembered
+      // in `removed` below so the listing stops showing it.
+      const agent = optional('agents')
+      if (agent !== undefined && typeof agent.get === 'function' && agent.get(id)?.status === 'running') {
+        failed.push({ id, reason: 'running' })
         continue
       }
       const directory = directoryOf(header)
       const info = directory === null ? null : await pathStat(directory)
       if (info === null) {
-        /* A created-but-never-materialized Session has no artifact to remove. */
-        failed.push({ id, reason: session !== undefined ? 'in-memory' : 'no-artifact' })
+        // A loaded chat with no artifact yet (created, never written): nothing on
+        // disk to remove, but the row still has to leave the listing.
+        if (session !== undefined) {
+          removed.add(id)
+          deleted.push(id)
+          await forget(id, notes)
+          continue
+        }
+        failed.push({ id, reason: 'no-artifact' })
         continue
       }
       if (!isInside(sessionRoot, directory) || !isArtifactDirectoryOf(sessionRoot, directory, id)) {
@@ -473,6 +494,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
         continue
       }
       deleted.push(id)
+      if (session !== undefined) removed.add(id)
       // Forget the id immediately: a crash between removing the artifact and
       // dropping its references would otherwise leave an invisible leftover.
       await forget(id, notes)

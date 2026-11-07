@@ -186,7 +186,7 @@ export function apply(ctx, config = {}) {
       ctx.tools.register({
         name: 'chat_delete',
         description:
-          'Permanently delete stored chats by Session id: removes the chat artifact from the Host, then drops the id from workspace accounting, the archive set, and the pin set. Archived chats are deleted the same way. A chat currently loaded in this process is always refused: switch to another chat or restart the Host first.',
+          'Permanently delete stored chats by Session id: removes the chat artifact from the Host, then drops the id from workspace accounting, the archive set, and the pin set. Archived chats are deleted the same way. A chat that is merely loaded is deleted too; only a chat whose turn is still running is refused, so stop it first.',
         parameters: {
           type: 'object',
           additionalProperties: false,
@@ -216,7 +216,7 @@ export function apply(ctx, config = {}) {
                   required: ['id', 'reason'],
                   properties: {
                     id: { type: 'string', description: 'Session id that stayed.' },
-                    reason: { type: 'string', description: 'unknown, live, in-memory, no-artifact, unsafe-path, or an errno message.' },
+                    reason: { type: 'string', description: 'running, unknown, no-artifact, unsafe-path, io-error, or an errno message.' },
                   },
                 },
               },

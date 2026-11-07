@@ -196,10 +196,9 @@ window.__ModuleLoader__.load({
       cConfirm: '删除这 {n} 个会话？',
       cConfirmWorkspace: '删除工作区「{name}」和里面的 {n} 个会话？',
       cConfirmHint: '聊天记录会从磁盘删掉，归档和置顶也一起清掉，删了不能恢复。',
-      cLiveBlocked: '其中 {n} 个还开着，删不掉。先切到别的会话；不行就到「状态」页重启 dsh。',
       cMissingRecord: '记录缺失',
-      cLiveBlockedOne: '这个会话还开着，删不掉。先切到别的会话；不行就到「状态」页重启 dsh。',
       cDeleteFiles: '连会话生成的文件一起删',
+      cDeleteFilesShort: '连文件一起删',
       cDeleteFilesHint: '只删会话里用 write / str_replace_editor 新建、且还在工作区内的文件。命令行生成的文件、会话开始前就有的文件，都不动。',
       cDeleteWorkspaceDir: '连工作区文件夹一起删',
       cDeleteWorkspaceDirHint: '文件夹 {path} 和里面的所有东西都会删掉。不勾选就只移除工作区，文件夹留着。',
@@ -225,11 +224,10 @@ window.__ModuleLoader__.load({
       cLockedByParent: '随主会话一起选中，不能单独取消',
       cArchivedTag: '已归档',
       cEvents: '{n} 条事件',
-      cReason_live: '还开着，删不掉（先切走或重启 dsh）',
+      cReason_running: '还在运行，先停下再删',
       cReason_unknown: '找不到这个会话',
       'cReason_io-error': '文件删不掉',
       'cReason_no-artifact': '没有落盘记录',
-      'cReason_in-memory': '只存在于内存中',
       'cReason_unsafe-path': '路径不安全，已跳过',
 
       sSearch: '搜索站点名称或路径',
@@ -656,10 +654,9 @@ window.__ModuleLoader__.load({
       cConfirm: 'Delete these {n} chats?',
       cConfirmWorkspace: 'Delete workspace “{name}” and the {n} chats inside it?',
       cConfirmHint: 'The chat log is deleted from disk, and its archive and pin marks are cleared. This cannot be undone.',
-      cLiveBlocked: '{n} of them are still open and cannot be deleted. Switch to another chat first; if that is not enough, restart dsh from the Status tab.',
       cMissingRecord: 'Record missing',
-      cLiveBlockedOne: 'This chat is still open and cannot be deleted. Switch to another chat first; if that is not enough, restart dsh from the Status tab.',
       cDeleteFiles: 'Also delete the files this chat created',
+      cDeleteFilesShort: 'Also delete files',
       cDeleteFilesHint: 'Only files created with write / str_replace_editor that are still inside the workspace. Files made by shell commands, and files that existed before the chat, are left alone.',
       cDeleteWorkspaceDir: 'Also delete the workspace folder',
       cDeleteWorkspaceDirHint: 'The folder {path} and everything inside it is deleted. Untick to remove only the workspace and keep the folder.',
@@ -685,11 +682,10 @@ window.__ModuleLoader__.load({
       cLockedByParent: 'Selected with its parent chat and cannot be unticked alone',
       cArchivedTag: 'Archived',
       cEvents: '{n} events',
-      cReason_live: 'still open, so it cannot be deleted (switch away or restart dsh)',
+      cReason_running: 'still running; stop it first',
       cReason_unknown: 'not found',
       'cReason_io-error': 'the files could not be removed',
       'cReason_no-artifact': 'nothing stored on disk',
-      'cReason_in-memory': 'exists only in memory',
       'cReason_unsafe-path': 'unsafe path, skipped',
 
       sSearch: 'Search sites',
@@ -1071,7 +1067,6 @@ window.__ModuleLoader__.load({
 .yk-itemMeta { display: flex; align-items: center; gap: 5px 9px; flex-wrap: wrap; font-size: 11px; color: var(--yk-muted); }
 .yk-itemMeta span + span::before { content: '·'; margin-right: 9px; opacity: .5; }
 .yk-itemActions { display: flex; align-items: center; gap: 4px; flex: none; }
-.yk-iconBtnOn { color: var(--dsw-alias-state-error-primary); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); }
 .yk-itemWrap { display: flex; flex-direction: column; min-width: 0; }
 .yk-children { display: flex; flex-direction: column; gap: 2px; margin: 0 0 4px 22px; padding-left: 12px; border-left: 1px solid var(--yk-line); }
 .yk-childWrap .yk-item { padding: 5px 8px; gap: 8px; border-radius: var(--dsw-radius-sm); }
@@ -1087,6 +1082,10 @@ window.__ModuleLoader__.load({
 .yk-subToggle { appearance: none; border: 0; background: transparent; color: var(--yk-muted); font: inherit; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 3px; padding: 1px 4px; border-radius: var(--dsw-radius-sm); flex: none; }
 .yk-subToggle:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
 .yk-confirmInline { margin: 2px 0 8px 26px; padding: 10px 12px; background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 5%, transparent); }
+.yk-itemActionsConfirm { gap: 10px; }
+.yk-itemActionsConfirm .yk-option { align-items: center; white-space: nowrap; font-size: 12px; }
+.yk-itemActionsConfirm .yk-option input { margin: 0; }
+.yk-dangerText { color: var(--dsw-alias-state-error-primary); font-weight: 600; }
 .yk-confirmInline .yk-confirmTitle { font-size: 13px; }
 .yk-libs { color: var(--dsw-alias-label-tertiary); font-size: 11px; overflow-wrap: anywhere; }
 .yk-cmdRow { display: flex; align-items: flex-start; gap: 6px; }
@@ -1718,6 +1717,43 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /**
+     * 单行删除的二次确认：这一行照旧显示（标题、时间、标记都在），只把操作区的
+     * 三个图标换成「连文件一起删 · 取消 · 删除」——没有外框，确认那个字是红的。
+     */
+    function ConfirmActions({ t, title, busy, checked, onToggleFiles, onCancel, onConfirm }) {
+      const cancelRef = React.useRef(null)
+      React.useEffect(() => {
+        cancelRef.current?.focus()
+      }, [])
+      React.useEffect(() => {
+        const onKeyDown = (event) => {
+          if (event.key === 'Escape') onCancel()
+        }
+        window.addEventListener('keydown', onKeyDown)
+        return () => window.removeEventListener('keydown', onKeyDown)
+      }, [onCancel])
+      return h(
+        React.Fragment,
+        null,
+        h(Option, { checked, onChange: onToggleFiles, label: t('cDeleteFilesShort') }),
+        h('button', { ref: cancelRef, type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: onCancel, disabled: busy !== '' }, t('cancel')),
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'yk-btn yk-btn-ghost yk-btn-sm yk-dangerText',
+            title,
+            'aria-label': title,
+            onClick: onConfirm,
+            disabled: busy !== '',
+          },
+          busy === 'delete' ? h(Spinner, { size: 13 }) : null,
+          t('cDelete'),
+        ),
+      )
+    }
+
     /** Placeholder shown instead of an error when a component row is turned off. */
     function OffState({ t, name }) {
       const label = t(COMPONENT_LABEL[name] ?? name)
@@ -2291,8 +2327,6 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const confirmRows = confirming === null ? [] : rows.filter((row) => confirming.ids.includes(row.id))
-      const hasLive = confirmRows.some((row) => row.live)
       const confirmTitle =
         confirming === null
           ? ''
@@ -2328,8 +2362,8 @@ window.__ModuleLoader__.load({
       }
 
       /**
-       * One chat row. A single delete confirms in place, under that row; only
-       * batch and whole-workspace deletes use the panel at the top.
+       * One chat row. A single delete confirms on the row's own delete button;
+       * only batch and whole-workspace deletes use the panel at the top.
        */
       const renderRow = (row, group, depth = 0, locked = false) => {
         const checked = selected.includes(row.id)
@@ -2347,122 +2381,106 @@ window.__ModuleLoader__.load({
         // would be left behind as orphans.
         const family = descendantsOf(group, row.id)
         const confirmTitle = family.length > 0 ? fill(t('cDeleteOneSub'), { n: family.length }) : t('cDeleteOne')
-        const confirmStrip = pending === null ? null : h(
+        const confirmActions = pending === null ? null : h(ConfirmActions, {
+          key: `${row.id}-confirm`,
+          t,
+          title: confirmTitle,
+          busy,
+          checked: pending.deleteFiles === true,
+          onToggleFiles: (value) => setRowConfirm({ ...pending, deleteFiles: value }),
+          onCancel: () => setRowConfirm(null),
+          onConfirm: () => performDelete({ ids: [row.id, ...family], deleteFiles: pending.deleteFiles === true }),
+        })
+
+        const rowNode = h(
           'div',
-          { className: 'yk-confirm yk-confirmInline', role: 'alertdialog', 'aria-label': confirmTitle },
-          h('div', { className: 'yk-confirmTitle' }, confirmTitle),
-          h('div', { className: 'yk-confirmHint' }, row.live ? t('cLiveBlockedOne') : t('cConfirmHint')),
+          { className: checked ? 'yk-item yk-item-selected' : 'yk-item' },
           h(
-            'div',
-            { className: 'yk-options' },
-            h(Option, {
-              checked: pending.deleteFiles === true,
-              onChange: (value) => setRowConfirm({ ...pending, deleteFiles: value }),
-              label: t('cDeleteFiles'),
-              hint: t('cDeleteFilesHint'),
-            }),
+            'button',
+            {
+              type: 'button',
+              className: locked ? 'yk-check yk-check-locked' : 'yk-check',
+              role: 'checkbox',
+              'aria-checked': checked ? 'true' : 'false',
+              'aria-disabled': locked ? 'true' : undefined,
+              title: locked ? t('cLockedByParent') : undefined,
+              'aria-label': row.title ?? row.id,
+              disabled: locked,
+              onClick: () => toggleRow(row, group),
+            },
+            checked ? h(CheckIcon, { width: 11, height: 11 }) : null,
           ),
           h(
             'div',
-            { className: 'yk-confirmActions' },
-            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => setRowConfirm(null), disabled: busy !== '' }, t('cancel')),
+            { className: 'yk-itemMain' },
             h(
-              'button',
-              {
-                type: 'button',
-                className: 'yk-btn yk-btn-danger yk-btn-sm',
-                disabled: busy !== '' || row.live,
-                onClick: () => performDelete({ ids: [row.id, ...family], deleteFiles: pending.deleteFiles === true }),
-              },
-              busy === 'delete' ? h(Spinner, { size: 13 }) : h(TrashIcon, { width: 13, height: 13 }),
-              t('cDelete'),
+              'div',
+              { className: 'yk-itemTitleRow' },
+              h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => openSession(row.id), title: row.title ?? row.id }, row.title ?? row.id),
+              row.origin === 'subagent' ? h(Chip, null, t('cSubagentTag')) : null,
+              row.stored === false ? h(Chip, { kind: 'danger', dot: true }, t('cMissingRecord')) : null,
+              row.archived ? h(Chip, null, t('cArchivedTag')) : null,
+              row.running ? h(Chip, { kind: 'warn', dot: true }, t('cRunning')) : row.live ? h(Chip, { kind: 'ok', dot: true }, t('cLive')) : null,
+              kids.length > 0
+                ? h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'yk-subToggle',
+                      'aria-expanded': kidsOpen ? 'true' : 'false',
+                      title: kidsOpen ? t('collapse') : t('expand'),
+                      onClick: () => setExpandedKids((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id]),
+                    },
+                    h(kidsOpen ? ChevronDownIcon : ChevronRightIcon, { width: 12, height: 12 }),
+                    fill(t('cSubSessions'), { n: kids.length }),
+                  )
+                : null,
             ),
+            h('div', { className: 'yk-itemMeta' }, meta.map((part, index) => h('span', { key: index }, part))),
+          ),
+          h(
+            'div',
+            { className: pending === null ? 'yk-itemActions' : 'yk-itemActions yk-itemActionsConfirm' },
+            pending === null
+              ? h(
+                  React.Fragment,
+                  null,
+                  h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn', onClick: () => openSession(row.id), title: t('open'), 'aria-label': t('open') }, h(OpenIcon)),
+                  canArchive
+                    ? h(
+                        'button',
+                        {
+                          type: 'button',
+                          className: 'yk-btn yk-btn-ghost yk-iconBtn',
+                          onClick: () => archive(row),
+                          disabled: busy !== '',
+                          title: row.archived ? t('cUnarchive') : t('cArchive'),
+                          'aria-label': row.archived ? t('cUnarchive') : t('cArchive'),
+                        },
+                        h(ArchiveIcon),
+                      )
+                    : null,
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'yk-btn yk-btn-ghost yk-iconBtn yk-dangerHover',
+                      title: t('cDelete'),
+                      'aria-label': t('cDelete'),
+                      disabled: busy !== '',
+                      onClick: () => setRowConfirm({ id: row.id, deleteFiles: false }),
+                    },
+                    h(TrashIcon),
+                  ),
+                )
+              : confirmActions,
           ),
         )
 
         return h(
           'div',
           { className: depth === 0 ? 'yk-itemWrap' : 'yk-itemWrap yk-childWrap', key: row.id },
-          h(
-            'div',
-            { className: checked ? 'yk-item yk-item-selected' : 'yk-item' },
-            h(
-              'button',
-              {
-                type: 'button',
-                className: locked ? 'yk-check yk-check-locked' : 'yk-check',
-                role: 'checkbox',
-                'aria-checked': checked ? 'true' : 'false',
-                'aria-disabled': locked ? 'true' : undefined,
-                title: locked ? t('cLockedByParent') : undefined,
-                'aria-label': row.title ?? row.id,
-                disabled: locked,
-                onClick: () => toggleRow(row, group),
-              },
-              checked ? h(CheckIcon, { width: 11, height: 11 }) : null,
-            ),
-            h(
-              'div',
-              { className: 'yk-itemMain' },
-              h(
-                'div',
-                { className: 'yk-itemTitleRow' },
-                h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => openSession(row.id), title: row.title ?? row.id }, row.title ?? row.id),
-                row.origin === 'subagent' ? h(Chip, null, t('cSubagentTag')) : null,
-                row.stored === false ? h(Chip, { kind: 'danger', dot: true }, t('cMissingRecord')) : null,
-                row.archived ? h(Chip, null, t('cArchivedTag')) : null,
-                row.running ? h(Chip, { kind: 'warn', dot: true }, t('cRunning')) : row.live ? h(Chip, { kind: 'ok', dot: true }, t('cLive')) : null,
-                kids.length > 0
-                  ? h(
-                      'button',
-                      {
-                        type: 'button',
-                        className: 'yk-subToggle',
-                        'aria-expanded': kidsOpen ? 'true' : 'false',
-                        title: kidsOpen ? t('collapse') : t('expand'),
-                        onClick: () => setExpandedKids((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id]),
-                      },
-                      h(kidsOpen ? ChevronDownIcon : ChevronRightIcon, { width: 12, height: 12 }),
-                      fill(t('cSubSessions'), { n: kids.length }),
-                    )
-                  : null,
-              ),
-              h('div', { className: 'yk-itemMeta' }, meta.map((part, index) => h('span', { key: index }, part))),
-            ),
-            h(
-              'div',
-              { className: 'yk-itemActions' },
-              h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn', onClick: () => openSession(row.id), title: t('open'), 'aria-label': t('open') }, h(OpenIcon)),
-              canArchive
-                ? h(
-                    'button',
-                    {
-                      type: 'button',
-                      className: 'yk-btn yk-btn-ghost yk-iconBtn',
-                      onClick: () => archive(row),
-                      disabled: busy !== '',
-                      title: row.archived ? t('cUnarchive') : t('cArchive'),
-                      'aria-label': row.archived ? t('cUnarchive') : t('cArchive'),
-                    },
-                    h(ArchiveIcon),
-                  )
-                : null,
-              h(
-                'button',
-                {
-                  type: 'button',
-                  className: pending === null ? 'yk-btn yk-btn-ghost yk-iconBtn yk-dangerHover' : 'yk-btn yk-btn-ghost yk-iconBtn yk-dangerHover yk-iconBtnOn',
-                  title: t('cDelete'),
-                  'aria-label': t('cDelete'),
-                  'aria-expanded': pending === null ? 'false' : 'true',
-                  disabled: busy !== '',
-                  onClick: () => setRowConfirm(pending === null ? { id: row.id, deleteFiles: false } : null),
-                },
-                h(TrashIcon),
-              ),
-            ),
-          ),
-          confirmStrip,
+          rowNode,
           kids.length > 0 && kidsOpen
             ? h('div', { className: 'yk-children' }, kids.map((kid) => renderRow(kid, group, depth + 1, locked || checked)))
             : null,
@@ -2584,13 +2602,7 @@ window.__ModuleLoader__.load({
               'div',
               { className: 'yk-confirm', role: 'alertdialog', 'aria-label': confirmTitle },
               h('div', { className: 'yk-confirmTitle' }, confirmTitle),
-              h(
-                'div',
-                { className: 'yk-confirmHint' },
-                hasLive
-                  ? fill(t('cLiveBlocked'), { n: confirmRows.filter((row) => row.live).length })
-                  : t('cConfirmHint'),
-              ),
+              h('div', { className: 'yk-confirmHint' }, t('cConfirmHint')),
               h(
                 'div',
                 { className: 'yk-options' },
@@ -2617,7 +2629,7 @@ window.__ModuleLoader__.load({
                 h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirming(null), disabled: busy !== '' }, t('cancel')),
                 h(
                   'button',
-                  { type: 'button', className: 'yk-btn yk-btn-danger', onClick: remove, disabled: busy !== '' || hasLive },
+                  { type: 'button', className: 'yk-btn yk-btn-danger', onClick: remove, disabled: busy !== '' },
                   busy === 'delete' ? h(Spinner) : h(TrashIcon),
                   t('cDelete'),
                 ),
