@@ -197,10 +197,9 @@ window.__ModuleLoader__.load({
       cConfirmWorkspace: '删除工作区「{name}」和里面的 {n} 个会话？',
       cConfirmHint: '聊天记录会从磁盘删掉，归档和置顶也一起清掉，删了不能恢复。',
       cMissingRecord: '记录缺失',
-      cDeleteFiles: '连会话生成的文件一起删',
-      cDeleteFilesShort: '连文件一起删',
+      cDeleteFiles: '同时删除文件产物',
       cDeleteFilesHint: '只删会话里用 write / str_replace_editor 新建、且还在工作区内的文件。命令行生成的文件、会话开始前就有的文件，都不动。',
-      cDeleteWorkspaceDir: '连工作区文件夹一起删',
+      cDeleteWorkspaceDir: '同时删除工作区目录',
       cDeleteWorkspaceDirHint: '文件夹 {path} 和里面的所有东西都会删掉。不勾选就只移除工作区，文件夹留着。',
       cArchive: '归档',
       cUnarchive: '取消归档',
@@ -212,7 +211,7 @@ window.__ModuleLoader__.load({
       cNoChats: '还没有会话',
       cDeleted: '已删除 {n} 个会话',
       cDeletedOne: '已删除 1 个会话',
-      cFilesDeleted: '清理了 {n} 个文件',
+      cFilesDeleted: '删除 {n} 个文件',
       cDirDeleted: '工作区及目录已删除',
       cWorkspaceRemoved: '工作区已移除（目录保留）',
       cLive: '已加载',
@@ -224,10 +223,10 @@ window.__ModuleLoader__.load({
       cLockedByParent: '随主会话一起选中，不能单独取消',
       cArchivedTag: '已归档',
       cEvents: '{n} 条事件',
-      cReason_running: '还在运行，先停下再删',
-      cReason_unknown: '找不到这个会话',
-      'cReason_io-error': '文件删不掉',
-      'cReason_no-artifact': '没有落盘记录',
+      cReason_running: '会话仍在运行，无法删除。',
+      cReason_unknown: '找不到会话。',
+      'cReason_io-error': '删除文件失败。',
+      'cReason_no-artifact': '没有落盘文件。',
       'cReason_unsafe-path': '路径不安全，已跳过',
 
       sSearch: '搜索站点名称或路径',
@@ -283,7 +282,7 @@ window.__ModuleLoader__.load({
       pTesting: '测速中…',
       pRemove: '删除',
       confirmRemoveNode: '删除节点「{name}」？',
-      confirmRemoveNodeHint: '从列表里移除，节点密码一起删掉，可以重新导入。',
+      confirmRemoveNodeHint: '从列表里移除，同时删除节点密码，可以重新导入。',
       pImport: '导入',
       pImportTitle: '导入节点',
       pImportPlaceholder: '粘贴一个或多个 ss:// 链接、Base64 订阅内容或 Clash 配置（proxies 列表）',
@@ -655,8 +654,7 @@ window.__ModuleLoader__.load({
       cConfirmWorkspace: 'Delete workspace “{name}” and the {n} chats inside it?',
       cConfirmHint: 'The chat log is deleted from disk, and its archive and pin marks are cleared. This cannot be undone.',
       cMissingRecord: 'Record missing',
-      cDeleteFiles: 'Also delete the files this chat created',
-      cDeleteFilesShort: 'Also delete files',
+      cDeleteFiles: 'Also delete file output',
       cDeleteFilesHint: 'Only files created with write / str_replace_editor that are still inside the workspace. Files made by shell commands, and files that existed before the chat, are left alone.',
       cDeleteWorkspaceDir: 'Also delete the workspace folder',
       cDeleteWorkspaceDirHint: 'The folder {path} and everything inside it is deleted. Untick to remove only the workspace and keep the folder.',
@@ -670,7 +668,7 @@ window.__ModuleLoader__.load({
       cNoChats: 'No chats yet',
       cDeleted: 'Deleted {n} chats',
       cDeletedOne: 'Deleted 1 chat',
-      cFilesDeleted: 'removed {n} files',
+      cFilesDeleted: 'deleted {n} files',
       cDirDeleted: 'workspace and its directory deleted',
       cWorkspaceRemoved: 'workspace removed (directory kept)',
       cLive: 'Loaded',
@@ -682,10 +680,10 @@ window.__ModuleLoader__.load({
       cLockedByParent: 'Selected with its parent chat and cannot be unticked alone',
       cArchivedTag: 'Archived',
       cEvents: '{n} events',
-      cReason_running: 'still running; stop it first',
-      cReason_unknown: 'not found',
-      'cReason_io-error': 'the files could not be removed',
-      'cReason_no-artifact': 'nothing stored on disk',
+      cReason_running: 'the chat is still running and cannot be deleted.',
+      cReason_unknown: 'the chat was not found.',
+      'cReason_io-error': 'deleting the files failed.',
+      'cReason_no-artifact': 'nothing on disk to delete.',
       'cReason_unsafe-path': 'unsafe path, skipped',
 
       sSearch: 'Search sites',
@@ -1725,7 +1723,7 @@ window.__ModuleLoader__.load({
 
     /**
      * 单行删除的二次确认：这一行照旧显示（标题、时间、标记都在），只把操作区的
-     * 三个图标换成「连文件一起删 · 取消 · 删除」——没有外框，确认那个字是红的。
+     * 三个图标换成「同时删除文件产物 · 取消 · 删除」——没有外框，确认那个字是红的。
      */
     function ConfirmActions({ t, title, busy, checked, onToggleFiles, onCancel, onConfirm }) {
       const cancelRef = React.useRef(null)
@@ -1742,7 +1740,7 @@ window.__ModuleLoader__.load({
       return h(
         React.Fragment,
         null,
-        h(Option, { checked, onChange: onToggleFiles, label: t('cDeleteFilesShort') }),
+        h(Option, { checked, onChange: onToggleFiles, label: t('cDeleteFiles') }),
         h('button', { ref: cancelRef, type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: onCancel, disabled: busy !== '' }, t('cancel')),
         h(
           'button',
@@ -2305,7 +2303,11 @@ window.__ModuleLoader__.load({
             }),
             ...(payload.notes ?? []),
           ]
-          if (problems.length > 0) setFailure({ message: problems.slice(0, 6).join('；'), off: false })
+          if (problems.length > 0) {
+            // 每条都是完整句子，先去掉句号再统一补一个，别出现「。；」。
+            const line = problems.slice(0, 6).map((text) => text.replace(/。$/, '')).join('；')
+            setFailure({ message: `${line}。`, off: false })
+          }
         })
 
       const remove = () => {

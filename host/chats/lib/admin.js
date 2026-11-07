@@ -503,7 +503,7 @@ export function createAdmin({ ctx, config = {}, fs = nodeFs } = {}) {
     let workspaceDirDeleted = false
     let workspaceRemoved = false
     if (deleteWorkspace && failed.length > 0) {
-      notes.push(`有 ${failed.length} 个会话没删掉，工作区${workspaceDir === null ? '' : `和目录 ${workspaceDir} `}已保留`)
+      notes.push(`有 ${failed.length} 个会话删除失败，工作区${workspaceDir === null ? '' : `和目录 ${workspaceDir} `}已保留`)
     } else if (deleteWorkspace) {
       if (workspaceDir !== null) {
         const outcome = await removeWorkspaceDirectory(workspaceDir, [sessionRoot], fs)

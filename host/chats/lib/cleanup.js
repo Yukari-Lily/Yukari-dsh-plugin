@@ -222,7 +222,7 @@ export async function removeCreatedFiles({ persistence, header, directory, roots
       removed += 1
       emptied.add(JSON.stringify([path.dirname(file), base]))
     } catch (error) {
-      notes.push(`删除失败 ${file}：${error instanceof Error ? error.message : String(error)}`)
+      notes.push(`删除文件失败 ${file}：${error instanceof Error ? error.message : String(error)}`)
     }
   }
 
@@ -252,7 +252,7 @@ export async function removeCreatedFiles({ persistence, header, directory, roots
  */
 export async function removeWorkspaceDirectory(directory, extraProtected = [], fs = nodeFs) {
   const reason = unsafeDirectoryReason(directory, extraProtected)
-  if (reason !== null) return { removed: false, note: `未删除工作区目录 ${directory}（${reason}）` }
+  if (reason !== null) return { removed: false, note: `删除工作区目录失败 ${directory}（${reason}）` }
   const resolved = path.resolve(directory)
   try {
     await fs.rm(resolved, { recursive: true, force: true, maxRetries: 2 })
