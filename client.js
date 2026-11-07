@@ -7,10 +7,8 @@ window.__ModuleLoader__.load({
     const h = React.createElement
     // 旧宿主没有 Tooltip：按钮照常工作，只少一条提示。
     const Tooltip = primitives.Tooltip ?? (({ children }) => children)
-    // 面板内的文件预览复用宿主的渲染件：markdown 文档与代码高亮。
+    // 面板内的文件预览复用宿主的 markdown 渲染件：原生文档预览用的就是它。
     const MarkdownView = primitives.MarkdownText ?? null
-    const CodeView = primitives.CodeBlock ?? null
-    const languageOf = (name) => (typeof primitives.languageForPath === 'function' ? primitives.languageForPath(name) : undefined)
 
     /** Locale namespace of the merged panel. */
     const NS = 'yukari'
@@ -1107,13 +1105,17 @@ window.__ModuleLoader__.load({
 .yk-crumb { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; cursor: pointer; padding: 2px 4px; border-radius: var(--dsw-radius-sm); white-space: nowrap; }
 .yk-crumb:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
 .yk-itemHead { padding-block: 4px; border-bottom: .5px solid var(--yk-line); border-radius: 0; font-size: 11px; color: var(--yk-muted); }
-.yk-filesSplit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 380px); gap: 16px; align-items: start; }
+.yk-filesBody { display: block; }
+.yk-filesSplit { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); gap: 16px; align-items: start; }
 .yk-preview { display: flex; flex-direction: column; gap: 10px; min-height: 220px; max-height: 62vh; overflow: auto; padding: 12px; border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-base); }
 .yk-previewHead { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .yk-previewName { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .yk-previewDoc { font-size: 13px; line-height: 1.6; }
 .yk-previewImage { display: block; max-width: 100%; border-radius: var(--dsw-radius-md); }
-.yk-previewPlain { margin: 0; font: 12px/1.6 var(--dsw-font-mono, monospace); white-space: pre-wrap; overflow-wrap: anywhere; }
+.yk-previewCode { margin: 0; display: flex; flex-direction: column; font: 12px/1.65 var(--dsw-font-mono, monospace); color: var(--dsw-alias-label-primary); }
+.yk-previewLine { display: grid; grid-template-columns: 3.2em minmax(0, 1fr); gap: 8px; }
+.yk-previewLineNo { color: var(--yk-muted); text-align: right; user-select: none; }
+.yk-previewLineText { white-space: pre-wrap; overflow-wrap: anywhere; }
 .yk-previewEmpty, .yk-previewNote { color: var(--yk-muted); font-size: 12px; }
 .yk-previewError { margin: 0; color: var(--dsw-alias-state-error-primary); font-size: 12px; }
 .yk-itemHead:hover { background: transparent; }
@@ -2904,6 +2906,9 @@ window.__ModuleLoader__.load({
 
     /* ---------------------------------------------------------------- files */
 
+    /** 面板预览最多画这么多行；再多的部分直接省略，文件本身仍可完整下载。 */
+    const MAX_PREVIEW_LINES = 3000
+
     /** Breadcrumb + listing of one workspace, with download and an in-panel preview. */
     function FilesTab({ t }) {
       const [roots, setRoots] = React.useState(null)
@@ -3006,10 +3011,9 @@ window.__ModuleLoader__.load({
       }
 
       /**
-       * 右栏内容：文本走宿主的代码块或 markdown，图片走同源内联地址。
+       * 右栏内容：markdown 交给宿主的渲染件，其余文本按宿主的文档预览排版，图片走同源内联地址。
        *
-       * 复用宿主的渲染件而不是自己解析：`MarkdownText` 负责文档排版，
-       * `CodeBlock` 负责高亮与行号，识别不了的扩展名退回等宽文本。
+       * 与右侧栏里的原生预览对齐：同一套 markdown 渲染，代码不加高亮、只保留行号与空白。
        * @returns 预览区的节点。
        */
       const renderPreview = () => {
@@ -3038,11 +3042,24 @@ window.__ModuleLoader__.load({
             body = h('div', { className: 'yk-previewEmpty' }, t('fPreviewBinary'))
           } else {
             const text = typeof previewData.text === 'string' ? previewData.text : ''
-            body = /\.(md|markdown|mdx)$/i.test(name) && MarkdownView !== null
-              ? h('div', { className: 'yk-previewDoc' }, h(MarkdownView, { text }))
-              : CodeView !== null
-                ? h(CodeView, { code: text, lang: languageOf(name), lineNumbers: true, showHeader: false })
-                : h('pre', { className: 'yk-previewPlain' }, text)
+            if (/\.(md|markdown|mdx)$/i.test(name) && MarkdownView !== null) {
+              body = h('div', { className: 'yk-previewDoc' }, h(MarkdownView, { text }))
+            } else {
+              // 与宿主的文档预览同一形态：等宽、保留空白、左侧行号；行数封顶，避免几万行撑死。
+              const lines = text.split('\n').slice(0, MAX_PREVIEW_LINES)
+              body = h(
+                'pre',
+                { className: 'yk-previewCode' },
+                lines.map((line, index) =>
+                  h(
+                    'div',
+                    { className: 'yk-previewLine', key: index },
+                    h('span', { className: 'yk-previewLineNo', 'aria-hidden': true }, String(index + 1)),
+                    h('span', { className: 'yk-previewLineText' }, line === '' ? '\u200b' : line),
+                  ),
+                ),
+              )
+            }
           }
         }
         return h(
@@ -3146,7 +3163,8 @@ window.__ModuleLoader__.load({
 
         h(
           'div',
-          { className: 'yk-filesSplit' },
+          // 默认只有列表；点了文件才让出右栏，避免空着一块预览区占地方。
+          { className: previewTarget === null ? 'yk-filesBody' : 'yk-filesSplit' },
           entries.length === 0
             ? busy === 'load'
               ? h(Loading, { text: t('loading') })
@@ -3217,7 +3235,7 @@ window.__ModuleLoader__.load({
                 }),
               ),
 
-          h('section', { className: 'yk-preview', 'aria-label': t('fPreview') }, renderPreview()),
+          previewTarget === null ? null : h('section', { className: 'yk-preview', 'aria-label': t('fPreview') }, renderPreview()),
         ),
         h('div', { className: 'yk-foot' }, fill(t('fHint'), { n: selected.length })),
       )
