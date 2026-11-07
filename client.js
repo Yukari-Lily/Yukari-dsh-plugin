@@ -1119,7 +1119,8 @@ window.__ModuleLoader__.load({
 .yk-itemHead { padding-block: 4px; border-bottom: .5px solid var(--yk-line); border-radius: 0; font-size: 11px; color: var(--yk-muted); }
 .yk-filesBody { display: block; }
 .yk-filesSplit { display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 45%, 420px); gap: 16px; align-items: start; }
-.yk-preview { display: flex; flex-direction: column; gap: 10px; min-height: 220px; max-height: 62vh; overflow: auto; padding: 12px; border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-base); }
+/* 预览跟着页面滚动停在右上：列表往下翻时仍然看得到当前文件。 */
+.yk-preview { position: sticky; top: 0; display: flex; flex-direction: column; gap: 10px; min-height: 220px; max-height: 62vh; overflow: auto; padding: 12px; border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-base); }
 .yk-previewHead { display: flex; align-items: center; gap: 4px; min-width: 0; min-height: 32px; }
 .yk-previewPath { flex: 1; min-width: 0; padding-right: 4px; font-size: 13px; color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .yk-previewDoc { font-size: 13px; line-height: 1.6; }

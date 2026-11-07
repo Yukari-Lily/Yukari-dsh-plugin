@@ -40,7 +40,8 @@ test('the preview always sits to the right of the listing', async () => {
   const { text } = await filesTab()
   assert.ok(text.includes('.yk-filesSplit { display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 45%, 420px);'), 'the layout is a two-column split that never stacks')
   assert.equal(text.includes('.yk-filesSplit { grid-template-columns: 1fr; }'), false, 'a narrow panel keeps the preview on the right')
-  assert.ok(text.includes(".yk-preview { display: flex; flex-direction: column;"), 'the preview is a bordered surface')
+  assert.ok(text.includes(".yk-preview { position: sticky; top: 0; display: flex; flex-direction: column;"), 'the preview stays pinned while the listing scrolls')
+  assert.ok(text.includes('.yk-filesSplit { display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 45%, 420px); gap: 16px; align-items: start; }'), 'a top-aligned grid item is what makes sticky apply')
 })
 
 test('changing folder clears the preview', async () => {
