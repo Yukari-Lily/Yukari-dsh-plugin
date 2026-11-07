@@ -5808,7 +5808,7 @@ window.__ModuleLoader__.load({
             const seq = Number(tag.slice(tag.lastIndexOf(':') + 1))
             if (Number.isSafeInteger(seq)) effective = seq
           }
-          const hidden = cuts.some((cut) => effective >= cut.start && effective <= cut.marker)
+          const hidden = cuts.some((cut) => effective >= (cut.start ?? cut.target) && effective <= cut.marker)
           const known = rewindHidden.has(row)
           if (hidden === known) continue
           if (hidden) {
@@ -5902,6 +5902,9 @@ window.__ModuleLoader__.load({
         }
       }, [phase])
 
+      /** 失败信息带上状态码：界面上一眼能看出是哪个环节被拒。 */
+      const describe = (error) => `${messageOf(error)}${Number.isInteger(error?.status) ? `（HTTP ${error.status}）` : ''}`
+
       const open = async () => {
         setFailure('')
         place()
@@ -5910,7 +5913,7 @@ window.__ModuleLoader__.load({
           const payload = await postJson(`${API.rewind}/plan`, { sessionId: sessionOf(), seq })
           setPlan(payload)
         } catch (error) {
-          setFailure(messageOf(error))
+          setFailure(describe(error))
         }
       }
 
@@ -5925,7 +5928,7 @@ window.__ModuleLoader__.load({
           setPhase('idle')
           setPlan(null)
         } catch (error) {
-          setFailure(messageOf(error))
+          setFailure(describe(error))
           setPhase('confirm')
         }
       }

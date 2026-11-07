@@ -72,7 +72,8 @@ function markerText(event) {
 /**
  * 从日志里已有的标记事件推导出每一次回撤的区间。
  * @param events - 按 seq 连续排列的事件。
- * @returns `[{ start, marker }]`：start 是第一个被隐藏的节点，marker 是标记事件。
+ * @returns `[{ start, target, marker }]`：start 是第一个被隐藏的节点（`target` 是同一
+ *   个值的兼容别名，旧版客户端读的是它），marker 是标记事件。
  */
 export function cutsOf(events) {
   const cuts = []
@@ -80,7 +81,7 @@ export function cutsOf(events) {
     if (event.type !== 'user/message' || !replaced(event)) continue
     if (markerText(event) !== MARKER_TEXT) continue
     const { startSeq } = event.surfaceOp
-    if (Number.isSafeInteger(startSeq)) cuts.push({ start: startSeq, marker: event.seq })
+    if (Number.isSafeInteger(startSeq)) cuts.push({ start: startSeq, target: startSeq, marker: event.seq })
   }
   return cuts
 }
