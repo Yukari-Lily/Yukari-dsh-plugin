@@ -40,7 +40,9 @@ test('the preview always sits to the right of the listing', async () => {
   const { text } = await filesTab()
   assert.ok(text.includes('.yk-filesSplit { display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 45%, 420px);'), 'the layout is a two-column split that never stacks')
   assert.equal(text.includes('.yk-filesSplit { grid-template-columns: 1fr; }'), false, 'a narrow panel keeps the preview on the right')
-  assert.ok(text.includes(".yk-preview { position: sticky; top: 0; display: flex; flex-direction: column;"), 'the preview stays pinned while the listing scrolls')
+  assert.ok(text.includes('height: var(--yk-preview-height, calc(100vh - 24px))'), 'the preview fills the height measured from the panel')
+  assert.ok(text.includes(".yk-preview { position: sticky; top: 12px; display: flex; flex-direction: column;"), 'the preview is pinned with a small inset')
+  assert.equal(text.includes('max-height: 62vh'), false, 'the preview no longer hugs its content')
   assert.ok(text.includes('.yk-filesSplit { display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 45%, 420px); gap: 16px; align-items: start; }'), 'a top-aligned grid item is what makes sticky apply')
 })
 
@@ -69,6 +71,12 @@ test('the preview bar carries the controls the session viewer has', async () => 
   assert.ok(body.includes('scrollIntoView'), 'reveal scrolls the listing to the file')
   assert.ok(text.includes('.yk-previewCode-nowrap .yk-previewLineText { white-space: pre; }'), 'turning wrap off keeps the line intact')
   assert.ok(text.includes('.yk-lightbox { position: fixed;'), 'the image opens in a fixed overlay')
+})
+
+test('the preview height is measured from the panel, not guessed from the viewport', async () => {
+  const { body } = await filesTab()
+  assert.ok(body.includes("setProperty('--yk-preview-height'"), 'the measured height lands on the split')
+  assert.ok(body.includes('new ResizeObserver(sync)'), 'a resized panel re-measures')
 })
 
 test('auto refresh reloads on an interval and stops with the preview', async () => {

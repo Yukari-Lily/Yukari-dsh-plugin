@@ -1119,8 +1119,8 @@ window.__ModuleLoader__.load({
 .yk-itemHead { padding-block: 4px; border-bottom: .5px solid var(--yk-line); border-radius: 0; font-size: 11px; color: var(--yk-muted); }
 .yk-filesBody { display: block; }
 .yk-filesSplit { display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 45%, 420px); gap: 16px; align-items: start; }
-/* 预览跟着页面滚动停在右上：列表往下翻时仍然看得到当前文件。 */
-.yk-preview { position: sticky; top: 0; display: flex; flex-direction: column; gap: 10px; min-height: 220px; max-height: 62vh; overflow: auto; padding: 12px; border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-base); }
+/* 预览跟着页面滚动停在右上，上下各留一点距离并撑满可视高度：列表往下翻时仍然看得到当前文件。 */
+.yk-preview { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 10px; height: var(--yk-preview-height, calc(100vh - 24px)); min-height: 320px; overflow: auto; padding: 12px; border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-base); }
 .yk-previewHead { display: flex; align-items: center; gap: 4px; min-width: 0; min-height: 32px; }
 .yk-previewPath { flex: 1; min-width: 0; padding-right: 4px; font-size: 13px; color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .yk-previewDoc { font-size: 13px; line-height: 1.6; }
@@ -2966,6 +2966,21 @@ window.__ModuleLoader__.load({
 
       const root = roots === null ? null : roots.find((item) => item.id === rootId) ?? null
 
+      // 面板的可视高度不等于视口高度（外面还有标题与导航），量出来再给预览定高：
+      // 上下各留 12px，剩下一撑满，列表怎么滚都不会把预览推出屏幕。
+      const splitRef = React.useRef(null)
+      React.useEffect(() => {
+        const split = splitRef.current
+        const scroller = split?.closest('.yk-page')
+        if (split === null || scroller === null || scroller === undefined) return undefined
+        const sync = () => split.style.setProperty('--yk-preview-height', `${Math.max(240, scroller.clientHeight - 24)}px`)
+        sync()
+        if (typeof ResizeObserver !== 'function') return undefined
+        const observer = new ResizeObserver(sync)
+        observer.observe(scroller)
+        return () => observer.disconnect()
+      }, [])
+
       const loadRoots = React.useCallback(async () => {
         try {
           const payload = await getJson(`${API.files}/roots`, signal)
@@ -3316,7 +3331,7 @@ window.__ModuleLoader__.load({
         h(
           'div',
           // 默认只有列表；点了文件才让出右栏，避免空着一块预览区占地方。
-          { className: previewTarget === null ? 'yk-filesBody' : 'yk-filesSplit' },
+          { className: previewTarget === null ? 'yk-filesBody' : 'yk-filesSplit', ref: splitRef },
           entries.length === 0
             ? busy === 'load'
               ? h(Loading, { text: t('loading') })
