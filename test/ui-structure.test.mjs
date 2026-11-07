@@ -78,3 +78,35 @@ test('a chat row confirms inside its own actions, without hiding the row', async
   assert.equal(confirm.includes('yk-confirmHint'), false, 'no hint paragraph in the confirm')
   assert.equal(confirm.includes('yk-itemConfirm'), false, 'no box or separate row')
 })
+
+test('panel layout lives in the stylesheet, not in inline style attributes', async () => {
+  const text = await source()
+  // 行内 style 只留给随数据变化的尺寸（进度、logo 边长）；其余一律走样式类。
+  const inline = text.match(/style: \{[^}]*\}/g) ?? []
+  assert.ok(inline.length > 0, 'the scan found the inline styles')
+  const fixed = inline.filter((value) => !value.includes('${'))
+  assert.deepEqual(fixed, [], 'static sizes belong in the stylesheet')
+})
+
+test('controls in one toolbar share height, radius and type scale', async () => {
+  const text = await source()
+  const rule = (selector) => {
+    const match = new RegExp(`^${selector.replace('.', '\\.')} \\{([^}]*)\\}`, 'm').exec(text)
+    assert.notEqual(match, null, `${selector} exists`)
+    return match[1]
+  }
+  const height = (selector) => {
+    const found = /(?:^|;)\s*height:\s*(\d+)px/.exec(rule(selector))
+    return found === null ? null : Number(found[1])
+  }
+  assert.equal(height('.yk-input'), 34, 'inputs are 34px')
+  assert.equal(height('.yk-search'), 34, 'search boxes match inputs')
+  assert.equal(height('.yk-select'), 34, 'selects match inputs')
+  assert.ok(/min-height: 32px/.test(rule('.yk-btn')), 'buttons are 32px tall')
+  assert.ok(/min-height: 28px/.test(rule('.yk-btn-sm')), 'small buttons are 28px tall')
+  assert.ok(/border-radius: var\(--dsw-radius-sm\)/.test(rule('.yk-segItem')), 'segment items share the indicator radius')
+  // 字号只在刻度上：10 只给徽标，11 起是正文层级
+  const sizes = new Set([...text.matchAll(/font-size:\s*([\d.]+)px/g)].map((m) => m[1]))
+  const stray = [...sizes].filter((value) => !['11', '12', '13', '14', '15', '16', '18'].includes(value))
+  assert.deepEqual(stray, [], 'font sizes outside the scale')
+})
