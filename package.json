@@ -1,0 +1,115 @@
+{
+  "name": "yukari-dsh-plugin",
+  "version": "0.1.0",
+  "description": "自用插件合集：会话管理与原地回撤、静态站点发布、工作区文件浏览与打包、技能库（上传 / 下载 / 编辑 / 启停本地 DSH 技能）、全局与工作区约束、GitHub 推送（持久化令牌 + git 凭据助手 + SSH 提交签名）、Shadowsocks 出站代理、无限制模式（尾部锚点 + 劝退句改写 + 拒绝重试）、自动就绪的无头浏览器、自定义智能体预设、DSH 版本检查与重启。",
+  "icon": "./icon.png",
+  "author": "YG",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yukari-Lily/Yukari-dsh-plugin.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Yukari-Lily/Yukari-dsh-plugin/issues"
+  },
+  "homepage": "https://github.com/Yukari-Lily/Yukari-dsh-plugin#readme",
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json",
+    "./client": "./client.js",
+    "./browser": "./host/browser/index.js",
+    "./chats": "./host/chats/index.js",
+    "./runtime": "./host/runtime/index.js",
+    "./sites": "./host/sites/index.js",
+    "./proxy": "./host/proxy/index.js",
+    "./purge": "./host/purge/index.js",
+    "./rules": "./host/rules/index.js",
+    "./rules/icon": "./icon.png",
+    "./presets": "./host/presets/index.js",
+    "./skills": "./host/skills/index.js",
+    "./presets/icon": "./icon.png",
+    "./skills/icon": "./icon.png",
+    "./github": "./host/github/index.js",
+    "./github/icon": "./icon.png",
+    "./icon": "./icon.png",
+    "./browser/icon": "./icon.png",
+    "./chats/icon": "./icon.png",
+    "./runtime/icon": "./icon.png",
+    "./sites/icon": "./icon.png",
+    "./proxy/icon": "./icon.png",
+    "./purge/icon": "./icon.png",
+    "./rewind": "./host/rewind/index.js",
+    "./rewind/locale/*.json": "./host/rewind/locale/*.json",
+    "./rewind/icon": "./icon.png",
+    "./files": "./host/files/index.js",
+    "./files/icon": "./icon.png",
+    "./locale/*.json": "./locale/*.json",
+    "./chats/locale/*.json": "./host/chats/locale/*.json",
+    "./sites/locale/*.json": "./host/sites/locale/*.json",
+    "./files/locale/*.json": "./host/files/locale/*.json",
+    "./rules/locale/*.json": "./host/rules/locale/*.json",
+    "./presets/locale/*.json": "./host/presets/locale/*.json",
+    "./skills/locale/*.json": "./host/skills/locale/*.json",
+    "./proxy/locale/*.json": "./host/proxy/locale/*.json",
+    "./github/locale/*.json": "./host/github/locale/*.json",
+    "./purge/locale/*.json": "./host/purge/locale/*.json",
+    "./browser/locale/*.json": "./host/browser/locale/*.json",
+    "./runtime/locale/*.json": "./host/runtime/locale/*.json"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "locale/**",
+    "host/**/*.js",
+    "host/**/locale/**",
+    "host/purge/presets/**",
+    "cordis.patch.yml",
+    "icon.png",
+    "LICENSE"
+  ],
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "bundle",
+    "sidebar",
+    "panel",
+    "shadowsocks",
+    "static-site",
+    "headless-browser",
+    "unrestricted",
+    "constraints",
+    "rules",
+    "agents-md",
+    "github",
+    "git-credential",
+    "skill",
+    "agent-preset",
+    "preset"
+  ],
+  "engines": {
+    "dsh": ">=0.2.1-rc.5"
+  },
+  "dependencies": {
+    "undici": "^8.12.3",
+    "yaml": "^2.9.1"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ]
+    }
+  },
+  "devDependencies": {
+    "jsdom": "^31.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  }
+}

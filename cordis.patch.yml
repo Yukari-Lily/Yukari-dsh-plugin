@@ -1,0 +1,94 @@
+# Yukari 插件合集：主行 + 12 个可在「插件」页单独开关的组件
+#
+# 全部组件默认启用。代理默认直连：本地端口会起来，但只做直连转发（宿主会把子进程的
+# 代理变量钉在启动时的值上，端口关掉子进程就断网）；主动启用后才经节点转发；
+# 无头浏览器挂载后才会开始准备 Chrome 与缺失的运行库。
+# 不用的组件在「插件」页关掉即可。
+- insert:
+    - id: yukari
+      name: yukari-dsh-plugin
+
+    - id: yukari-chats
+      name: yukari-dsh-plugin/chats
+      config:
+        sessionsRoot: ''
+        titleBudget: 160
+
+    - id: yukari-sites
+      name: yukari-dsh-plugin/sites
+      config:
+        root: /workspace/publish
+        # 站点链接的默认前缀；也可以在面板「站点」页直接填写自己的域名
+        publicBase: http://127.0.0.1:3080/p
+        maxMb: 200
+        maxFiles: 10000
+        keep: 5
+
+    - id: yukari-rewind
+      name: yukari-dsh-plugin/rewind
+
+    - id: yukari-files
+      name: yukari-dsh-plugin/files
+      config:
+        # 单次打包下载的总量上限（MB）；不带 zip64 的 ZIP 最大到 4 GiB
+        maxMb: 4096
+
+    - id: yukari-rules
+      name: yukari-dsh-plugin/rules
+      config:
+        # 单份约束的注入上限（字节）；超出的部分截断并标注
+        maxBytes: 16384
+        # 全局 / 工作区 / 尾部重申三个开关的初始值，面板里可随时改
+        global: true
+        project: true
+        tailAnchor: true
+
+    - id: yukari-skills
+      name: yukari-dsh-plugin/skills
+
+    - id: yukari-proxy
+      name: yukari-dsh-plugin/proxy
+      config:
+        localPort: 17890
+        bypass: localhost,127.0.0.1,::1
+        autoStart: false
+
+    - id: yukari-presets
+      name: yukari-dsh-plugin/presets
+
+    - id: yukari-github
+      name: yukari-dsh-plugin/github
+
+    - id: yukari-purge
+      name: yukari-dsh-plugin/purge
+      config:
+        # 尾部锚点：把规则放在系统提示词最后一段，长上下文里不漂移
+        anchor: true
+        # 模型仍然开口拒绝时，丢弃这次输出并追加收尾指令重发一次
+        refusalRetry: true
+        # 改写宿主"被拒绝就别重试"一类句子（含沙箱工具描述）
+        stripHostLimits: true
+
+    - id: yukari-browser
+      name: yukari-dsh-plugin/browser
+      config:
+        viewportWidth: 1280
+        viewportHeight: 900
+        settleMs: 300
+        # 不填 executablePath 时自动下载官方 Chrome for Testing 到 DSH_HOME
+        # sandbox: auto 普通主机保持沙箱，root/容器内自动加 --no-sandbox
+        sandbox: auto
+        # 缺少系统运行库时自动从 Debian 索引下载 .deb 解压到 DSH_HOME（无需 root）
+        autoLibraries: true
+        cjkFonts: true
+        allowLocalUrls: false
+        allowAnyScreenshotPath: false
+
+    - id: yukari-runtime
+      name: yukari-dsh-plugin/runtime
+      config:
+        channel: ''
+        registry: ''
+        restartMode: auto
+        restartCommand: ''
+        restartDelayMs: 800

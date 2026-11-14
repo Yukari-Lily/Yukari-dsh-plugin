@@ -1,0 +1,63 @@
+# The repository has no build step and no `npm test` script: the suite is
+# `node --test`, exactly what the operator runs locally.
+#
+# Each test file runs as its own job so a hanging file names itself in the
+# checks list instead of stalling one opaque "test" step. The worktree job
+# exists because a checkout once lost 31 tracked files and nothing reported it.
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    outputs:
+      files: ${{ steps.files.outputs.files }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: files
+        run: |
+          node -e "
+            const fs = require('fs');
+            const files = fs.readdirSync('test')
+              .filter((name) => name.endsWith('.test.mjs'))
+              .sort()
+              .map((name) => 'test/' + name);
+            console.log('files=' + JSON.stringify(files));
+          " >> "$GITHUB_OUTPUT"
+
+  test:
+    needs: list
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        file: ${{ fromJSON(needs.list.outputs.files) }}
+    name: test (${{ matrix.file }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test --test-force-exit --test-timeout=20000 "${{ matrix.file }}"
+
+  worktree:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test --test-force-exit test/*.test.mjs
+      - name: worktree must stay clean
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            git status --porcelain
+            exit 1
+          fi

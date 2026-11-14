@@ -1,0 +1,27 @@
+# Dependencies are installed by the profile, never committed.
+node_modules/
+
+# A locally bundled Chromium runtime. Published installs download the official
+# Chrome for Testing build into DSH_HOME instead; see README → 浏览器：装好即用.
+host/browser/runtime/
+
+# Packing and local artefacts
+*.tgz
+*.tar.gz
+*.log
+
+# macOS / editor noise
+.DS_Store
+.idea/
+.vscode/
+
+# Browser output
+screenshots/
+*.png.bak
+
+# Crash dumps from a browser run
+core
+core.*
+
+# 工作区规则文件由操作者维护，含本机路径，不入库
+rules.md
