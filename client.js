@@ -1,0 +1,8079 @@
+window.__ModuleLoader__.load({
+  id: 'yukari-dsh-plugin',
+  factory(require) {
+    const React = require('react')
+    const ReactDOM = require('react-dom')
+    const primitives = require('@deepseek-ai/dsh-client-ui-primitives')
+    const h = React.createElement
+    // 旧宿主没有 Tooltip：按钮照常工作，只少一条提示。
+    const Tooltip = primitives.Tooltip ?? (({ children }) => children)
+    // 面板内的文件预览复用宿主的 markdown 渲染件：原生文档预览用的就是它。
+    const MarkdownView = primitives.MarkdownText ?? null
+
+    /** Locale namespace of the merged panel. */
+    const NS = 'yukari'
+    /** Sidebar list id, and the key of the matching main panel. */
+    const PANEL_ID = 'yukari'
+
+    /** Host endpoints, one per merged subsystem. */
+    const API = {
+      overview: '/yukari/api/overview',
+      update: '/yukari/api/update',
+      restart: '/yukari/api/restart',
+      icon: '/yukari/api/icon',
+      chats: '/chat-manager/api',
+      runtime: '/dshctl/api',
+      sites: '/publish/api',
+      proxy: '/ssproxy/api',
+      purge: '/purge/api',
+      files: '/files/api',
+      rules: '/rules/api',
+      skills: '/skills/api',
+      presets: '/presets/api',
+      github: '/github/api',
+      browser: '/browser/api',
+      rewind: '/rewind/api',
+    }
+
+    /* ------------------------------------------------------------------ i18n */
+
+    const zh = {
+      title: 'Yukari 插件合集',
+      tabOverview: '概览',
+      tabChats: '会话',
+      tabSites: '站点',
+      tabProxy: '代理',
+      tabPurge: '无限制模式',
+      tabRules: '约束',
+      tabRuntime: '状态',
+
+      compChats: '会话管理',
+      compSites: '站点发布',
+      compFiles: '工作区文件',
+      compProxy: '出站代理',
+      compPurge: '无限制模式',
+      compRules: '约束',
+      compBrowser: '无头浏览器',
+      compRuntime: '运行状态',
+
+      upCheck: '检查更新',
+      upChecking: '正在检查…',
+      upLatest: '已是最新版本',
+      upAvailable: '有新版本 {version}',
+      upNow: '立即更新',
+      upUpdating: '正在更新…',
+      upDone: '已更新到 {version}，已生效',
+      upPending: '已安装 {version}，重启后生效',
+      upRestart: '立即重启',
+      upFailed: '检查更新失败：{error}',
+      upUpdateFailed: '更新失败：{error}',
+
+      /* presets */
+      tabPresets: '预设',
+      compPresets: '智能体预设',
+      ovPresets: '{n} 个自定义',
+      ovSkills: '启用 {a} / 共 {b}',
+      ovPresetsHow: '以已有预设为模板新建',
+      pIntro: '以现有预设为模板复制，或新建空白组合。',
+      pTrust: '仅添加可信来源的插件包。',
+      pMine: '我的预设',
+      pMineHint: '可编辑、可删除',
+      pDeclared: '其他自定义预设',
+      pDeclaredHint: '保存将覆盖同标识的预设',
+      pBuiltin: '内置预设',
+      pBuiltinHint: '只读，可复制',
+      pRuntimeGroup: '运行时注册',
+      pRuntimeHint: '由其他插件注册',
+      pSourceStore: '我的',
+      pSourceDeclared: '声明式',
+      pSourceBuiltin: '内置',
+      pSourceRuntime: '运行时',
+      pEmptyList: '暂无预设。',
+      pRowsCount: '{n} 行',
+      pRowsTitle: '能力行（{n}）',
+      pRowsUnknown: '结构未知',
+      pNew: '新建预设',
+      pNewTitle: '新建预设',
+      pEditTitle: '编辑预设',
+      pChooseTemplate: '选择模板',
+      pChooseTemplateHint: '复制模板的工具、提示词与分组。',
+      pBlankTitle: '空白组合',
+      pBlankHint: '不含任何工具，仅保留对话。',
+      pUseTemplate: '使用此模板',
+      pImportChoose: '选择',
+      pImportFrom: '从「{name}」导入',
+      pImportHint: '选中的能力行将深拷贝追加到当前组合末尾。',
+      pImportAdd: '加入 {n} 行',
+      pImportPick: '先选择预设，再从其余组合中选择能力行。',
+      pTemplateTag: '模板：{name}',
+      pCopyName: '{name} 副本',
+      pName: '名称',
+      pNamePlaceholder: '例如：代码审查',
+      pId: '标识',
+      pIdPlaceholder: 'code-review',
+      pIdHint: '仅限小写字母、数字、- 和 _；创建后不可修改，会话按此标识记录预设。',
+      pIdLocked: '标识创建后不可修改。',
+      pDescription: '描述',
+      pDescriptionPlaceholder: '一句话说明该模式的作用',
+      pOrder: '排序',
+      pOrderHint: '数字小的排在前面，留空排最后',
+      pPersona: '人格提示词',
+      pPersonaHint: '定义该模式的人格。',
+      pPersonaPlaceholder: '描述当前模式的工作方式……',
+      pPersonaSuffix: '后缀（可留空）',
+      pPersonaMissing: '该组合缺少人格行。',
+      pPersonaAdd: '添加人格行',
+      pRowsHint: '每个能力行对应一个插件。',
+      pRowGroup: '分组',
+      pRowCondition: '条件',
+      pRowDisable: '停用',
+      pRowEnable: '启用',
+      pRowDisabled: '已停用',
+      pRemoveRow: '移除该行',
+      pAddRow: '自定义行',
+      pImportRows: '从预设导入',
+      pRowName: '插件包名，例如 @deepseek-ai/dsh-tool-fs',
+      pRowId: '行 id（可留空）',
+      pRowConfig: 'config（JSON，可留空）',
+      pRowNameRequired: '插件包名不能为空',
+      pAdd: '添加',
+      pAdvanced: '高级：组合 JSON',
+      pAdvancedHint: '此处可整段替换能力行，也可调整分组、isolate 等结构字段。',
+      pAdvancedOpen: '展开 JSON',
+      pApply: '应用',
+      pJsonInvalid: 'JSON 格式错误：{error}',
+      pJsonShape: '组合必须是插件行数组，每行需包含 name。',
+      pJsonRow: '第 {n} 个插件行',
+      pSave: '保存',
+      pBack: '返回',
+      pCancel: '取消',
+      pEdit: '编辑',
+      pCopy: '复制一份',
+      pDelete: '删除',
+      pView: '查看组合',
+      pDeleted: '已删除',
+      pDeleteTitle: '删除「{name}」？',
+      pDeleteHint: '删除后新会话无法再选择该预设，已在使用的会话不受影响。',
+      pConflict: '注册失败',
+      pDefault: '当前默认',
+      pSaved: '已保存，新会话生效，运行中的会话保留旧组合',
+      pNoStructure: '该预设仅提供 YAML 视图，无法读取逐行结构。',
+      pYaml: 'YAML 组合',
+      pYamlHint: '只读，由 DSH 自带查看器渲染同一份声明。',
+      pStoreBroken: '预设存档异常：{error}',
+      pEmptyComposition: '该组合为空：会话仅保留对话，不加载任何工具。',
+      pSelectAll: '全选',
+      upManual: '当前安装不支持自动更新，请在「插件」页重新安装',
+      refresh: '刷新',
+      failureSubject: '「{name}」加载失败：{reason}',
+      failureNetwork: '网络请求失败，宿主可能未在运行。',
+      retry: '重试',
+      cancel: '取消',
+      save: '保存',
+      saved: '已保存',
+      close: '关闭',
+      loading: '加载中…',
+      none: '—',
+      open: '打开',
+      copy: '复制',
+      copied: '已复制',
+      copyFailed: '复制失败',
+      clearSearch: '清空',
+      expand: '展开',
+      collapse: '收起',
+
+      offTitle: '「{name}」已关闭',
+      offHint: '在侧边栏「插件」页启用 Yukari 的「{name}」组件并刷新页面。',
+      ovArchived: '已归档',
+      ovReady: '已就绪',
+      ovPurgeHow: '在对话输入框下方的模式菜单中选择「无限制模式」',
+      ovFiles: '{n} 个工作区',
+      ovPurgeUsed: '已注入 {n} 次',
+      ovOff: '未启用 · 可在「插件」页启用',
+      ovCount: '运行中的组件 {n} 个',
+
+      cSearch: '搜索标题、ID 或路径',
+      cFilter: '会话范围',
+      cAll: '全部',
+      cActive: '使用中',
+      cArchived: '已归档',
+      cGroupByWorkspace: '按工作区',
+      cFlatList: '按时间',
+      cWorkspaceUnassigned: '未归属工作区',
+      cSelectWorkspace: '全选',
+      cDeleteWorkspace: '删除工作区',
+      cDelete: '删除',
+      cDeleteN: '删除 {n} 个',
+      cConfirm: '删除这 {n} 个会话？',
+      cConfirmWorkspace: '删除工作区「{name}」及其 {n} 个会话？',
+      cConfirmHint: '会话记录将从磁盘删除，归档与置顶标记一并清除，且无法恢复。',
+      cMissingRecord: '记录缺失',
+      cDeleteFiles: '同时删除文件产物',
+      cDeleteFilesHint: '仅删除会话中由 write / str_replace_editor 新建、且仍在工作区内的文件。命令行生成的文件与会话开始前已存在的文件不会删除。',
+      cDeleteWorkspaceDir: '同时删除工作区目录',
+      cDeleteWorkspaceDirHint: '目录 {path} 及其内容将全部删除；不勾选则仅移除工作区，保留目录。',
+      cArchive: '归档',
+      cUnarchive: '取消归档',
+      cSelected: '已选 {n}',
+      cTotal: '共 {n} 个会话',
+      cTotalOne: '共 1 个会话',
+      cNoMatch: '无匹配会话',
+      cNoMatchHint: '请调整关键词或筛选范围。',
+      cNoChats: '暂无会话',
+      cNoChatsHint: '开始一段新会话后，它会出现在此列表。',
+      cDeleted: '已删除 {n} 个会话',
+      cDeletedOne: '已删除 1 个会话',
+      cFilesDeleted: '删除 {n} 个文件',
+      cDirDeleted: '工作区及目录已删除',
+      cWorkspaceRemoved: '工作区已移除（目录保留）',
+      cLive: '已加载',
+      cRunning: '运行中',
+      cDeleteOne: '删除该会话？',
+      cDeleteOneSub: '删除该会话及其 {n} 个子会话？',
+      cSubagentTag: '子会话',
+      cSubSessions: '{n} 个子会话',
+      cPreviewTurns: '{n} 轮对话',
+      cPreviewEmpty: '暂无消息',
+      cPreviewFail: '预览失败：{reason}',
+      cLockedByParent: '随主会话一同选中，无法单独取消',
+      cArchivedTag: '已归档',
+      rwButton: '回撤',
+      rwTitle: '回撤到此处？',
+      rwHint: '将撤下 {n} 条消息，并还原 {m} 个文件。',
+      rwHintNoFiles: '将撤下 {n} 条消息。',
+      rwApply: '回撤',
+      rwBusy: '回撤中…',
+      cReason_running: '会话仍在运行，无法删除。',
+      cReason_unknown: '找不到会话。',
+      'cReason_io-error': '删除文件失败。',
+      'cReason_no-artifact': '没有落盘文件。',
+      'cReason_unsafe-path': '路径不安全，已跳过',
+
+      sSearch: '搜索站点名称或路径',
+      sPrefix: '访问前缀',
+      sSettings: '高级设置',
+      sPrefixUnsetTag: '未设置访问前缀',
+      sPrefixHint: '站点链接 = 前缀 + /站点名/。填写自有对外地址，例如 https://pages.example.com 或 https://dsh.example.com/p',
+      sPrefixDefault: '恢复默认',
+      sPrefixUnset: '当前仍使用默认前缀（dsh 本身不提供 /p 页面）。发布目录需由自有静态服务对外提供，在此填写该地址后链接方可打开。',
+      sCount: '共 {n} 个站点',
+      sCountOne: '共 1 个站点',
+      sEmpty: '暂无已发布站点',
+      sEmptyHint: '可让智能体调用 publish_site，或将构建产物放入发布目录。',
+      confirmUnpublish: '下线「{name}」？',
+      confirmUnpublishHint: '发布目录将被删除，链接立即失效。',
+      sUnpublish: '下线',
+      sPublished: '{time} 发布',
+      sFiles: '{n} 个文件',
+      sVersion: 'v{version}',
+      sNoMatch: '无匹配站点',
+      tabFiles: '文件',
+      fWorkspace: '工作区',
+      fRoot: '根目录',
+      fName: '名称',
+      fSize: '大小',
+      fPreview: '预览',
+      fDownload: '下载',
+      fDownloadFilesN: '下载 {n} 个文件',
+      fDownloadFilesOne: '下载 1 个文件',
+      fZipN: '打包下载 {n} 项',
+      fZipReason: '超过 {n} 个文件时自动打包，避免连续弹出下载框',
+      fSelectAll: '全选',
+      fSymlink: '符号链接',
+      fEmpty: '该目录为空',
+      fEmptyHint: '请切换工作区或返回上级目录。',
+      fTruncated: '该目录条目超过 {n}，列表只显示前 {n} 项。',
+      fHint: '已选 {n} 项；仅选文件时逐个下载，包含文件夹或超过 10 个文件时打包下载。',
+      fPreviewBinary: '该文件为二进制格式，仅支持下载。',
+      fPreviewTruncated: '文件较大，仅显示开头部分。',
+      fRevealInTree: '在文件树中显示',
+      fWrap: '自动换行',
+      fUnwrap: '取消自动换行',
+      fCode: '代码',
+      fFootnotes: '脚注',
+      fAutoRefresh: '自动刷新',
+      fCopyAll: '复制内容',
+      fFullscreen: '全屏查看',
+      fZoomIn: '放大',
+      fZoomOut: '缩小',
+      pEnable: '启用代理',
+      pDisable: '停用代理',
+      pEnabled: '已接管出站流量',
+      pDisabled: '直连',
+      pPending: '已启用，等待连接',
+      pNodes: '节点',
+      pNoNodes: '还没有节点',
+      pNoNodesHint: '将 ss:// 链接、订阅内容或 Clash 配置粘贴至下方导入。',
+      pUse: '使用',
+      pInUse: '使用中',
+      pTest: '测速',
+      pTestAll: '全部测速',
+      pTesting: '测速中…',
+      pRemove: '删除',
+      confirmRemoveNode: '删除节点「{name}」？',
+      confirmRemoveNodeHint: '从列表移除，同时删除节点密码，可重新导入。',
+      pImport: '导入',
+      pImportTitle: '导入节点',
+      pImportPlaceholder: '粘贴一个或多个 ss:// 链接、Base64 订阅内容或 Clash 配置（proxies 列表）',
+      pImported: '导入 {added} 个节点',
+      pImportedUpdated: '，更新 {updated} 个',
+      pImportedSkipped: '，跳过 {skipped} 个不支持的节点',
+      pSettings: '高级设置',
+      pLocalPort: '本地端口',
+      pBypass: '直连名单',
+      pInvalidPort: '本地端口需在 1024–65535 之间',
+      pReset: '清空全部节点',
+      pConfirmReset: '确认清空全部节点？',
+      pActive: '在途连接',
+      pFailures: '失败',
+      pLastError: '上次错误',
+      pStateFile: '节点与密码保存在本地状态文件（权限 0600），重启后自动恢复。',
+      ghNoState: '服务器未返回 GitHub 状态',
+      ghNoRepo: '服务器未返回仓库信息',
+      gTitle: '无限制模式',
+      gPresetUnrestricted: '无限制模式',
+      gPrompt: '系统提示词',
+      gChars: '{n} 字',
+      gCustom: '自定义',
+      gDefault: '内置默认',
+      gSave: '保存并生效',
+      gReset: '恢复默认',
+      gConfirmReset: '确认恢复默认？',
+      gResetDone: '已恢复内置提示词',
+      gPlaceholder: '输入无限制模式下注入的系统提示词…',
+      gUnsaved: '有未保存的修改',
+      gAnchor: '尾部锚点',
+      gRetry: '拒绝重试',
+      gScrub: '劝退句改写',
+      gOn: '开',
+      gOff: '关',
+      gProbe: '自检注入',
+      gProbeOk: '命中：注入与锚点均已生效',
+      gProbeMiss: '未命中：本次装配未包含注入',
+      gProbeFail: '自检不可用：{reason}',
+      gStats: '注入 {a} 次 · 改写 {b} 条 · 重试 {c} 次',
+      gStatsNone: '本进程暂无无限制模式的装配记录',
+      kTitle: '约束',
+      kGlobalTitle: '全局约束',
+      kGlobalNote: '对所有会话生效，含子智能体',
+      kProjectTitle: '工作区约束',
+      kProjectNote: '仅对工作区内的会话生效',
+      kPath: '文件',
+      kExists: '已存在',
+      kMissing: '未创建',
+      kPlaceholder: '一行一条，写明「必须做 / 禁止做 / 冲突时如何处理」。\n示例：\n- 回复一律使用简体中文。\n- 改代码前先读现有实现，不另起一套。',
+      kChars: '{n} 字符',
+      kLimit: '单份上限 {n}',
+      kUnsaved: '未保存',
+      kSavedNext: '已保存 · 下一轮对话生效',
+      kClear: '清空',
+      kConfirmClear: '清空这份约束？',
+      kConfirmClearHint: '文件 {path} 将被删除，下一轮对话起不再注入。',
+      kClearDone: '已清空',
+      kImport: '导入 AGENTS.md',
+      kImportNone: '该范围没有可导入的 AGENTS.md / CLAUDE.md',
+      kImported: '已载入 {file}，保存后生效',
+      kToggleGlobal: '全局',
+      kToggleProject: '工作区',
+      kToggleAnchor: '尾部重申',
+      kProbe: '自检注入',
+      kProbeOk: '注入正常',
+      kProbeMiss: '没有注入',
+      kProbeNone: '没有可自检的会话',
+      kProbeFail: '自检失败：{reason}',
+      kStats: '已注入 {a} 次 · 全局 {b} · 工作区 {c}',
+      kStatsNone: '还没有会话带上约束',
+      kPrecedence: '不改变审批与沙箱权限。',
+      kAgentsNote: '可通过「导入」迁移 AGENTS.md / CLAUDE.md。',
+      kSwitchDirty: '切换工作区将丢失未保存的修改',
+      kDiscard: '放弃修改',
+      kNoWorkspaces: '没有已注册的工作区',
+      kDirMissing: '工作区目录不存在',
+      kTruncated: '已截断',
+      kDegraded: '{reason}；注入已回退到进程目录，工作区约束按该目录读取。',
+      kInjectedTruncated: '注入时只取前 {n}，其余部分不会发给模型。',
+      kDetails: '说明与统计',
+      ovRulesActive: '{n} 份约束已就绪',
+      ovRulesHow: '保存后下一轮生效',
+
+      tabGithub: 'GitHub',
+      compGithub: 'GitHub',
+      ghIntro: '连接 GitHub',
+      ghCreate: '创建 fine-grained token',
+      ghStepAccess: '创建 fine-grained token：选择仓库，授予 Contents 读写权限。',
+      ghTokenLabel: 'GitHub 令牌',
+      ghTokenPlaceholder: 'github_pat_… 或 ghp_…',
+      ghShow: '显示',
+      ghHide: '隐藏',
+      ghSave: '保存并验证',
+      ghSaving: '验证中…',
+      ghStorage: '令牌仅保存在本机，重启后仍有效。',
+      ghSecurityHint: '建议使用限定仓库、短期有效的 fine-grained token；同容器的进程可读取令牌文件。',
+      ghAccount: '账号',
+      ghLogin: '登录名',
+      ghTokenType: '令牌类型',
+      ghExpiry: '有效期',
+      ghExpired: '已过期',
+      ghNeverExpires: '不过期',
+      ghFineGrained: 'Fine-grained',
+      ghClassic: 'Classic',
+      ghUnknown: '未知',
+      ghGit: 'Git 凭据助手',
+      ghHelperOn: '已安装',
+      ghRepaired: '凭据助手已重新安装',
+      ghHelperOff: '未安装',
+      ghGitVersion: 'git 版本',
+      ghRepair: '修复',
+      ghRepairing: '修复中…',
+      ghTokenFile: '令牌文件',
+      ghRepoCheck: '检查仓库权限',
+      ghRepoPlaceholder: 'owner/repo',
+      ghCheck: '检查',
+      ghChecking: '检查中…',
+      ghCanPush: '可推送',
+      ghCannotPush: '无写权限',
+      ghRepoPrivate: '私有',
+      ghRepoPublic: '公开',
+      ghRepoCheckHint: '分支保护仍可能拒绝 push。',
+      ghRepo: '仓库',
+      ghVisibility: '可见性',
+      ghDefaultBranch: '默认分支',
+      ghSign: '提交签名',
+      ghSignOn: '已启用',
+      ghSignOff: '未启用',
+      ghSignEnable: '启用签名',
+      ghSignInactive: '签名配置未生效：全局 git 配置覆盖了 include，请检查 gpg.format、commit.gpgsign 与 user.signingkey。',
+      ghSignRetry: '重新登记',
+      ghSignDisable: '关闭签名',
+      ghSignDisableTitle: '关闭提交签名？',
+      ghSignDisableHint: '删除本机私钥并注销账号上的签名密钥，之后的提交不再带签名。',
+      ghSignDisableManualHint: '删除本机私钥，之后的提交不再带签名；手动添加的签名密钥需在 GitHub 设置中一并删除。',
+      ghSignDisableConfirm: '关闭',
+      ghSignFingerprint: '密钥指纹',
+      ghSignKeyFile: '密钥文件',
+      ghSignRegistered: 'GitHub 登记',
+      ghSignRegisteredYes: '已登记',
+      ghSignRegisteredNo: '未登记',
+      ghSignRegisteredManual: '手动登记',
+      ghSignAdded: '已添加',
+      ghSignManualDone: '已记为手动登记',
+      ghSignIdentity: '全局提交身份',
+      ghSignManual: '自动登记未完成。请把下面的公钥添加到 GitHub：Settings → SSH and GPG keys → New SSH key，Key type 选择 Signing Key。',
+      ghSignOpen: '打开 GitHub 设置',
+      ghSignPublicKey: '签名公钥',
+      ghSignScope: '自动登记需要令牌具备 admin:ssh_signing_key 权限；fine-grained 令牌需要 SSH signing keys 的写权限。',
+      ghSignReady: '提交签名已启用并登记',
+      ghSignReadyUnregistered: '提交签名已启用，密钥尚未登记',
+      ghSignOffDone: '提交签名已关闭',
+      ghLatestCommit: '最近提交',
+      ghCommitVerified: '已验证',
+      ghCommitUnverified: '未验证',
+      ghSignature: '签名结论',
+      ghNoCommits: '该仓库暂无提交。',
+      ghClear: '清除令牌',
+      ghClearTitle: '清除 GitHub 令牌？',
+      ghClearHint: '删除令牌与凭据助手，需重新配置才能 push。',
+      ghClearConfirm: '清除',
+      ghDanger: '撤销',
+      ghUnconfigured: '未配置',
+      ghConfigured: '已连接',
+      ghConnected: '已连接',
+      ghDisconnected: '未连接',
+      ghVerify: '重新验证',
+      ghVerifying: '验证中…',
+      ghVerified: '已验证',
+      ghClassicWarning: 'Classic PAT 的 repo 权限覆盖整个账号，建议改用 fine-grained。',
+      ghExpiryWarning: '该令牌未设置有效期，建议设置较短的有效期。',
+      ghExpiringSoon: '令牌将于 {time} 过期。',
+      ghTokenSaved: '令牌已保存，可直接 git push。',
+      ghSavedNoHelper: '令牌已保存，但 git 凭据助手未安装，请先修复。',
+      ghReplace: '更换令牌',
+
+      rCheck: '检查更新',
+      rLatestShort: '已是最新',
+      rChecking: '正在查询 npm…',
+      rUpdateTo: '更新到 {version}',
+      rUpdating: '正在安装…',
+      rRestart: '重启 DSH',
+      confirmRestart: '现在重启 dsh？',
+      confirmRestartHint: '页面会断开数秒，服务恢复后自动刷新。',
+      rPickVersionClose: '收起',
+      rPickVersion: '指定版本',
+      rVersionInput: '例如 0.2.1-rc.5',
+      rInstall: '安装',
+      rUpToDate: '已是 {channel} 通道最新版本',
+      rUpdateReady: '可更新到 {version}',
+      rNotChecked: '尚未检查',
+      rNeedsRestart: '新版本已安装，重启后生效',
+      rUpdated: '已安装 {version}',
+      rUpdatedSame: '当前已是 {version}',
+      rCardVersion: '版本',
+      rOnDisk: '已安装',
+      rLatest: '通道最新',
+      rPrevious: '上一版本',
+      rRollback: '回撤',
+      rRollbackTitle: '回撤到 v{version}',
+      rUpgradeMissed: '上次更新到 v{version} 未生效，当前仍运行 v{current}',
+      rDiskError: '读取安装位置失败',
+      rCardProcess: '进程',
+      rNode: 'Node',
+      rUptime: '已运行',
+      rChannel: '通道',
+      rStrategy: '重启方式',
+      rExecve: '原地重新执行',
+      rExit: '退出后由容器拉起',
+      rCommand: '执行自定义命令',
+      rCardActivity: '最近操作',
+      rFail: '失败',
+      rRestarting: '正在重启 DSH',
+      rRestartingHint: '等待服务重新响应，页面将自动刷新。',
+      rRestartSlow: '一直没有响应。可用 docker compose logs -f dsh 查看日志。',
+      rBack: '已恢复，正在刷新…',
+      rHint: '重启时页面会断开数秒，会话不受影响。',
+      'host_busy': '上一个操作尚未完成，请稍后再试。',
+      'host_base-forbidden': '该链接前缀不可用：它指向面板本身或本机地址。',
+      'host_preset-in-use': '仍有 {count} 个会话在使用该预设，请先切换再删除。',
+      'host_delete-too-many': '本次要删除 {count} 个会话，超过 {limit} 个上限，请分批删除。',
+      'host_version-invalid': '版本号格式不正确：{version}。',
+      'host_version-unknown': 'npm 上没有 {version} 这个版本。',
+      'host_proxy-no-nodes': '请先导入一个 Shadowsocks 节点。',
+      'host_proxy-node-incomplete': '节点缺少服务器、端口或密码。',
+      'host_proxy-node-unknown': '找不到该节点。',
+      'host_proxy-port-busy': '本地代理端口 {port} 已被占用。',
+      'host_proxy-port-invalid': '本地端口需在 1024 到 65535 之间。',
+      'host_github-token-empty': '请填写 GitHub 令牌。',
+      'host_github-token-invalid': '令牌格式不正确：不能有空白字符，长度也不能超过上限。',
+      'host_github-token-missing': '尚未配置 GitHub 令牌。',
+      'host_github-busy': '另一个 GitHub 操作正在进行。',
+      'host_rewind-target-not-user': '只能回撤到用户消息。',
+      'host_rewind-target-internal': '注入的上下文与回撤标记不能作为回撤目标。',
+      'host_rewind-target-gone': '这条消息已不在当前对话里。',
+      'host_rewind-target-empty': '这条消息之后没有可回撤的内容。',
+      'host_rewind-not-loaded': '该会话没有在运行中的 Host 里加载。',
+      'host_rewind-no-fs': '宿主文件系统不可用，无法还原文件。',
+      'host_rewind-stale': '预览已失效，请重新预览后再回撤。',
+      'host_rewind-restore-failed': '有 {count} 个文件还原失败，对话未回撤。',
+      'host_rules-workspace-unknown': '未知工作区。',
+      'host_rules-too-large': '约束有 {size} 字节，超过 {limit} 字节上限。',
+      'host_files-selection-empty': '请至少选择一个文件或文件夹。',
+      'host_files-archive-empty': '所选项目没有可打包的内容。',
+      'host_preset-store-broken': '预设存档损坏，修好前不会写入。',
+      'host_preset-limit': '预设数量已达上限 {limit} 个，请先删除不用的。',
+      'host_preset-not-found': '找不到该预设。',
+      'host_preset-readonly': '内置预设只读，请先复制一份再修改。',
+      'host_preset-default': '该预设是当前默认，请先切换默认后再删除。',
+      'host_chats-lineage-deep': '会话血统超过 {depth} 层，已停止删除。',
+      'host_chats-no-selection': '未选择要删除的会话。',
+      'host_chats-unselected-remain': '该目录中还有 {count} 个未选中的会话，请一并选中后再删除。',
+      'host_rules-scope-invalid': '作用域必须是 global 或 workspace。',
+      'host_rules-workspace-missing': '工作区目录不存在。',
+      'host_restart-queued': '重启已经在队列里。',
+      'host_browser-retry-failed': '浏览器准备失败，可稍后重试。',
+      bLaunchOk: '启动正常',
+      bLibraries: '已自动补齐 {n} 个运行库包（解压至 DSH_HOME，无需 root）',
+      bMissingLibs: '缺少 {n} 个系统库',
+      bFixHint: '在容器内以 root 执行一次（重启容器后仍保留，前提是已写入镜像）：',
+      bLaunchFail: '无法启动',
+      bLaunchFailHint: '浏览器已下载，但当前系统缺少运行库，实际调用时才会失败。按提示安装依赖，或设置 browser libraryPath。',
+      bAutomatic: '自动准备',
+      bRetrying: '宿主将自动重试数次（0 / 15 / 45 秒），成功后状态自动恢复；也可点击下方按钮立即重试。',
+      bInstalling: '正在准备浏览器…',
+      bInstall: '安装或重试',
+      bVerify: '检查安装',
+      bChecked: '已检查安装',
+
+      relativeJustNow: '刚刚',
+      relativeMinutes: ' 分钟前',
+      relativeHours: ' 小时前',
+      relativeDays: ' 天前',
+
+      tabSkills: '技能',
+      compSkills: '技能库',
+      skUpload: '上传',
+      skSearch: '搜索技能',
+      skEmpty: '暂无技能。',
+      skEmptyHint: '上传 .zip 压缩包或单个 .md 文件安装技能。',
+      skNoMatch: '没有匹配的技能',
+      skEnabled: '已启用',
+      skDisabled: '已停用',
+      skUnloadable: '不会被加载',
+      skUserOnly: '仅手动调用',
+      skFormBundle: '目录',
+      skFormFile: '单文件',
+      skEdit: '编辑',
+      skDownload: '下载',
+      skEnable: '启用',
+      skDisable: '停用',
+      skDelete: '删除',
+      skDeleteTitle: '删除技能「{name}」？',
+      skDeleteHint: '该技能的目录与文件会被整体删除，且不可恢复。',
+      skUploaded: '已安装「{name}」',
+      skDeleted: '已删除「{name}」',
+      skDisabledDone: '已停用「{name}」',
+      skEnabledDone: '已启用「{name}」',
+      skSaved: '已保存',
+      skEditorTitle: '编辑技能',
+      skEditorHint: '正文上限 {kb} KB，保存前会校验前言。',
+      skTruncated: '文件大于 {kb} KB，这里只显示开头；原文件未改动。',
+      skProblemLine: '这条技能不会被加载：{reason}',
+      skProblemNoFrontmatter: '缺少以 --- 开头的 YAML 前言。',
+      skProblemBadYaml: '前言不是有效的 YAML。',
+      skProblemMissingName: '前言缺少 name。',
+      skProblemMissingDescription: '前言缺少 description。',
+      skProblemBadName: 'name 必须是 kebab-case。',
+      skProblemBadInvocation: '调用开关的取值不合法。',
+      skProblemUnreadable: '文件无法读取。',
+      skProblemOther: '前言不合法。',
+      skNoDescription: '前言没有填写 description。',
+      skNameDiffers: '前言里的 name 与文件名不同；宿主按 name 加载，重命名可消除这条提示。',
+      skCountOne: '1 个技能',
+      skCount: '{n} 个技能',
+    }
+
+    const en = {
+      title: 'Yukari plugins',
+      tabOverview: 'Overview',
+      tabChats: 'Chats',
+      tabSites: 'Sites',
+      tabProxy: 'Proxy',
+      tabPurge: 'Unrestricted',
+      tabRules: 'Rules',
+      tabRuntime: 'Status',
+
+      compChats: 'Chats',
+      compSites: 'Sites',
+      compFiles: 'Workspace files',
+      compProxy: 'Proxy',
+      compPurge: 'Unrestricted mode',
+      compRules: 'Rules',
+      compBrowser: 'Headless browser',
+      compRuntime: 'Status',
+
+      upCheck: 'Check for updates',
+      upChecking: 'Checking…',
+      upLatest: 'Up to date',
+      upAvailable: 'Version {version} is available',
+      upNow: 'Update now',
+      upUpdating: 'Updating…',
+      upDone: '{version} is installed and running',
+      upPending: '{version} installed — restart to load it',
+      upRestart: 'Restart now',
+      upFailed: 'Update check failed: {error}',
+      upUpdateFailed: 'Update failed: {error}',
+
+      /* presets */
+      tabPresets: 'Presets',
+      compPresets: 'Agent presets',
+      ovPresets: '{n} custom',
+      ovSkills: '{a} of {b} enabled',
+      ovPresetsHow: 'Start from an existing preset',
+      pIntro: 'Duplicate an existing preset or start empty.',
+      pTrust: 'Only add plugins from trusted sources.',
+      pMine: 'My presets',
+      pMineHint: 'Editable and removable',
+      pDeclared: 'Other custom presets',
+      pDeclaredHint: 'Saving creates an override',
+      pBuiltin: 'Built-in presets',
+      pBuiltinHint: 'Read-only; duplicate to edit',
+      pRuntimeGroup: 'Registered at runtime',
+      pRuntimeHint: 'Provided by another plugin',
+      pSourceStore: 'Mine',
+      pSourceDeclared: 'Declared',
+      pSourceBuiltin: 'Built-in',
+      pSourceRuntime: 'Runtime',
+      pEmptyList: 'No presets yet.',
+      pRowsCount: '{n} rows',
+      pRowsTitle: 'Capability rows ({n})',
+      pRowsUnknown: 'Structure unavailable',
+      pNew: 'New preset',
+      pNewTitle: 'New preset',
+      pEditTitle: 'Edit preset',
+      pChooseTemplate: 'Choose a template',
+      pChooseTemplateHint: 'Copy its tools, prompts, and groups.',
+      pBlankTitle: 'Empty composition',
+      pBlankHint: 'No tools at all; conversation only.',
+      pUseTemplate: 'Use template',
+      pImportChoose: 'Select',
+      pImportFrom: 'Import from “{name}”',
+      pImportHint: 'Selected rows are deep-copied onto the end of this composition.',
+      pImportAdd: 'Add {n} rows',
+      pImportPick: 'Pick a preset, then choose rows from its composition.',
+      pTemplateTag: 'Template: {name}',
+      pCopyName: '{name} copy',
+      pName: 'Name',
+      pNamePlaceholder: 'For example: Code review',
+      pId: 'ID',
+      pIdPlaceholder: 'code-review',
+      pIdHint: 'Lowercase letters, digits, - and _; immutable after creation, because sessions record it.',
+      pIdLocked: 'The ID cannot change after creation.',
+      pDescription: 'Description',
+      pDescriptionPlaceholder: 'One sentence on what this mode is for',
+      pOrder: 'Order',
+      pOrderHint: 'Lower numbers sort first; leave empty to sort last',
+      pPersona: 'Persona prompt',
+      pPersonaHint: 'Define this mode’s persona.',
+      pPersonaPlaceholder: 'Describe how this mode works…',
+      pPersonaSuffix: 'Suffix (optional)',
+      pPersonaMissing: 'This composition has no persona row.',
+      pPersonaAdd: 'Add persona row',
+      pRowsHint: 'One plugin per row.',
+      pRowGroup: 'Group',
+      pRowCondition: 'Condition',
+      pRowDisable: 'Disable',
+      pRowEnable: 'Enable',
+      pRowDisabled: 'Disabled',
+      pRemoveRow: 'Remove this row',
+      pAddRow: 'Custom row',
+      pImportRows: 'Import rows',
+      pRowName: 'Plugin package, e.g. @deepseek-ai/dsh-tool-fs',
+      pRowId: 'Row id (optional)',
+      pRowConfig: 'config (JSON, optional)',
+      pRowNameRequired: 'The plugin package is required',
+      pAdd: 'Add',
+      pAdvanced: 'Advanced: composition JSON',
+      pAdvancedHint: 'Replace the whole row list here, or adjust group and isolate fields.',
+      pAdvancedOpen: 'Show JSON',
+      pApply: 'Apply',
+      pJsonInvalid: 'The JSON is invalid: {error}',
+      pJsonShape: 'The composition must be a list of plugin rows, each with a name.',
+      pJsonRow: 'plugin row {n}',
+      pSave: 'Save',
+      pBack: 'Back',
+      pCancel: 'Cancel',
+      pEdit: 'Edit',
+      pCopy: 'Duplicate',
+      pDelete: 'Delete',
+      pView: 'View composition',
+      pDeleted: 'Deleted',
+      pDeleteTitle: 'Delete “{name}”?',
+      pDeleteHint: 'New sessions can no longer select it; sessions already using it are unaffected.',
+      pConflict: 'Registration failed',
+      pDefault: 'Default',
+      pSaved: 'Saved; new sessions pick it up, running sessions keep their composition',
+      pNoStructure: 'This preset only offers a YAML view; the per-row structure cannot be read.',
+      pYaml: 'Composition YAML',
+      pYamlHint: 'Read-only; the same declaration the shipped viewer renders.',
+      pStoreBroken: 'The preset store is unusable: {error}',
+      pEmptyComposition: 'This composition is empty: the chat keeps its conversation and loads no tools.',
+      pSelectAll: 'Select all',
+      upManual: 'This install cannot update itself; reinstall it from the Plugins page',
+
+      refresh: 'Refresh',
+      failureSubject: 'Could not load {name}: {reason}',
+      failureNetwork: 'The request failed; the host may not be running.',
+      retry: 'Retry',
+      cancel: 'Cancel',
+      save: 'Save',
+      saved: 'Saved',
+      close: 'Close',
+      loading: 'Loading…',
+      none: '—',
+      open: 'Open',
+      copy: 'Copy',
+      copied: 'Copied',
+      copyFailed: 'Copy failed',
+      clearSearch: 'Clear',
+      expand: 'Expand',
+      collapse: 'Collapse',
+
+      offTitle: '“{name}” is turned off',
+      offHint: 'Enable the Yukari "{name}" component on the Plugins page in the sidebar, then reload.',
+      ovArchived: 'Archived',
+      ovReady: 'Ready',
+      ovPurgeHow: 'Choose Unrestricted in the mode menu under the chat input',
+      ovFiles: '{n} workspaces',
+      ovPurgeUsed: 'injected {n}×',
+      ovOff: 'Off · enable it on the Plugins page',
+      ovCount: '{n} components running',
+
+      cSearch: 'Search title, id or path',
+      cFilter: 'Scope',
+      cAll: 'All',
+      cActive: 'Active',
+      cArchived: 'Archived',
+      cGroupByWorkspace: 'By workspace',
+      cFlatList: 'By time',
+      cWorkspaceUnassigned: 'No workspace',
+      cSelectWorkspace: 'Select all',
+      cDeleteWorkspace: 'Delete workspace',
+      cDelete: 'Delete',
+      cDeleteN: 'Delete {n}',
+      cConfirm: 'Delete these {n} chats?',
+      cConfirmWorkspace: 'Delete workspace "{name}" and its {n} chats?',
+      cConfirmHint: 'The chat log is deleted from disk, and its archive and pin marks are cleared. This cannot be undone.',
+      cMissingRecord: 'Record missing',
+      cDeleteFiles: 'Also delete file output',
+      cDeleteFilesHint: 'Only files created with write / str_replace_editor that are still inside the workspace. Files made by shell commands, and files that existed before the chat, are left alone.',
+      cDeleteWorkspaceDir: 'Also delete the workspace folder',
+      cDeleteWorkspaceDirHint: 'The folder {path} and everything inside it is deleted. Untick to remove only the workspace and keep the folder.',
+      cArchive: 'Archive',
+      cUnarchive: 'Unarchive',
+      cSelected: '{n} selected',
+      cTotal: '{n} chats',
+      cTotalOne: '1 chat',
+      cNoMatch: 'No matching chats',
+      cNoMatchHint: 'Adjust the keyword or the filter.',
+      cNoChats: 'No chats yet',
+      cNoChatsHint: 'New chats appear here once a conversation starts.',
+      cDeleted: 'Deleted {n} chats',
+      cDeletedOne: 'Deleted 1 chat',
+      cFilesDeleted: 'deleted {n} files',
+      cDirDeleted: 'workspace and its directory deleted',
+      cWorkspaceRemoved: 'workspace removed (directory kept)',
+      cLive: 'Loaded',
+      cRunning: 'Running',
+      cDeleteOne: 'Delete this chat?',
+      cDeleteOneSub: 'Delete this chat and its {n} subagent chats?',
+      cSubagentTag: 'Subagent',
+      cSubSessions: '{n} subagent chats',
+      cPreviewTurns: '{n} turns',
+      cPreviewEmpty: 'No messages',
+      cPreviewFail: 'Preview failed: {reason}',
+      cLockedByParent: 'Selected with its parent chat and cannot be unticked alone',
+      cArchivedTag: 'Archived',
+      rwButton: 'Rewind',
+      rwTitle: 'Rewind to this message?',
+      rwHint: 'Removes {n} messages and restores {m} files.',
+      rwHintNoFiles: 'Removes {n} messages.',
+      rwApply: 'Rewind',
+      rwBusy: 'Rewinding…',
+      cReason_running: 'the chat is still running and cannot be deleted.',
+      cReason_unknown: 'the chat was not found.',
+      'cReason_io-error': 'deleting the files failed.',
+      'cReason_no-artifact': 'nothing on disk to delete.',
+      'cReason_unsafe-path': 'unsafe path, skipped',
+
+      sSearch: 'Search sites',
+      sPrefix: 'URL prefix',
+      sSettings: 'Advanced',
+      sPrefixUnsetTag: 'prefix not set',
+      sPrefixHint: 'Site link = prefix + /name/. Enter the public address, e.g. https://pages.example.com or https://dsh.example.com/p',
+      sPrefixDefault: 'Restore default',
+      sPrefixUnset: 'The default prefix is still in use (dsh itself does not serve /p). Serve the publish root from an external static host and enter its address here so links work.',
+      sCount: '{n} sites',
+      sCountOne: '1 site',
+      sEmpty: 'No sites published yet',
+      sEmptyHint: 'Ask the agent to call publish_site, or drop a build into the publish root.',
+      confirmUnpublish: 'Take down “{name}”?',
+      confirmUnpublishHint: 'The published folder is deleted and the link stops working immediately.',
+      sUnpublish: 'Unpublish',
+      sPublished: 'published {time}',
+      sFiles: '{n} files',
+      sVersion: 'v{version}',
+      sNoMatch: 'No matching sites',
+      tabFiles: 'Files',
+      fWorkspace: 'Workspace',
+      fRoot: 'root',
+      fName: 'Name',
+      fSize: 'Size',
+      fPreview: 'Preview',
+      fDownload: 'Download',
+      fDownloadFilesN: 'Download {n} files',
+      fDownloadFilesOne: 'Download 1 file',
+      fZipN: 'Download {n} as ZIP',
+      fZipReason: 'More than {n} files are packed into one ZIP to avoid a download prompt per file',
+      fSelectAll: 'Select all',
+      fSymlink: 'symlink',
+      fEmpty: 'This folder is empty',
+      fEmptyHint: 'Pick another workspace or go up a level.',
+      fTruncated: 'This directory holds more than {n} entries; only the first {n} are listed.',
+      fHint: '{n} selected; files download one by one, folders or more than ten files are zipped.',
+      fPreviewBinary: 'This file is binary; only downloading is available.',
+      fPreviewTruncated: 'The file is large; only the beginning is shown.',
+      fRevealInTree: 'Reveal in file tree',
+      fWrap: 'Wrap lines',
+      fUnwrap: 'Unwrap lines',
+      fCode: 'Code',
+      fFootnotes: 'Footnotes',
+      fAutoRefresh: 'Auto refresh',
+      fCopyAll: 'Copy content',
+      fFullscreen: 'Full screen',
+      fZoomIn: 'Zoom in',
+      fZoomOut: 'Zoom out',
+      pEnable: 'Enable proxy',
+      pDisable: 'Disable proxy',
+      pEnabled: 'Routing outbound traffic',
+      pDisabled: 'Direct',
+      pPending: 'Enabled, connecting',
+      pNodes: 'Nodes',
+      pNoNodes: 'No nodes yet',
+      pNoNodesHint: 'Paste ss:// links, subscription content, or a Clash config below to import.',
+      pUse: 'Use',
+      pInUse: 'In use',
+      pTest: 'Test',
+      pTestAll: 'Test all',
+      pTesting: 'Testing…',
+      pRemove: 'Remove',
+      confirmRemoveNode: 'Delete node “{name}”?',
+      confirmRemoveNodeHint: 'Removes it from the list and deletes its password; it can be imported again.',
+      pImport: 'Import',
+      pImportTitle: 'Import nodes',
+      pImportPlaceholder: 'Paste one or more ss:// links, a base64 subscription, or a Clash config (proxies list)',
+      pImported: 'Imported {added} nodes',
+      pImportedUpdated: ', updated {updated}',
+      pImportedSkipped: ', skipped {skipped} unsupported',
+      pSettings: 'Advanced',
+      pLocalPort: 'Local port',
+      pBypass: 'Direct list',
+      pInvalidPort: 'Local port must be 1024–65535',
+      pReset: 'Remove all nodes',
+      pConfirmReset: 'Clear every node?',
+      pActive: 'Active',
+      pFailures: 'Failures',
+      pLastError: 'Last error',
+      pStateFile: 'Nodes and passwords live in a local state file (mode 0600) and restore on restart.',
+      ghNoState: 'The server returned no GitHub state',
+      ghNoRepo: 'The server returned no repository information',
+      gTitle: 'Unrestricted mode',
+      gPresetUnrestricted: 'Unrestricted',
+      gPrompt: 'System prompt',
+      gChars: '{n} chars',
+      gCustom: 'Custom',
+      gDefault: 'Built-in',
+      gSave: 'Save',
+      gReset: 'Restore default',
+      gConfirmReset: 'Restore the default prompt?',
+      gResetDone: 'Built-in prompt restored',
+      gPlaceholder: 'Enter the system prompt injected in Unrestricted mode…',
+      gUnsaved: 'Unsaved changes',
+      gAnchor: 'Tail anchor',
+      gRetry: 'Retry refusals',
+      gScrub: 'Host-sentence rewrite',
+      gOn: 'on',
+      gOff: 'off',
+      gProbe: 'Self-check',
+      gProbeOk: 'Hit: injection and anchor are both present',
+      gProbeMiss: 'Miss: this assembly carried no injection',
+      gProbeFail: 'Self-check unavailable: {reason}',
+      gStats: 'injected {a}× · rewritten {b} · retried {c}×',
+      gStatsNone: 'No unrestricted assembly recorded in this process yet',
+
+      kTitle: 'Rules',
+      kGlobalTitle: 'Global rules',
+      kGlobalNote: 'Applies to every chat, subagents included',
+      kProjectTitle: 'Workspace rules',
+      kProjectNote: 'Applies only to chats inside the workspace',
+      kPath: 'File',
+      kExists: 'present',
+      kMissing: 'not created',
+      kPlaceholder: 'One rule per line. Say what must happen, what must not, and what wins on conflict.\nExample:\n- Always answer in Simplified Chinese.\n- Read the existing implementation before adding a new one.',
+      kChars: '{n} chars',
+      kLimit: 'Limit {n} per file',
+      kUnsaved: 'Unsaved',
+      kSavedNext: 'Saved · applies to the next turn',
+      kClear: 'Clear',
+      kConfirmClear: 'Clear these rules?',
+      kConfirmClearHint: 'The file {path} is deleted; the next turn stops receiving it.',
+      kClearDone: 'Cleared',
+      kImport: 'Import AGENTS.md',
+      kImportNone: 'No AGENTS.md / CLAUDE.md found in this scope',
+      kImported: 'Loaded {file}; save to apply',
+      kToggleGlobal: 'Global',
+      kToggleProject: 'Workspace',
+      kToggleAnchor: 'Tail repeat',
+      kProbe: 'Verify injection',
+      kProbeOk: 'injected',
+      kProbeMiss: 'not injected',
+      kProbeNone: 'No live chat to check',
+      kProbeFail: 'Check failed: {reason}',
+      kStats: 'injected {a}× · global {b} · workspace {c}',
+      kStatsNone: 'No chat has carried the rules yet',
+      kPrecedence: 'Approval and sandbox permissions are unchanged.',
+      kAgentsNote: 'Use Import to migrate AGENTS.md / CLAUDE.md.',
+      kSwitchDirty: 'Switching workspaces discards unsaved edits',
+      kDiscard: 'Discard',
+      kNoWorkspaces: 'No registered workspaces',
+      kDirMissing: 'Workspace directory is missing',
+      kTruncated: 'truncated',
+      kDegraded: '{reason}. Injection fell back to the process directory, so the workspace constraint may be a different file.',
+      kInjectedTruncated: 'Only the first {n} reaches the model; the rest is dropped on injection.',
+      kDetails: 'Details and stats',
+      ovRulesActive: '{n} rule file(s) written',
+      ovRulesHow: 'applies to the next turn',
+
+      tabGithub: 'GitHub',
+      compGithub: 'GitHub',
+      ghIntro: 'Connect GitHub',
+      ghCreate: 'Create a fine-grained token on GitHub',
+      ghStepAccess: 'Create a fine-grained token, select repositories, and grant Contents read/write.',
+      ghTokenLabel: 'GitHub token',
+      ghTokenPlaceholder: 'github_pat_… or ghp_…',
+      ghShow: 'Show',
+      ghHide: 'Hide',
+      ghSave: 'Save and verify',
+      ghSaving: 'Verifying…',
+      ghStorage: 'Stored locally and restored after a restart.',
+      ghSecurityHint: 'Use a short-lived, repository-scoped fine-grained token. Processes in this container can read its file.',
+      ghAccount: 'Account',
+      ghLogin: 'Login',
+      ghTokenType: 'Token type',
+      ghExpiry: 'Expiry',
+      ghExpired: 'Expired',
+      ghNeverExpires: 'No expiry',
+      ghFineGrained: 'Fine-grained',
+      ghClassic: 'Classic',
+      ghUnknown: 'Unknown',
+      ghGit: 'Git credential helper',
+      ghHelperOn: 'Installed',
+      ghRepaired: 'The credential helper is installed again',
+      ghHelperOff: 'Not installed',
+      ghGitVersion: 'git version',
+      ghRepair: 'Repair',
+      ghRepairing: 'Repairing…',
+      ghTokenFile: 'Token file',
+      ghRepoCheck: 'Check repository access',
+      ghRepoPlaceholder: 'owner/repo',
+      ghCheck: 'Check',
+      ghChecking: 'Checking…',
+      ghCanPush: 'Can push',
+      ghCannotPush: 'No write access',
+      ghRepoPrivate: 'Private',
+      ghRepoPublic: 'Public',
+      ghRepoCheckHint: 'Branch protection may still reject pushes.',
+      ghRepo: 'Repository',
+      ghVisibility: 'Visibility',
+      ghDefaultBranch: 'Default branch',
+      ghSign: 'Commit signing',
+      ghSignOn: 'Enabled',
+      ghSignOff: 'Off',
+      ghSignEnable: 'Enable signing',
+      ghSignInactive: 'Signing is not active: the global git config overrides the include. Check gpg.format, commit.gpgsign and user.signingkey.',
+      ghSignRetry: 'Register again',
+      ghSignDisable: 'Disable signing',
+      ghSignDisableTitle: 'Disable commit signing?',
+      ghSignDisableHint: 'Deletes the local private key and removes its signing key from the account; later commits are unsigned.',
+      ghSignDisableManualHint: 'Deletes the local private key, so later commits are unsigned; a manually added signing key must also be removed in GitHub settings.',
+      ghSignDisableConfirm: 'Disable',
+      ghSignFingerprint: 'Key fingerprint',
+      ghSignKeyFile: 'Key file',
+      ghSignRegistered: 'Registered on GitHub',
+      ghSignRegisteredYes: 'Registered',
+      ghSignRegisteredNo: 'Not registered',
+      ghSignRegisteredManual: 'Registered manually',
+      ghSignAdded: 'Added it',
+      ghSignManualDone: 'Recorded as registered manually',
+      ghSignIdentity: 'Global identity',
+      ghSignManual: 'Automatic registration did not finish. Add the public key below on GitHub: Settings → SSH and GPG keys → New SSH key, with Key type set to Signing Key.',
+      ghSignOpen: 'Open GitHub settings',
+      ghSignPublicKey: 'Signing public key',
+      ghSignScope: 'Automatic registration needs the admin:ssh_signing_key scope; a fine-grained token needs SSH signing keys write permission.',
+      ghSignReady: 'Commit signing is enabled and registered',
+      ghSignReadyUnregistered: 'Commit signing is enabled, the key is not registered yet',
+      ghSignOffDone: 'Commit signing is disabled',
+      ghLatestCommit: 'Latest commit',
+      ghCommitVerified: 'Verified',
+      ghCommitUnverified: 'Unverified',
+      ghSignature: 'Signature verdict',
+      ghNoCommits: 'This repository has no commits yet.',
+      ghClear: 'Clear token',
+      ghClearTitle: 'Clear the GitHub token?',
+      ghClearHint: 'Deletes the token and credential helper; configure again to push.',
+      ghClearConfirm: 'Clear',
+      ghDanger: 'Revoke',
+      ghUnconfigured: 'Not configured',
+      ghConfigured: 'Connected',
+      ghConnected: 'Connected',
+      ghDisconnected: 'Not connected',
+      ghVerify: 'Verify again',
+      ghVerifying: 'Verifying…',
+      ghVerified: 'Verified',
+      ghClassicWarning: 'A classic PAT repo scope covers the whole account; a fine-grained token is safer.',
+      ghExpiryWarning: 'This token has no expiry; consider setting a short one.',
+      ghExpiringSoon: 'The token expires at {time}.',
+      ghTokenSaved: 'Token saved; git push works now.',
+      ghSavedNoHelper: 'Token saved, but the git credential helper is not installed; use Repair.',
+      ghReplace: 'Replace token',
+
+      rCheck: 'Check for updates',
+      rLatestShort: 'Up to date',
+      rChecking: 'Asking npm…',
+      rUpdateTo: 'Update to {version}',
+      rUpdating: 'Installing…',
+      rRestart: 'Restart DSH',
+      confirmRestart: 'Restart dsh now?',
+      confirmRestartHint: 'The page drops for a few seconds and reloads once the host is back.',
+      rPickVersionClose: 'Close',
+      rPickVersion: 'Pick version',
+      rVersionInput: 'e.g. 0.2.1-rc.5',
+      rInstall: 'Install',
+      rUpToDate: 'Newest on {channel}',
+      rUpdateReady: '{version} available',
+      rNotChecked: 'Not checked yet',
+      rNeedsRestart: 'Installed — restart to load it',
+      rUpdated: 'Installed {version}',
+      rUpdatedSame: 'Already on {version}',
+      rCardVersion: 'Version',
+      rOnDisk: 'Installed',
+      rLatest: 'Newest',
+      rPrevious: 'Previous',
+      rRollback: 'Roll back',
+      rRollbackTitle: 'Roll back to v{version}',
+      rUpgradeMissed: 'The update to v{version} did not take effect; still running v{current}',
+      rDiskError: 'Cannot read the install prefix',
+      rCardProcess: 'Process',
+      rNode: 'Node',
+      rUptime: 'Uptime',
+      rChannel: 'Channel',
+      rStrategy: 'Restart method',
+      rExecve: 're-exec in place',
+      rExit: 'exit, container restarts it',
+      rCommand: 'custom command',
+      rCardActivity: 'Recent activity',
+      rFail: 'failed',
+      rRestarting: 'Restarting DSH',
+      rRestartingHint: 'Waiting for the server to answer; the page reloads by itself.',
+      rRestartSlow: 'No response yet. Run docker compose logs -f dsh to inspect the log.',
+      rBack: 'Back online — reloading…',
+      rHint: 'A restart drops this page for a few seconds; chats are not affected.',
+      'host_busy': 'Another operation is still running; try again when it finishes.',
+      'host_base-forbidden': 'That link prefix is not allowed: it points at the panel itself or a local address.',
+      'host_preset-in-use': '{count} chats still use this preset; switch them before deleting it.',
+      'host_delete-too-many': 'This deletes {count} chats, above the {limit} limit; split the batch.',
+      'host_version-invalid': '{version} is not a valid version.',
+      'host_version-unknown': 'npm does not have version {version}.',
+      'host_proxy-no-nodes': 'Import a Shadowsocks node first.',
+      'host_proxy-node-incomplete': 'The node is missing its server, port, or password.',
+      'host_proxy-node-unknown': 'No such node.',
+      'host_proxy-port-busy': 'Local proxy port {port} is already in use.',
+      'host_proxy-port-invalid': 'The local port must be between 1024 and 65535.',
+      'host_github-token-empty': 'Enter a GitHub token.',
+      'host_github-token-invalid': 'That token is malformed: no whitespace, and a bounded length.',
+      'host_github-token-missing': 'No GitHub token is configured yet.',
+      'host_github-busy': 'Another GitHub operation is still running.',
+      'host_rewind-target-not-user': 'Only a user message can be the rewind target.',
+      'host_rewind-target-internal': 'Injected context and the rewind marker cannot be targets.',
+      'host_rewind-target-gone': 'That message is no longer in this conversation.',
+      'host_rewind-target-empty': 'Nothing after that message can be rewound.',
+      'host_rewind-not-loaded': 'That chat is not loaded in the running Host.',
+      'host_rewind-no-fs': 'The host filesystem is unavailable, so files cannot be restored.',
+      'host_rewind-stale': 'The preview expired; preview again before rewinding.',
+      'host_rewind-restore-failed': '{count} files could not be restored, so the conversation was not rewound.',
+      'host_rules-workspace-unknown': 'Unknown workspace.',
+      'host_rules-too-large': 'The file is {size} bytes, above the {limit}-byte limit.',
+      'host_files-selection-empty': 'Select at least one file or folder.',
+      'host_files-archive-empty': 'The selection has nothing to archive.',
+      'host_preset-store-broken': 'The preset store is damaged; nothing is written until it is fixed.',
+      'host_preset-limit': 'The preset limit of {limit} is reached; delete one first.',
+      'host_preset-not-found': 'That preset does not exist.',
+      'host_preset-readonly': 'Built-in presets are read-only; copy one first.',
+      'host_preset-default': 'That preset is the current default; switch the default before deleting.',
+      'host_chats-lineage-deep': 'The chat lineage is deeper than {depth} levels, so the delete stopped.',
+      'host_chats-no-selection': 'No chats were selected for deletion.',
+      'host_chats-unselected-remain': '{count} chats in that folder are not selected; select them before deleting it.',
+      'host_rules-scope-invalid': 'The scope must be global or workspace.',
+      'host_rules-workspace-missing': 'That workspace folder does not exist.',
+      'host_restart-queued': 'A restart is already queued.',
+      'host_browser-retry-failed': 'Preparing the browser failed; try again later.',
+
+      bLaunchOk: 'Launching normally',
+      bLibraries: '{n} runtime packages unpacked into DSH_HOME (no root needed)',
+      bMissingLibs: '{n} system libraries missing',
+      bFixHint: 'Run once as root inside the container (persists only if baked into the image):',
+      bLaunchFail: 'Cannot launch',
+      bLaunchFailHint: 'The browser downloaded but this host lacks its runtime libraries; it will fail on first use. Install them or set browser libraryPath.',
+      bAutomatic: 'Automatic setup',
+      bRetrying: 'The host retries automatically (0 / 15 / 45 s) and recovers when one succeeds; the button below retries immediately.',
+      bInstalling: 'Preparing the browser…',
+      bInstall: 'Install or retry',
+      bVerify: 'Verify installation',
+      bChecked: 'Installation verified',
+
+      relativeJustNow: 'just now',
+      relativeMinutes: 'm ago',
+      relativeHours: 'h ago',
+      relativeDays: 'd ago',
+
+      tabSkills: 'Skills',
+      compSkills: 'Skill library',
+      skUpload: 'Upload',
+      skSearch: 'Search skills',
+      skEmpty: 'No skills yet.',
+      skEmptyHint: 'Upload a .zip bundle or a single .md file to install one.',
+      skNoMatch: 'No matching skills',
+      skEnabled: 'On',
+      skDisabled: 'Off',
+      skUnloadable: 'Not loaded',
+      skUserOnly: 'Manual only',
+      skFormBundle: 'Folder',
+      skFormFile: 'Single file',
+      skEdit: 'Edit',
+      skDownload: 'Download',
+      skEnable: 'Enable',
+      skDisable: 'Disable',
+      skDelete: 'Delete',
+      skDeleteTitle: 'Delete skill "{name}"?',
+      skDeleteHint: 'Its folder and files are removed for good.',
+      skUploaded: 'Installed "{name}"',
+      skDeleted: 'Deleted "{name}"',
+      skDisabledDone: 'Disabled "{name}"',
+      skEnabledDone: 'Enabled "{name}"',
+      skSaved: 'Saved',
+      skEditorTitle: 'Edit skill',
+      skEditorHint: 'Up to {kb} KB of body; the frontmatter is checked before saving.',
+      skTruncated: 'Larger than {kb} KB, so only the beginning is shown; the file itself is untouched.',
+      skProblemLine: 'This skill is not loaded: {reason}',
+      skProblemNoFrontmatter: 'it starts without a --- YAML frontmatter block.',
+      skProblemBadYaml: 'the frontmatter is not valid YAML.',
+      skProblemMissingName: 'the frontmatter has no name.',
+      skProblemMissingDescription: 'the frontmatter has no description.',
+      skProblemBadName: 'the name is not kebab-case.',
+      skProblemBadInvocation: 'an invocation switch does not hold a boolean.',
+      skProblemUnreadable: 'the file cannot be read.',
+      skProblemOther: 'the frontmatter is invalid.',
+      skNoDescription: 'The frontmatter has no description.',
+      skNameDiffers: 'The frontmatter name differs from the file name. The host loads by name; rename the entry to clear this hint.',
+      skCountOne: '1 skill',
+      skCount: '{n} skills',
+    }
+
+    /* ---------------------------------------------------------------- design */
+
+    const styles = `
+.yk-page {
+  --yk-line: var(--dsw-alias-border-l2);
+  /* 浅色主题里 layer-2/3 与白底同色，兜底图标需要一层可见的淡染，而不是白底。 */
+  --yk-soft: color-mix(in srgb, var(--yk-accent) 14%, transparent);
+  --yk-muted: var(--dsw-alias-label-tertiary);
+  --yk-accent: var(--dsw-alias-brand-primary-new-colorprimary-new-color, var(--dsw-alias-state-business-primary));
+  box-sizing: border-box;
+  width: 100%; height: 100%; min-height: 0;
+  display: flex; flex-direction: column; align-items: center; gap: 20px;
+  padding: 0 clamp(16px, 3vw, 36px) 40px;
+  overflow-y: auto; overflow-x: hidden;
+  color: var(--dsw-alias-label-primary); background: var(--dsw-alias-bg-base);
+  font-size: 14px; line-height: 1.5; scrollbar-gutter: stable;
+  container-type: inline-size;
+  -webkit-font-smoothing: antialiased;
+}
+.yk-page *, .yk-page *::before, .yk-page *::after { box-sizing: border-box; }
+.yk-page > * { width: 100%; max-width: 980px; flex: none; }
+.yk-page > style { display: none; }
+.yk-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px 0 2px; }
+.yk-headBrand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.yk-headLogo { width: 32px; height: 32px; flex: none; display: grid; place-items: center; }
+.yk-title { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+.yk-logoImg { display: block; object-fit: contain; transition: opacity var(--ds-transition-duration) var(--ds-ease-in-out); }
+.yk-logoFallback { display: grid; place-items: center; border-radius: var(--dsw-radius-md); font-weight: 650; background: var(--yk-soft); color: var(--yk-accent); }
+.yk-navBar { --yk-navFadeL: 0px; --yk-navFadeR: 0px; display: flex; align-items: center; gap: 2px; padding: 4px; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; border-bottom: .5px solid var(--yk-line); -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 var(--yk-navFadeL), #000 calc(100% - var(--yk-navFadeR)), transparent 100%); mask-image: linear-gradient(90deg, transparent 0, #000 var(--yk-navFadeL), #000 calc(100% - var(--yk-navFadeR)), transparent 100%); }
+.yk-navBar::-webkit-scrollbar { display: none; }
+.yk-navBar[data-scrollable="true"] { cursor: grab; }
+.yk-navBar[data-dragging="true"] { cursor: grabbing; user-select: none; }
+.yk-navBar[data-dragging="true"] .yk-navTab { pointer-events: none; }
+.yk-navTab { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 13px; font-weight: 500; height: 36px; padding: 0 12px; border-radius: var(--dsw-radius-md); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; flex: 0 0 auto; transition: color var(--ds-transition-duration) var(--ds-ease-in-out), background var(--ds-transition-duration) var(--ds-ease-in-out); }
+.yk-navTab:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
+.yk-navTab[aria-selected="true"] { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-active); }
+.yk-navTab:focus-visible, .yk-btn:focus-visible, .yk-cardAction:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
+.yk-tabPanel, .yk-body { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+/* 标签页保活会给非当前页加 hidden；作者样式里的 display: flex 会盖掉浏览器默认的
+   [hidden] { display: none }，必须自己写一条，否则所有访问过的页面会堆在一起。 */
+.yk-tabPanel[hidden] { display: none; }
+.yk-subpageHead { display: flex; align-items: flex-start; gap: 10px; min-width: 0; padding: 2px 0 4px; }
+.yk-backBtn { flex: none; margin-left: -8px; }
+.yk-subpageTitle { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding-top: 5px; }
+.yk-subpageTitle .yk-cardTitle { font-size: 16px; white-space: normal; overflow-wrap: anywhere; }
+.yk-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.yk-search { display: flex; align-items: center; gap: 8px; flex: 1 1 220px; height: 34px; padding: 0 10px; border-radius: var(--dsw-radius-md); border: .5px solid var(--dsw-alias-border-l4); background: var(--dsw-alias-bg-base); color: var(--yk-muted); }
+.yk-search:focus-within, .yk-input:focus { border-color: var(--yk-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--yk-accent) 12%, transparent); }
+.yk-search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--dsw-alias-label-primary); font: inherit; font-size: 13px; }
+.yk-searchClear, .yk-copyBtn, .yk-updateDismiss { appearance: none; border: 0; background: transparent; color: var(--yk-muted); cursor: pointer; display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border-radius: var(--dsw-radius-sm); }
+.yk-searchClear:hover, .yk-copyBtn:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
+.yk-copyBtn-failed { color: var(--dsw-alias-state-error-primary); }
+.yk-btn { appearance: none; min-height: 32px; padding: 0 12px; border-radius: var(--dsw-radius-md); border: .5px solid var(--yk-line); background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; text-decoration: none; transition: background var(--ds-transition-duration) var(--ds-ease-in-out), border-color var(--ds-transition-duration) var(--ds-ease-in-out); }
+.yk-btn:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); border-color: var(--dsw-alias-border-l3); }
+.yk-btn:disabled { opacity: .45; cursor: default; }
+.yk-btn-solid { background: var(--dsw-alias-button-primary-fill); border-color: transparent; color: var(--dsw-alias-label-primary-inverted); }
+.yk-btn-solid:hover:not(:disabled) { background: var(--dsw-alias-button-primary-hover); border-color: transparent; }
+.yk-btn-danger { color: var(--dsw-alias-state-error-primary); border-color: color-mix(in srgb, var(--dsw-alias-state-error-primary) 30%, transparent); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent); }
+.yk-btn-ghost { border-color: transparent; background: transparent; color: var(--dsw-alias-label-secondary); }
+.yk-btn-sm { min-height: 28px; padding: 0 10px; font-size: 13px; }
+.yk-iconBtn { width: 32px; padding: 0; flex: none; }
+.yk-iconBtn.yk-btn-sm { width: 28px; }
+.yk-dangerHover:hover:not(:disabled) { color: var(--dsw-alias-state-error-primary); }
+.yk-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 21px; padding: 1px 8px; border-radius: var(--dsw-radius-sm); font-size: 11px; font-weight: 500; line-height: 17px; background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+.yk-chip-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.yk-chip-ok { color: var(--dsw-alias-state-success-primary); background: color-mix(in srgb, var(--dsw-alias-state-success-primary) 10%, transparent); }
+.yk-chip-warn { color: var(--dsw-alias-state-warn-primary); background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 10%, transparent); }
+.yk-chip-accent { color: var(--yk-accent); background: color-mix(in srgb, var(--yk-accent) 10%, transparent); }
+.yk-chip-danger { color: var(--dsw-alias-state-error-primary); background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); }
+.yk-toggleRow { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: 10px 0 6px; }
+.yk-chip-toggle { appearance: none; font: inherit; font-size: 11px; line-height: 17px; cursor: pointer; border: .5px solid var(--yk-line); background: transparent; color: var(--dsw-alias-label-secondary); }
+.yk-chip-toggle:hover:not(:disabled) { border-color: var(--dsw-alias-border-l3); color: var(--dsw-alias-label-primary); }
+.yk-chip-toggle[aria-pressed="true"] { border-color: color-mix(in srgb, var(--yk-accent) 45%, transparent); background: color-mix(in srgb, var(--yk-accent) 9%, transparent); color: var(--dsw-alias-label-primary); }
+.yk-chip-toggle[aria-pressed="true"] .yk-chip-dot { background: var(--yk-accent); }
+.yk-chip-toggle[aria-pressed="false"] .yk-chip-dot { background: transparent; box-shadow: inset 0 0 0 .5px currentColor; }
+.yk-chip-toggle:disabled { opacity: .5; cursor: default; }
+.yk-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.yk-card { background: var(--dsw-alias-bg-base); border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-lg); padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.yk-card-wide { grid-column: 1 / -1; }
+.yk-cardHead, .yk-cardTitleWrap, .yk-cardTools { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.yk-cardHead { justify-content: space-between; }
+.yk-cardTitleWrap { color: var(--dsw-alias-label-secondary); }
+.yk-cardTitle { margin: 0; font-size: 14px; font-weight: 600; color: var(--dsw-alias-label-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yk-cardNote { margin: 0; font-size: 12px; color: var(--yk-muted); }
+.yk-cardAction { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; cursor: pointer; padding: 4px 0; }
+.yk-cardAction:hover { color: var(--yk-accent); }
+.yk-cardText { margin: 0; color: var(--dsw-alias-label-secondary); font-size: 13px; line-height: 1.65; }
+.yk-cardHint, .yk-foot { color: var(--yk-muted); font-size: 12px; }
+.yk-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.yk-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; color: var(--dsw-alias-label-secondary); font-size: 12px; line-height: 1.55; }
+.yk-steps li::marker { color: var(--yk-accent); }
+.yk-footDot { opacity: .45; }
+.yk-rows { display: flex; flex-direction: column; }
+.yk-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: .5px solid var(--dsw-alias-border-l1); font-size: 13px; }
+.yk-row:last-child { border-bottom: 0; }
+.yk-key { color: var(--dsw-alias-label-secondary); }
+.yk-val { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 8px; text-align: right; overflow-wrap: anywhere; }
+.yk-val-clamp { display: block; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yk-rows-2col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
+.yk-hero { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 16px; border-radius: var(--dsw-radius-lg); border: .5px solid var(--yk-line); }
+.yk-heroDot { width: 7px; height: 7px; border-radius: 50%; background: var(--yk-muted); flex: none; }
+.yk-hero-on .yk-heroDot { background: var(--dsw-alias-state-success-primary); }
+.yk-hero-warn .yk-heroDot { background: var(--dsw-alias-state-warn-primary); }
+.yk-heroMain { flex: 1 1 220px; min-width: 0; }
+.yk-heroTitle { font-size: 14px; font-weight: 600; }
+.yk-heroSub { font-size: 12px; color: var(--yk-muted); overflow-wrap: anywhere; }
+.yk-heroActions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.yk-serviceGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.yk-service { appearance: none; text-align: left; font: inherit; color: inherit; background: var(--dsw-alias-bg-base); border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-lg); padding: 16px; cursor: pointer; display: flex; flex-direction: column; gap: 10px; min-width: 0; transition: border-color var(--ds-transition-duration) var(--ds-ease-in-out), background var(--ds-transition-duration) var(--ds-ease-in-out); }
+.yk-service:hover { border-color: var(--dsw-alias-border-l3); background: var(--dsw-alias-interactive-bg-hover); }
+.yk-service-off { cursor: default; border-style: dashed; background: transparent; }
+.yk-service-off:hover { border-color: var(--yk-line); background: transparent; }
+.yk-service-off .yk-serviceTitle { color: var(--yk-muted); }
+.yk-serviceHead { display: flex; align-items: center; gap: 8px; color: var(--dsw-alias-label-secondary); }
+.yk-serviceTitle { font-size: 13px; font-weight: 600; color: var(--dsw-alias-label-primary); }
+.yk-serviceArrow { margin-left: auto; color: var(--yk-muted); }
+.yk-serviceValue { font-size: 15px; font-weight: 550; line-height: 1.4; overflow-wrap: anywhere; }
+.yk-serviceHint { color: var(--yk-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yk-list, .yk-groups, .yk-nodeList { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.yk-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: .5px solid transparent; border-radius: var(--dsw-radius-md); transition: background var(--ds-transition-duration) var(--ds-ease-in-out); }
+.yk-item:hover { background: var(--dsw-alias-interactive-bg-hover); }
+.yk-item-selected { background: color-mix(in srgb, var(--yk-accent) 7%, transparent); }
+.yk-itemMain { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.yk-itemTitleRow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.yk-itemTitle { appearance: none; border: 0; background: transparent; padding: 0; margin: 0; text-align: left; font: inherit; font-size: 13px; font-weight: 500; color: var(--dsw-alias-label-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; cursor: pointer; text-decoration: none; }
+.yk-itemTitle:hover { color: var(--yk-accent); }
+.yk-itemMeta { display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; font-size: 11px; color: var(--yk-muted); }
+.yk-itemMeta span + span::before { content: '·'; margin-right: 8px; opacity: .5; }
+.yk-itemDesc { font-size: 12px; color: var(--yk-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yk-itemActions { display: flex; align-items: center; gap: 4px; flex: none; }
+.yk-fileInput { display: none; }
+.yk-itemWrap { display: flex; flex-direction: column; min-width: 0; }
+.yk-children { display: flex; flex-direction: column; gap: 2px; margin: 0 0 4px 22px; padding-left: 12px; border-left: .5px solid var(--yk-line); }
+.yk-childWrap .yk-item { padding: 4px 8px; gap: 8px; border-radius: var(--dsw-radius-sm); }
+.yk-childWrap .yk-itemTitle { font-size: 12px; }
+.yk-childWrap .yk-itemMeta { font-size: 11px; gap: 4px 8px; }
+.yk-childWrap .yk-itemActions { opacity: .6; transition: opacity var(--ds-transition-duration) var(--ds-ease-in-out); }
+.yk-childWrap .yk-item:hover .yk-itemActions, .yk-childWrap .yk-itemActions:focus-within { opacity: 1; }
+.yk-check-locked { opacity: .45; cursor: default; }
+.yk-check-locked::after { content: ''; }
+.yk-subToggle { appearance: none; border: 0; background: transparent; color: var(--yk-muted); font: inherit; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; padding: 1px 4px; border-radius: var(--dsw-radius-sm); flex: none; }
+.yk-subToggle:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
+/* 悬停预览卡片。挂在 body 上，只取宿主 token，不继承面板的 --yk-* 派生值。 */
+.yk-chatPreview { position: fixed; z-index: 100; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; overflow: hidden; border: .5px solid color-mix(in srgb, var(--dsw-alias-border-l2) 80%, var(--dsw-alias-label-primary) 10%); border-radius: var(--dsw-radius-lg); background: color-mix(in srgb, var(--dsw-alias-bg-layer-3) 94%, var(--dsw-alias-bg-layer-2)); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); box-shadow: var(--dsw-shadow-lv3); color: var(--dsw-alias-label-primary); font-family: var(--dsw-font-family); font-size: 13px; line-height: 1.5; text-align: left; pointer-events: none; transform-origin: center; will-change: transform, opacity; }
+.yk-chatPreview-below { animation: yk-preview-in-below .18s cubic-bezier(.16, 1, .3, 1) both; }
+.yk-chatPreview-above { animation: yk-preview-in-above .18s cubic-bezier(.16, 1, .3, 1) both; top: auto !important; }
+@keyframes yk-preview-in-below { from { opacity: 0; transform: translateY(-6px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes yk-preview-in-above { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes yk-preview-content-fade { from { opacity: 0; } to { opacity: 1; } }
+.yk-chatPreview *, .yk-chatPreview *::before, .yk-chatPreview *::after { box-sizing: border-box; }
+.yk-chatPreviewHead { display: flex; align-items: center; gap: 8px; min-width: 0; padding-bottom: 8px; border-bottom: .5px solid color-mix(in srgb, var(--dsw-alias-border-l1) 40%, transparent); }
+.yk-chatPreviewIcon { flex: none; color: var(--dsw-alias-label-secondary); }
+.yk-chatPreviewTitle { flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--dsw-alias-label-primary); }
+.yk-chatPreviewMeta { flex: none; font-size: 11px; padding: 1px 7px; border-radius: var(--dsw-radius-sm); background: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent); color: var(--dsw-alias-label-secondary); white-space: nowrap; }
+.yk-chatPreviewList { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: hidden; animation: yk-preview-content-fade .15s ease-out both; }
+.yk-chatPreviewMsg { display: flex; flex-direction: column; min-width: 0; }
+.yk-chatPreviewMine { align-items: flex-end; }
+.yk-chatPreviewText { max-width: 92%; font-size: 12px; line-height: 1.45; color: var(--dsw-alias-label-secondary); white-space: pre-wrap; overflow-wrap: anywhere; padding: 7px 10px; border-radius: var(--dsw-radius-md); border: .5px solid color-mix(in srgb, var(--dsw-alias-border-l1) 50%, transparent); background: color-mix(in srgb, var(--dsw-alias-bg-layer-2) 65%, transparent); display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.yk-chatPreviewMine .yk-chatPreviewText { max-width: 88%; background: color-mix(in srgb, var(--dsw-alias-label-primary) 10%, transparent); border-color: color-mix(in srgb, var(--dsw-alias-label-primary) 14%, transparent); color: var(--dsw-alias-label-primary); border-bottom-right-radius: var(--dsw-radius-xs); }
+.yk-chatPreviewMsg:not(.yk-chatPreviewMine) .yk-chatPreviewText { border-bottom-left-radius: var(--dsw-radius-xs); }
+.yk-chatPreviewStrong { color: var(--dsw-alias-label-primary); font-weight: 600; }
+.yk-chatPreviewCode { padding: 1px 4px; font-size: 11px; font-family: var(--ds-font-family-code, monospace); background: color-mix(in srgb, var(--dsw-alias-label-primary) 8%, transparent); border-radius: var(--dsw-radius-xs); border: .5px solid color-mix(in srgb, var(--dsw-alias-border-l1) 40%, transparent); color: var(--dsw-alias-label-primary); }
+.yk-chatPreviewNote { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--dsw-alias-label-tertiary); padding: 8px 0; animation: yk-preview-content-fade .15s ease-out both; }
+
+.yk-confirmInline { margin: 2px 0 8px 26px; padding: 10px 12px; background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 5%, transparent); }
+.yk-itemActionsConfirm { gap: 10px; }
+.yk-itemActionsConfirm .yk-option { align-items: center; white-space: nowrap; font-size: 12px; }
+.yk-itemActionsConfirm .yk-option input { margin: 0; }
+.yk-dangerText { color: var(--dsw-alias-state-error-primary); font-weight: 600; }
+
+.yk-confirmInline .yk-confirmTitle { font-size: 13px; }
+.yk-libs { color: var(--dsw-alias-label-tertiary); font-size: 11px; overflow-wrap: anywhere; }
+.yk-cmdRow { display: flex; align-items: flex-start; gap: 6px; }
+.yk-cmdRow .yk-out { flex: 1; }
+.yk-select { width: auto; min-width: 140px; max-width: 240px; height: 34px; padding: 0 8px; }
+.yk-crumbs { display: flex; align-items: center; gap: 2px; min-width: 0; flex: 1 1 240px; overflow-x: auto; scrollbar-width: none; }
+.yk-crumbs::-webkit-scrollbar { display: none; }
+.yk-crumbWrap { display: inline-flex; align-items: center; gap: 2px; color: var(--yk-muted); flex: none; }
+.yk-crumb { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; cursor: pointer; padding: 2px 4px; border-radius: var(--dsw-radius-sm); white-space: nowrap; }
+.yk-crumb:hover { color: var(--dsw-alias-label-primary); background: var(--dsw-alias-interactive-bg-hover); }
+.yk-itemHead { padding-block: 4px; border-bottom: .5px solid var(--yk-line); border-radius: 0; font-size: 11px; color: var(--yk-muted); }
+.yk-filesBody { display: block; }
+.yk-filesSplit { display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 45%, 420px); gap: 16px; align-items: start; }
+/* 预览跟着页面滚动停在右上，上下各留一点距离并撑满可视高度：列表往下翻时仍然看得到当前文件。 */
+.yk-preview { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 10px; height: var(--yk-preview-height, calc(100vh - 24px)); min-height: 320px; overflow: auto; padding: 12px; border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-base); }
+.yk-previewHead { display: flex; align-items: center; gap: 4px; min-width: 0; min-height: 32px; }
+.yk-previewPath { flex: 1; min-width: 0; padding-right: 4px; font-size: 13px; color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yk-previewDoc { font-size: 13px; line-height: 1.6; }
+.yk-previewImage { display: block; max-width: 100%; border-radius: var(--dsw-radius-md); }
+.yk-previewCode-nowrap { overflow-x: auto; }
+.yk-previewCode-nowrap .yk-previewLine { grid-template-columns: 3.2em max-content; }
+.yk-previewCode-nowrap .yk-previewLineText { white-space: pre; }
+.yk-lightbox { position: fixed; inset: 0; z-index: 1100; display: grid; place-items: center; padding: 24px; overflow: hidden; background: var(--dsw-alias-bg-mask-1); }
+.yk-lightboxImage { max-width: 100%; max-height: calc(100vh - 96px); border-radius: var(--dsw-radius-md); transition: transform var(--ds-transition-duration) var(--ds-ease-in-out); }
+.yk-lightboxBar { position: fixed; right: 24px; bottom: 24px; display: flex; gap: 4px; padding: 4px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-layer-3); box-shadow: var(--dsw-shadow-lv3); }
+.yk-previewCode { margin: 0; display: flex; flex-direction: column; font: 12px/1.65 var(--ds-font-family-code, monospace); color: var(--dsw-alias-label-primary); }
+.yk-previewLine { display: grid; grid-template-columns: 3.2em minmax(0, 1fr); gap: 8px; }
+.yk-previewLineNo { color: var(--yk-muted); text-align: right; user-select: none; }
+.yk-previewLineText { white-space: pre-wrap; overflow-wrap: anywhere; }
+.yk-previewEmpty, .yk-previewNote { color: var(--yk-muted); font-size: 12px; }
+.yk-previewError { margin: 0; color: var(--dsw-alias-state-error-primary); font-size: 12px; }
+.yk-itemHead:hover { background: transparent; }
+.yk-metaRight { margin-left: auto; flex: none; justify-content: flex-end; }
+.yk-itemIcon { display: inline-flex; color: var(--yk-muted); flex: none; }
+.yk-link { color: var(--dsw-alias-label-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.yk-check { flex: none; width: 16px; height: 16px; border-radius: var(--dsw-radius-xs); border: .5px solid var(--dsw-alias-border-l3); background: transparent; display: inline-grid; place-items: center; cursor: pointer; padding: 0; appearance: none; color: transparent; }
+.yk-check[aria-checked="true"], .yk-check[aria-checked="mixed"] { background: var(--yk-accent); border-color: var(--yk-accent); color: var(--dsw-alias-label-primary-inverted); }
+.yk-check[aria-checked="mixed"]::after { content: ''; width: 8px; height: 2px; background: currentColor; }
+.yk-wsGroup { display: flex; flex-direction: column; gap: 4px; margin-bottom: 4px; }
+.yk-wsHeader { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
+.yk-wsToggleBtn { appearance: none; background: transparent; border: 0; padding: 0; display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; cursor: pointer; text-align: left; color: var(--dsw-alias-label-secondary); }
+.yk-wsTitle { font-size: 13px; font-weight: 600; color: var(--dsw-alias-label-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.yk-wsPath { font-size: 11px; color: var(--yk-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.yk-wsCount { font-size: 11px; color: var(--yk-muted); }
+.yk-batchBar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-md); font-size: 13px; }
+.yk-batchActions { display: flex; gap: 8px; }
+.yk-seg { display: inline-flex; gap: 2px; padding: 2px; border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-md); }
+.yk-segItem { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; height: 28px; padding: 0 10px; border-radius: var(--dsw-radius-sm); cursor: pointer; white-space: nowrap; }
+.yk-segItem[aria-checked="true"] { background: var(--dsw-alias-interactive-bg-active); color: var(--dsw-alias-label-primary); }
+.yk-segBadge { font-size: 11px; margin-left: 4px; opacity: .7; }
+.yk-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.yk-field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.yk-fieldLabel { font-size: 12px; font-weight: 500; color: var(--dsw-alias-label-secondary); }
+.yk-input { height: 34px; width: 100%; min-width: 0; border-radius: var(--dsw-radius-md); border: .5px solid var(--dsw-alias-border-l4); background: var(--dsw-alias-bg-base); color: var(--dsw-alias-label-primary); padding: 0 10px; font: inherit; font-size: 13px; outline: none; }
+.yk-textarea { height: auto; min-height: 76px; padding: 10px; resize: vertical; line-height: 1.55; }
+.yk-textareaTall { min-height: 140px; }
+.yk-textareaCode { min-height: 200px; font: 12px/1.5 var(--ds-font-family-code, monospace); }
+.yk-stack { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.yk-presetGroup { display: flex; flex-direction: column; gap: 6px; }
+.yk-presetGroupHead { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--dsw-alias-label-tertiary); }
+.yk-presetId { font-family: var(--ds-font-family-code, monospace); font-size: 11px; }
+.yk-presetRows { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.yk-presetRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-md); }
+.yk-presetRowHead { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.yk-presetRowName { font-family: var(--ds-font-family-code, monospace); font-size: 12px; overflow-wrap: anywhere; }
+.yk-customRow { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: .5px dashed var(--yk-line); border-radius: var(--dsw-radius-md); }
+.yk-footError { color: var(--dsw-alias-state-error-primary); }
+.yk-outTall { max-height: 46vh; }
+.yk-editor { min-height: 300px; font-family: var(--ds-font-family-code, monospace); font-size: 12px; }
+.yk-editorHead { display: flex; align-items: center; justify-content: space-between; }
+.yk-importBox { display: flex; align-items: flex-end; gap: 8px; }
+.yk-importBox .yk-textarea { flex: 1; }
+.yk-settingRow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px 10px; }
+.yk-settingLabel { font-size: 13px; font-weight: 500; white-space: nowrap; }
+.yk-settingHint { grid-column: 1 / -1; font-size: 12px; color: var(--yk-muted); }
+.yk-settingWarn { color: var(--dsw-alias-state-warn-primary); }
+.yk-disclosure { display: flex; flex-direction: column; gap: 10px; }
+.yk-disclosureBtn { appearance: none; border: 0; background: transparent; color: var(--dsw-alias-label-secondary); font: inherit; font-size: 12px; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; padding: 4px 0; align-self: flex-start; }
+.yk-disclosureBody { display: flex; flex-direction: column; gap: 12px; padding: 16px; border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-lg); }
+.yk-banner { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: var(--dsw-radius-md); font-size: 12px; }
+.yk-bannerInfo { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-secondary); }
+.yk-bannerWarn { background: color-mix(in srgb, var(--dsw-alias-state-warn-primary) 10%, transparent); color: var(--dsw-alias-state-warn-primary); }
+.yk-bannerError { background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 10%, transparent); color: var(--dsw-alias-state-error-primary); }
+.yk-confirm { display: flex; flex-direction: column; gap: 8px; padding: 16px; border-radius: var(--dsw-radius-lg); border: .5px solid color-mix(in srgb, var(--dsw-alias-state-error-primary) 35%, transparent); }
+.yk-confirmTitle { font-size: 14px; font-weight: 600; }
+.yk-confirmHint { font-size: 12px; color: var(--dsw-alias-label-secondary); }
+.yk-confirmActions { display: flex; gap: 8px; }
+.yk-options { display: flex; flex-direction: column; gap: 8px; }
+.yk-option { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: 13px; }
+.yk-option input, .yk-itemMain-row input[type="checkbox"] { flex: none; width: 16px; height: 16px; margin: 3px 0 0; border-radius: var(--dsw-radius-xs); accent-color: var(--yk-accent); }
+.yk-itemMain-row input[type="checkbox"] { margin-top: 0; }
+.yk-option-danger { color: var(--dsw-alias-state-error-primary); }
+.yk-optionText { display: flex; flex-direction: column; gap: 2px; }
+.yk-optionHint { font-size: 12px; color: var(--yk-muted); }
+.yk-empty, .yk-overlay { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 48px 20px; color: var(--yk-muted); text-align: center; }
+.yk-emptyTitle, .yk-overlayTitle { font-size: 14px; font-weight: 500; color: var(--dsw-alias-label-primary); }
+.yk-emptyHint, .yk-overlayHint { font-size: 12px; max-width: 46ch; }
+.yk-node { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-md); }
+.yk-node-active { border-color: color-mix(in srgb, var(--dsw-alias-state-success-primary) 35%, transparent); }
+.yk-nodeName { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yk-radio { appearance: none; flex: none; width: 16px; height: 16px; border-radius: 50%; padding: 0; cursor: pointer; border: .5px solid var(--dsw-alias-border-l3); background: transparent; display: grid; place-items: center; }
+.yk-radio[aria-checked="true"] { border-color: var(--dsw-alias-state-success-primary); box-shadow: inset 0 0 0 4px var(--dsw-alias-state-success-primary); cursor: default; }
+.yk-mono { font-family: var(--ds-font-family-code, monospace); }
+.yk-itemMeta .yk-mono { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.yk-out { margin: 0; padding: 10px; border-radius: var(--dsw-radius-md); background: var(--dsw-alias-bg-layer-3); color: var(--dsw-alias-label-secondary); font: 11px/1.5 var(--ds-font-family-code, monospace); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow: auto; }
+.yk-update, .yk-updatePill { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.yk-updatePill { appearance: none; font: inherit; flex: none; white-space: nowrap; min-height: 32px; padding: 0 10px; border-radius: var(--dsw-radius-md); font-size: 12px; border: .5px solid var(--yk-line); background: transparent; color: var(--dsw-alias-label-secondary); }
+.yk-updatePill-click { cursor: pointer; }
+.yk-updatePill-click:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
+.yk-updateText { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 360px; }
+.yk-updateStatus-ok { color: var(--dsw-alias-state-success-primary); }
+.yk-updateStatus-warn { color: var(--dsw-alias-state-warn-primary); }
+.yk-updateStatus-error { color: var(--dsw-alias-state-error-primary); }
+.yk-flash, .yk-flashNote { display: inline-flex; align-items: center; gap: 6px; color: var(--dsw-alias-state-success-primary); }
+.yk-flashNote-error { color: var(--dsw-alias-state-error-primary); }
+.yk-flashNote { font-size: 12px; }
+.yk-grow { flex: 1; }
+.yk-fill { flex: 1 1 220px; min-width: 0; }
+.yk-listHead { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.yk-listTitle { font-size: 15px; font-weight: 600; color: var(--dsw-alias-label-primary); }
+.yk-itemMain-row { flex-direction: row; align-items: center; gap: 8px; cursor: pointer; }
+.yk-bannerText { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.yk-progress { width: 100%; height: 4px; overflow: hidden; border-radius: 2px; background: var(--dsw-alias-interactive-bg-hover); }
+.yk-progressBar { height: 100%; border-radius: inherit; background: var(--yk-accent); transition: width .2s; }
+.yk-spin { animation: yk-spin 1s linear infinite; }
+@keyframes yk-spin { to { transform: rotate(360deg); } }
+@container (max-width: 720px) { .yk-serviceGrid, .yk-grid { grid-template-columns: 1fr; } .yk-settingRow { grid-template-columns: 1fr auto; } .yk-settingLabel { grid-column: 1 / -1; } .yk-rows-2col { grid-template-columns: 1fr; } .yk-updateText { max-width: 200px; } .yk-filesSplit { grid-template-columns: minmax(0, 1fr); } .yk-preview { position: static; height: auto; max-height: 60vh; } }
+@container (max-width: 480px) { .yk-form { grid-template-columns: 1fr; } .yk-navTab { padding-inline: 10px; } .yk-btnLabel, .yk-wsPath { display: none; } .yk-importBox { flex-direction: column; align-items: stretch; } .yk-head { align-items: flex-start; } .yk-updateText { max-width: 150px; } .yk-item { flex-wrap: wrap; align-items: flex-start; } .yk-itemMain { flex: 1 1 160px; } .yk-itemTitleRow { flex-wrap: wrap; row-gap: 4px; } .yk-itemActions { flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; max-width: 100%; margin-left: auto; } }
+@media(prefers-reduced-motion: reduce) { .yk-page * { animation: none !important; transition: none !important; } }
+`
+
+    /* --------------------------------------------------------------- helpers */
+
+    function fill(template, values) {
+      return String(template ?? '').replace(/\{(\w+)\}/g, (whole, key) =>
+        values !== undefined && key in values ? String(values[key]) : whole,
+      )
+    }
+
+    function counted(t, singular, plural, count) {
+      return count === 1 ? t(singular) : fill(t(plural), { n: count })
+    }
+
+    function formatTime(value) {
+      const when = new Date(typeof value === 'number' ? value : String(value ?? ''))
+      if (Number.isNaN(when.getTime())) return '—'
+      const pad = (part) => String(part).padStart(2, '0')
+      return `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())} ${pad(when.getHours())}:${pad(when.getMinutes())}`
+    }
+
+    function relativeTime(value, t) {
+      const when = new Date(typeof value === 'number' ? value : String(value ?? ''))
+      if (Number.isNaN(when.getTime())) return '—'
+      const seconds = Math.round((Date.now() - when.getTime()) / 1000)
+      if (seconds < 60) return t('relativeJustNow')
+      const minutes = Math.floor(seconds / 60)
+      if (minutes < 60) return `${minutes}${t('relativeMinutes')}`
+      const hours = Math.floor(minutes / 60)
+      if (hours < 24) return `${hours}${t('relativeHours')}`
+      const days = Math.floor(hours / 24)
+      return `${days}${t('relativeDays')}`
+    }
+
+    function formatBytes(bytes) {
+      const value = Number(bytes)
+      if (!Number.isFinite(value) || value <= 0) return '0 B'
+      const units = ['B', 'KB', 'MB', 'GB']
+      let unitIndex = 0
+      let current = value
+      while (current >= 1024 && unitIndex < units.length - 1) {
+        current /= 1024
+        unitIndex += 1
+      }
+      return `${current.toFixed(unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`
+    }
+
+    /**
+     * One JSON request. A route that is not registered (its component row is
+     * turned off) answers 404 or the SPA page instead of JSON: that becomes an
+     * error with `off: true`, so tabs can show a hint instead of "HTTP 404".
+     */
+    async function request(url, init) {
+      const response = await fetch(url, { ...init, cache: 'no-store' })
+      const type = response.headers.get('content-type') ?? ''
+      let payload = null
+      if (type.includes('json')) {
+        try {
+          payload = await response.json()
+        } catch {
+          payload = null
+        }
+      }
+      if (payload === null) {
+        const error = new Error(`HTTP ${response.status}`)
+        error.status = response.status
+        error.off = response.status === 404 || (response.ok && !type.includes('json'))
+        throw error
+      }
+      if (!response.ok || payload.ok === false) {
+        const error = new Error(payload.error ? String(payload.error) : `HTTP ${response.status}`)
+        Object.assign(error, payload)
+        error.status = response.status
+        error.off = false
+        throw error
+      }
+      return payload
+    }
+
+    const getJson = (url, signal) => request(url, { headers: { accept: 'application/json' }, signal })
+
+    const postJson = (url, body, signal) =>
+      request(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify(body ?? {}),
+        signal,
+      })
+
+    const messageOf = (error) => (error instanceof Error ? error.message : String(error))
+
+    function useAbortOnUnmount() {
+      const controllerRef = React.useRef(null)
+      if (controllerRef.current === null) controllerRef.current = new AbortController()
+      const aliveRef = React.useRef(true)
+      React.useEffect(() => {
+        aliveRef.current = true
+        return () => {
+          aliveRef.current = false
+          controllerRef.current.abort()
+        }
+      }, [])
+      return { signal: controllerRef.current.signal, alive: aliveRef }
+    }
+
+    /**
+     * 定时跑一个异步任务：上一次结束才排下一次，页面不可见时跳过，卸载即停。
+     *
+     * 面板里有四处轮询各自实现，重复叠加定时器、更新与重启同时拉起两套请求
+     * 都发生过；统一成一个 hook 之后，间隔为 0 就表示停用，调用点不再需要
+     * 条件式调用 hook。
+     * @param task - 要执行的任务；每次取最新闭包。
+     * @param delayMs - 间隔毫秒；<=0 表示不轮询。
+     * @param deps - 依赖变化时重新开始。
+     * @param options - `maxTicks`，跑满次数后停止。
+     */
+    function usePolling(task, delayMs, deps = [], options = {}) {
+      const taskRef = React.useRef(task)
+      taskRef.current = task
+      const maxTicks = options.maxTicks ?? Infinity
+      React.useEffect(() => {
+        if (!(delayMs > 0)) return undefined
+        let alive = true
+        let timer = null
+        let ticks = 0
+        const schedule = () => { timer = setTimeout(tick, delayMs) }
+        const tick = async () => {
+          if (!alive) return
+          if (typeof document !== 'undefined' && document.hidden) {
+            schedule()
+            return
+          }
+          ticks += 1
+          try {
+            await taskRef.current()
+          } catch {
+            // 任务自己负责把失败画到界面上；轮询本身不因为一次失败就停。
+          }
+          if (!alive || ticks >= maxTicks) return
+          schedule()
+        }
+        schedule()
+        return () => {
+          alive = false
+          if (timer !== null) clearTimeout(timer)
+        }
+      }, deps)
+    }
+
+    function Loading({ text }) {
+      return h('div', { className: 'yk-foot', role: 'status' }, h(Spinner), text)
+    }
+
+    /* ----------------------------------------------------------------- icons */
+
+    const glyph = (children, props) =>
+      h(
+        'svg',
+        {
+          width: 15,
+          height: 15,
+          viewBox: '0 0 24 24',
+          fill: 'none',
+          'aria-hidden': true,
+          ...(props ?? {}),
+        },
+        children,
+      )
+
+    const stroke = (d, extra) =>
+      h('path', {
+        d,
+        stroke: 'currentColor',
+        strokeWidth: 1.75,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+        ...(extra ?? {}),
+      })
+
+    const RefreshIcon = (props) =>
+      glyph(
+        [
+          stroke('M19.5 12a7.5 7.5 0 1 1-2.2-5.3', { key: 'a' }),
+          stroke('M19.8 4.6v4.6h-4.6', { key: 'b' }),
+        ],
+        props,
+      )
+    const SearchIcon = (props) =>
+      glyph(
+        [
+          h('circle', { key: 'c', cx: 11, cy: 11, r: 6.6, stroke: 'currentColor', strokeWidth: 1.75 }),
+          stroke('M16.2 16.2 20.5 20.5', { key: 'l' }),
+        ],
+        props,
+      )
+    const CheckIcon = (props) => glyph(stroke('M5.2 12.6 9.6 17 19 7.4'), props)
+    /** 回撤：逆时针箭头。 */
+    const RewindIcon = (props) =>
+      glyph(
+        [
+          stroke('M4.2 9.4A8 8 0 1 1 4 14.4', { key: 'a' }),
+          stroke('M4.2 4.6v5h5', { key: 'b' }),
+        ],
+        props,
+      )
+
+    const TrashIcon = (props) =>
+      glyph(
+        [
+          stroke('M4.5 7h15', { key: 'a' }),
+          stroke('M9.6 7V5.3h4.8V7', { key: 'b' }),
+          stroke('M6.8 7 7.7 19.2h8.6L17.2 7', { key: 'c' }),
+        ],
+        props,
+      )
+    const PowerIcon = (props) => glyph([stroke('M12 3.6v8', { key: 'a' }), stroke('M7.4 6.6a7.4 7.4 0 1 0 9.2 0', { key: 'b' })], props)
+    const DownloadIcon = (props) =>
+      glyph(
+        [
+          stroke('M12 4v9.6', { key: 'a' }),
+          stroke('M8.4 10.4 12 13.9l3.6-3.5', { key: 'b' }),
+          stroke('M4.9 17.6v1.1a1.5 1.5 0 0 0 1.5 1.5h11.2a1.5 1.5 0 0 0 1.5-1.5v-1.1', { key: 'c' }),
+        ],
+        props,
+      )
+    const LinkIcon = (props) =>
+      glyph(
+        [
+          stroke('M8.6 15.4 15.4 8.6', { key: 'a' }),
+          stroke('M10 8.6h5.4V14', { key: 'b' }),
+        ],
+        props,
+      )
+    const ChatIcon = (props) =>
+      glyph(
+        [
+          stroke('M20 12.2c0 3.6-3.6 6.5-8 6.5-1 0-2-.15-2.9-.42L4.4 19.8l1.2-3.3A6.1 6.1 0 0 1 4 12.2C4 8.6 7.6 5.7 12 5.7s8 2.9 8 6.5Z', { key: 'a' }),
+        ],
+        props,
+      )
+    /** A published page: a frame with a title bar, distinct from the globe used by the browser. */
+    const SitesIcon = (props) =>
+      glyph(
+        [
+          h('rect', { key: 'r', x: 3.6, y: 4.8, width: 16.8, height: 14.4, rx: 2.2, stroke: 'currentColor', strokeWidth: 1.75 }),
+          stroke('M3.6 9.2h16.8', { key: 'a' }),
+          stroke('M7.4 15.4h5.2', { key: 'b' }),
+        ],
+        props,
+      )
+
+    const GlobeIcon = (props) =>
+      glyph(
+        [
+          h('circle', { key: 'c', cx: 12, cy: 12, r: 7.4, stroke: 'currentColor', strokeWidth: 1.75 }),
+          stroke('M4.8 12h14.4', { key: 'a' }),
+          stroke('M12 4.6c2 2.2 3 4.6 3 7.4s-1 5.2-3 7.4c-2-2.2-3-4.6-3-7.4s1-5.2 3-7.4Z', { key: 'b' }),
+        ],
+        props,
+      )
+    const RouteIcon = (props) =>
+      glyph(
+        [
+          h('circle', { key: 'a', cx: 6.4, cy: 7.2, r: 2.4, stroke: 'currentColor', strokeWidth: 1.75 }),
+          h('circle', { key: 'b', cx: 17.6, cy: 16.8, r: 2.4, stroke: 'currentColor', strokeWidth: 1.75 }),
+          stroke('M8.8 7.2h4.1a3.4 3.4 0 0 1 3.4 3.4v.6a3.2 3.2 0 0 1-3.2 3.2H8.6', { key: 'c' }),
+        ],
+        props,
+      )
+    const OpenIcon = (props) =>
+      glyph(
+        [
+          stroke('M13.4 5.6h5v5', { key: 'a' }),
+          stroke('M18.4 5.6 11 13', { key: 'b' }),
+          stroke('M16.4 13.6v3.8a1.6 1.6 0 0 1-1.6 1.6H6.6A1.6 1.6 0 0 1 5 17.4V9.2a1.6 1.6 0 0 1 1.6-1.6h3.8', { key: 'c' }),
+        ],
+        props,
+      )
+    const ArchiveIcon = (props) =>
+      glyph(
+        [
+          stroke('M3.8 5.2h16.4v3.6H3.8z', { key: 'a' }),
+          stroke('M5.4 8.8v9a1.6 1.6 0 0 0 1.6 1.6h10a1.6 1.6 0 0 0 1.6-1.6v-9', { key: 'b' }),
+          stroke('M12 11.6v4.8', { key: 'c' }),
+          stroke('M9.8 14.4 12 16.6l2.2-2.2', { key: 'd' }),
+        ],
+        props,
+      )
+    const OverviewIcon = (props) =>
+      glyph(
+        [
+          stroke('M4 5h6v6H4z', { key: 'a' }),
+          stroke('M14 5h6v4H14z', { key: 'b' }),
+          stroke('M14 13h6v6H14z', { key: 'c' }),
+          stroke('M4 15h6v4H4z', { key: 'd' }),
+        ],
+        props,
+      )
+    const ClearIcon = (props) =>
+      glyph(
+        [
+          stroke('M18 6 6 18', { key: 'a' }),
+          stroke('M6 6 18 18', { key: 'b' }),
+        ],
+        props,
+      )
+    const EyeIcon = (props) =>
+      glyph(
+        [
+          stroke('M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z', { key: 'a' }),
+          h('circle', { key: 'b', cx: 12, cy: 12, r: 3, stroke: 'currentColor', strokeWidth: 1.75 }),
+        ],
+        props,
+      )
+    const EyeOffIcon = (props) =>
+      glyph(
+        [
+          stroke('M9.88 9.88a3 3 0 1 0 4.24 4.24', { key: 'a' }),
+          stroke('M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68', { key: 'b' }),
+          stroke('M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61', { key: 'c' }),
+          stroke('M2 2 22 22', { key: 'd' }),
+        ],
+        props,
+      )
+    const CopyIcon = (props) =>
+      glyph(
+        [
+          stroke('M16 4H8a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2Z', { key: 'a' }),
+          stroke('M4 8v10a2 2 0 0 0 2 2h10', { key: 'b' }),
+        ],
+        props,
+      )
+    const PurgeIcon = (props) =>
+      glyph(
+        [
+          stroke('M12 3.2 4.8 6.4v5.4c0 4.8 3.1 9.2 7.2 10.2 4.1-1 7.2-5.4 7.2-10.2V6.4L12 3.2Z', { key: 'a' }),
+          stroke('M12 8.4v7.2', { key: 'b' }),
+          stroke('M9.6 12h4.8', { key: 'c' }),
+        ],
+        props,
+      )
+    const FolderIcon = (props) =>
+      glyph(
+        [
+          stroke('M3.8 6.4h4.4l2 2.2h8a1.4 1.4 0 0 1 1.4 1.4v7.6a1.4 1.4 0 0 1-1.4 1.4H3.8a1.4 1.4 0 0 1-1.4-1.4V7.8a1.4 1.4 0 0 1 1.4-1.4Z', { key: 'a' }),
+        ],
+        props,
+      )
+    /** Rules: a document whose body carries a check, distinct from the purge shield. */
+    const SkillIcon = (props) =>
+      glyph(
+        [
+          stroke('M5 8.6 12 4.4l7 4.2-7 4.2-7-4.2Z', { key: 'a' }),
+          stroke('M5 12.2l7 4.2 7-4.2', { key: 'b' }),
+          stroke('M5 15.8l7 4.2 7-4.2', { key: 'c' }),
+        ],
+        props,
+      )
+
+    const UploadIcon = (props) =>
+      glyph(
+        [
+          stroke('M12 15.4V5.6', { key: 'a' }),
+          stroke('M8.4 9 12 5.5 15.6 9', { key: 'b' }),
+          stroke('M4.9 15.6v2a1.5 1.5 0 0 0 1.5 1.5h11.2a1.5 1.5 0 0 0 1.5-1.5v-2', { key: 'c' }),
+        ],
+        props,
+      )
+
+    const RulesIcon = (props) =>
+      glyph(
+        [
+          stroke('M6 3.8h8.4L19 8.4v11.8H6V3.8Z', { key: 'a' }),
+          stroke('M14.4 3.8v4.6H19', { key: 'b' }),
+          stroke('M9.2 12.8l1.9 1.9 3.7-4.1', { key: 'c' }),
+          stroke('M9.2 17.6h5.6', { key: 'd' }),
+        ],
+        props,
+      )
+    /** GitHub: a branch with a commit, distinct from the proxy route. */
+    const GithubIcon = (props) =>
+      glyph(
+        [
+          h('circle', { key: 'a', cx: 6.4, cy: 5.8, r: 2.2, stroke: 'currentColor', strokeWidth: 1.75 }),
+          h('circle', { key: 'b', cx: 6.4, cy: 18.2, r: 2.2, stroke: 'currentColor', strokeWidth: 1.75 }),
+          h('circle', { key: 'c', cx: 17.6, cy: 8.2, r: 2.2, stroke: 'currentColor', strokeWidth: 1.75 }),
+          stroke('M6.4 8v8', { key: 'd' }),
+          stroke('M17.6 10.4c0 4.4-3.4 6.6-8 6.8', { key: 'e' }),
+        ],
+        props,
+      )
+    /** Presets: stacked layers, one composition over another. */
+    const PresetsIcon = (props) =>
+      glyph(
+        [
+          stroke('M4 8.4 12 4.2l8 4.2-8 4.2-8-4.2Z', { key: 'a' }),
+          stroke('M4 12.4l8 4.2 8-4.2', { key: 'b' }),
+          stroke('M4 16.2l8 4.2 8-4.2', { key: 'c' }),
+        ],
+        props,
+      )
+    /** 自动换行：三段线条，最后一段折回。 */
+    const WrapIcon = (props) =>
+      glyph([stroke('M4 6.5h16', { key: 'a' }), stroke('M4 12h11a3 3 0 0 1 0 6h-3.2', { key: 'b' }), stroke('M9.4 16.2 6.8 18.8l2.6 2.6', { key: 'c' })], props)
+    const PlayIcon = (props) => glyph([stroke('M8.6 5.8 17 12l-8.4 6.2V5.8Z', { key: 'a' })], props)
+    const PauseIcon = (props) => glyph([stroke('M9.6 6v12', { key: 'a' }), stroke('M14.4 6v12', { key: 'b' })], props)
+    const PlusIcon = (props) => glyph([stroke('M12 6.4v11.2', { key: 'a' }), stroke('M6.4 12h11.2', { key: 'b' })], props)
+    const MinusIcon = (props) => glyph([stroke('M6.4 12h11.2', { key: 'a' })], props)
+    const FullscreenIcon = (props) =>
+      glyph(
+        [
+          stroke('M4.6 9.4V4.6h4.8', { key: 'a' }),
+          stroke('M14.6 4.6h4.8v4.8', { key: 'b' }),
+          stroke('M19.4 14.6v4.8h-4.8', { key: 'c' }),
+          stroke('M9.4 19.4H4.6v-4.8', { key: 'd' }),
+        ],
+        props,
+      )
+    const ChevronDownIcon = (props) => glyph(stroke('M6 9l6 6 6-6'), props)
+    const ChevronRightIcon = (props) => glyph(stroke('M9 6l6 6-6 6'), props)
+    const ChevronLeftIcon = (props) => glyph(stroke('M15 6l-6 6 6 6'), props)
+    const BackIcon = (props) => glyph([stroke('M19 12H5', { key: 'a' }), stroke('m11 18-6-6 6-6', { key: 'b' })], props)
+
+    const Spinner = ({ size }) => h(RefreshIcon, { className: 'yk-spin', width: size ?? 15, height: size ?? 15 })
+
+    /* ----------------------------------------------------------- primitives */
+
+    function Chip({ kind, dot, children }) {
+      return h(
+        'span',
+        { className: kind === undefined ? 'yk-chip' : `yk-chip yk-chip-${kind}` },
+        dot === true ? h('span', { className: 'yk-chip-dot', 'aria-hidden': true }) : null,
+        children,
+      )
+    }
+
+    function Row({ label, value, mono, chips, clamp, action }) {
+      return h(
+        'div',
+        { className: 'yk-row' },
+        h('span', { className: 'yk-key' }, label),
+        h(
+          'span',
+          { className: ['yk-val', mono === true ? 'yk-mono' : '', clamp === true ? 'yk-val-clamp' : ''].filter(Boolean).join(' ') },
+          value,
+          action ?? null,
+          (chips ?? []).map((chip, index) =>
+            h(Chip, { key: index, kind: chip.kind, dot: chip.dot }, chip.text),
+          ),
+        ),
+      )
+    }
+
+    function SubpageHeader({ t, title, note, onBack, action }) {
+      return h(
+        'div',
+        { className: 'yk-subpageHead' },
+        h(
+          'button',
+          { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-backBtn', onClick: onBack, title: t('pBack'), 'aria-label': t('pBack') },
+          h(BackIcon, { width: 17, height: 17 }),
+        ),
+        h('div', { className: 'yk-subpageTitle' }, h('h2', { className: 'yk-cardTitle' }, title), note ? h('div', { className: 'yk-itemMeta' }, note) : null),
+        action ?? null,
+      )
+    }
+
+    function Card({ title, icon, note, action, span, children }) {
+      return h(
+        'section',
+        { className: span === true ? 'yk-card yk-card-wide' : 'yk-card' },
+        h(
+          'div',
+          { className: 'yk-cardHead' },
+          h(
+            'div',
+            { className: 'yk-cardTitleWrap' },
+            icon ?? null,
+            h('h2', { className: 'yk-cardTitle' }, title),
+            note !== undefined ? h('span', { className: 'yk-cardNote' }, note) : null,
+          ),
+          action ?? null,
+        ),
+        children,
+      )
+    }
+
+    function Banner({ kind, text, action }) {
+      return h(
+        'div',
+        { className: `yk-banner yk-banner${kind === undefined ? 'Info' : kind === 'error' ? 'Error' : kind === 'warn' ? 'Warn' : 'Info'}` },
+        h('span', { className: 'yk-bannerText' }, text),
+        action ?? null,
+      )
+    }
+
+    function Empty({ icon, title, hint }) {
+      return h(
+        'div',
+        { className: 'yk-empty' },
+        icon !== undefined ? icon : null,
+        h('div', { className: 'yk-emptyTitle' }, title),
+        hint !== undefined ? h('div', { className: 'yk-emptyHint' }, hint) : null,
+      )
+    }
+
+    function Segmented({ value, items, onChange, label }) {
+      const onKeyDown = (event) => {
+        const step = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0
+        if (step === 0) return
+        event.preventDefault()
+        const index = items.findIndex((item) => item.key === value)
+        const next = items[(index + step + items.length) % items.length]
+        if (next === undefined) return
+        onChange(next.key)
+        const buttons = event.currentTarget.querySelectorAll('[role="radio"]')
+        buttons[(index + step + items.length) % items.length]?.focus()
+      }
+      return h(
+        'div',
+        { className: 'yk-seg', role: 'radiogroup', 'aria-label': label, onKeyDown },
+        items.map((item) =>
+          h(
+            'button',
+            {
+              key: item.key,
+              type: 'button',
+              role: 'radio',
+              className: 'yk-segItem',
+              'aria-checked': item.key === value ? 'true' : 'false',
+              tabIndex: item.key === value ? 0 : -1,
+              onClick: () => onChange(item.key),
+            },
+            item.label,
+            item.count !== undefined ? h('span', { className: 'yk-segBadge' }, String(item.count)) : null,
+          ),
+        ),
+      )
+    }
+
+    function CopyButton({ text, label, t }) {
+      // idle / copied / failed：剪贴板可能被权限策略拒掉，静默失败会让人以为已经复制了。
+      const [state, setState] = React.useState('idle')
+      const settle = (next) => {
+        setState(next)
+        setTimeout(() => setState('idle'), 1800)
+      }
+      const onCopy = async (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (typeof navigator === 'undefined' || !navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+          settle('failed')
+          return
+        }
+        try {
+          await navigator.clipboard.writeText(text)
+          settle('copied')
+        } catch {
+          settle('failed')
+        }
+      }
+      const hint = state === 'copied' ? t('copied') : state === 'failed' ? t('copyFailed') : label ?? t('copy')
+      return h(
+        'button',
+        {
+          type: 'button',
+          className: state === 'failed' ? 'yk-copyBtn yk-copyBtn-failed' : 'yk-copyBtn',
+          title: hint,
+          'aria-label': hint,
+          onClick: onCopy,
+        },
+        state === 'copied' ? h(CheckIcon, { width: 13, height: 13 }) : h(CopyIcon, { width: 13, height: 13 }),
+      )
+    }
+
+    /* ------------------------------------------------------- shared pieces */
+
+    /** Component key → its label key, in tab order. */
+    const COMPONENT_LABEL = {
+      chats: 'compChats',
+      sites: 'compSites',
+      files: 'compFiles',
+      rules: 'compRules',
+      skills: 'compSkills',
+      presets: 'compPresets',
+      proxy: 'compProxy',
+      github: 'compGithub',
+      purge: 'compPurge',
+      browser: 'compBrowser',
+      runtime: 'compRuntime',
+    }
+
+    /**
+     * 卡片级的破坏性确认：一行后果说明 + 取消 + 危险动作，带框、渲染在触发它的
+     * 区块下面。列表行不用它——行内确认换掉操作区就够（见 ConfirmActions）。
+     */
+    function ConfirmStrip({ t, title, hint, confirmLabel, onCancel, onConfirm, busy }) {
+      const cancelRef = React.useRef(null)
+      React.useEffect(() => {
+        cancelRef.current?.focus()
+      }, [])
+      React.useEffect(() => {
+        const onKey = (event) => {
+          if (event.key === 'Escape') onCancel()
+        }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+      }, [onCancel])
+      return h(
+        'div',
+        { className: 'yk-confirm yk-confirmInline', role: 'alertdialog', 'aria-label': title },
+        h('div', { className: 'yk-confirmTitle' }, title),
+        hint ? h('div', { className: 'yk-confirmHint' }, hint) : null,
+        h(
+          'div',
+          { className: 'yk-confirmActions' },
+          h('button', { ref: cancelRef, type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: onCancel, disabled: busy === true }, t('cancel')),
+          h(
+            'button',
+            { type: 'button', className: 'yk-btn yk-btn-danger yk-btn-sm', onClick: onConfirm, disabled: busy === true },
+            busy === true ? h(Spinner, { size: 13 }) : null,
+            confirmLabel,
+          ),
+        ),
+      )
+    }
+
+    /**
+     * 单行删除的二次确认：这一行照旧显示（标题、时间、标记都在），只把操作区换成
+     * 「取消 · 删除」——没有外框，确认那个字是红的，也不把下面的行推走。
+     *
+     * `onToggleFiles` 只在真能删文件产物的行（会话）上传；其余行不给勾选框。
+     */
+    function ConfirmActions({ t, title, busy, busyKey = 'delete', confirmLabel, checked, onToggleFiles, onCancel, onConfirm }) {
+      const cancelRef = React.useRef(null)
+      React.useEffect(() => {
+        cancelRef.current?.focus()
+      }, [])
+      React.useEffect(() => {
+        const onKeyDown = (event) => {
+          if (event.key === 'Escape') onCancel()
+        }
+        window.addEventListener('keydown', onKeyDown)
+        return () => window.removeEventListener('keydown', onKeyDown)
+      }, [onCancel])
+      return h(
+        React.Fragment,
+        null,
+        onToggleFiles === undefined ? null : h(Option, { checked, onChange: onToggleFiles, label: t('cDeleteFiles') }),
+        h('button', { ref: cancelRef, type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: onCancel, disabled: busy !== '' }, t('cancel')),
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'yk-btn yk-btn-ghost yk-btn-sm yk-dangerText',
+            title,
+            'aria-label': title,
+            onClick: onConfirm,
+            disabled: busy !== '',
+          },
+          busy === busyKey ? h(Spinner, { size: 13 }) : null,
+          confirmLabel ?? t('cDelete'),
+        ),
+      )
+    }
+
+    /** Placeholder shown instead of an error when a component row is turned off. */
+    function OffState({ t, name }) {
+      const label = t(COMPONENT_LABEL[name] ?? name)
+      return h(Empty, {
+        icon: h(PowerIcon, { width: 22, height: 22 }),
+        title: fill(t('offTitle'), { name: label }),
+        hint: fill(t('offHint'), { name: label }),
+      })
+    }
+
+    /** 浏览器 fetch 层失败没有错误码，直接透出英文的 "Failed to fetch" 等于没说。 */
+    function isNetworkFailure(error) {
+      return /failed to fetch|networkerror|load failed|fetch failed/i.test(String(error?.message ?? ''))
+    }
+
+    /** Error banner, or the off placeholder when the component is gone. */
+    function Failure({ t, name, error, onRetry }) {
+      if (error === null || error === undefined) return null
+      if (error.off === true) return h(OffState, { t, name })
+      const label = t(COMPONENT_LABEL[name] ?? name)
+      const reason = isNetworkFailure(error) ? t('failureNetwork') : hostText(t, error)
+      return h(Banner, {
+        kind: 'error',
+        text: fill(t('failureSubject'), { name: label, reason }),
+        action: onRetry ? h('button', { type: 'button', className: 'yk-btn', onClick: onRetry }, t('retry')) : undefined,
+      })
+    }
+
+    /**
+     * 宿主错误优先按稳定码翻成当前语言。
+     *
+     * 服务端仍回中文原文（日志与 curl 直接看时有用），面板只替换"有词条且
+     * 带着参数"的那些；没有码或没有词条时退回原文，不猜。
+     * @param t - translator.
+     * @param error - 带 `code` 与可选 `params` 的失败对象。
+     */
+    function hostText(t, error) {
+      const code = error?.code
+      if (typeof code === 'string' && code !== '') {
+        const key = `host_${code}`
+        const text = t(key)
+        if (text !== key) {
+          const params = error?.params
+          return params !== null && typeof params === 'object' ? fill(text, params) : text
+        }
+      }
+      return error?.message ?? String(error)
+    }
+
+    /** Normalise a thrown value into `{ message, off }`. */
+    const failureOf = (error) => ({ message: messageOf(error), off: error?.off === true })
+
+    /** Checkbox row with an optional hint underneath. */
+    function Option({ checked, onChange, label, hint, danger, disabled }) {
+      return h(
+        'label',
+        { className: danger ? 'yk-option yk-option-danger' : 'yk-option' },
+        h('input', { type: 'checkbox', checked, disabled, onChange: (event) => onChange(event.target.checked) }),
+        h('span', { className: 'yk-optionText' }, h('span', null, label), hint ? h('span', { className: 'yk-optionHint' }, hint) : null),
+      )
+    }
+
+    /**
+     * Short-lived confirmation shown where the action happened (on the button
+     * or next to it) instead of a banner row that pushes the page around.
+     * @returns `[flash, show]`; `show(key, text)` clears itself after `ms`.
+     */
+    function useFlash(ms = 3200) {
+      const [flash, setFlash] = React.useState(null)
+      const timer = React.useRef(null)
+      React.useEffect(() => () => clearTimeout(timer.current), [])
+      const show = React.useCallback(
+        (key, text = '') => {
+          clearTimeout(timer.current)
+          setFlash({ key, text })
+          timer.current = setTimeout(() => setFlash(null), ms)
+        },
+        [ms],
+      )
+      return [flash, show]
+    }
+
+    /** Button content that briefly turns into "✓ text" after its action. */
+    const flashed = (flash, key, content) =>
+      flash?.key === key ? h('span', { className: 'yk-flash' }, h(CheckIcon, { width: 13, height: 13 }), flash.text) : content
+
+    /** Inline result text next to an action: a check for success, plain red for a problem. */
+    const FlashNote = ({ flash, keys, kind }) =>
+      flash !== null && keys.includes(flash.key) && flash.text
+        ? h(
+            'span',
+            { className: kind === 'error' ? 'yk-flashNote yk-flashNote-error' : 'yk-flashNote', role: 'status' },
+            kind === 'error' ? null : h(CheckIcon, { width: 13, height: 13 }),
+            flash.text,
+          )
+        : null
+
+    /** Collapsible "advanced settings" section at the bottom of a tab. */
+    function Disclosure({ title, badge, children, defaultOpen }) {
+      const [open, setOpen] = React.useState(defaultOpen === true)
+      return h(
+        'div',
+        { className: 'yk-disclosure' },
+        h(
+          'button',
+          { type: 'button', className: 'yk-disclosureBtn', 'aria-expanded': open ? 'true' : 'false', onClick: () => setOpen((value) => !value) },
+          h(open ? ChevronDownIcon : ChevronRightIcon, { width: 14, height: 14 }),
+          title,
+          badge ?? null,
+        ),
+        open ? h('div', { className: 'yk-disclosureBody' }, children) : null,
+      )
+    }
+
+    /**
+     * Wait for a different Host boot to answer after a restart, then reload.
+     * @param props - `bootId` of the process that owed the restart; `onDone` once it is seen.
+     */
+    function RestartWatch({ t, bootId, onDone }) {
+      const [phase, setPhase] = React.useState('waiting')
+      React.useEffect(() => {
+        let count = 0
+        let stopped = false
+        let reloadTimer = 0
+        // Give the old process time to go away before the first probe.
+        const timer = setInterval(async () => {
+          count += 1
+          if (count > 60) {
+            clearInterval(timer)
+            setPhase('slow')
+            // 一分钟还没有新进程：这次重启多半没发生，别让下次打开面板仍卡在这里。
+            onDone?.()
+            return
+          }
+          if (count < 3) return
+          try {
+            const response = await fetch(API.overview, { headers: { accept: 'application/json' }, cache: 'no-store' })
+            if (!response.ok) return
+            const payload = await response.json().catch(() => null)
+            const nextBoot = payload?.overview?.bootId
+            // HTTP 200 只证明有进程在回答，不证明重启已经发生。更新文件会触发 HMR，
+            // 旧进程也可能先回应一次；execve 又保持 PID，所以必须比较启动标识。
+            if (typeof nextBoot !== 'string' || nextBoot === '' || nextBoot === bootId) return
+            if (!stopped) {
+              clearInterval(timer)
+              setPhase('back')
+              onDone?.()
+              reloadTimer = setTimeout(() => window.location.reload(), 800)
+            }
+          } catch {
+            /* still down */
+          }
+        }, 1000)
+        return () => {
+          stopped = true
+          clearInterval(timer)
+          clearTimeout(reloadTimer)
+        }
+      }, [])
+      return h(
+        'div',
+        { className: 'yk-overlay', role: 'status' },
+        phase === 'back' ? h(CheckIcon, { width: 26, height: 26 }) : h(Spinner, { size: 26 }),
+        h('div', { className: 'yk-overlayTitle' }, phase === 'back' ? t('rBack') : t('rRestarting')),
+        h('div', { className: 'yk-overlayHint' }, phase === 'slow' ? t('rRestartSlow') : t('rRestartingHint')),
+      )
+    }
+
+    /** Ask whichever restart endpoint is available. */
+    async function requestRestart(components) {
+      if (components?.runtime) {
+        await postJson(`${API.runtime}/restart`, { delayMs: 600 })
+      } else {
+        await postJson(API.restart, {})
+      }
+    }
+
+    /** Search box with a clear button. */
+    function SearchBox({ value, onChange, placeholder, t }) {
+      return h(
+        'label',
+        { className: 'yk-search' },
+        h(SearchIcon),
+        h('input', { value, placeholder, 'aria-label': placeholder, onChange: (event) => onChange(event.target.value) }),
+        value !== ''
+          ? h(
+              'button',
+              {
+                type: 'button',
+                className: 'yk-searchClear',
+                title: t('clearSearch'),
+                'aria-label': t('clearSearch'),
+                onClick: (event) => {
+                  event.preventDefault()
+                  onChange('')
+                },
+              },
+              h(ClearIcon, { width: 12, height: 12 }),
+            )
+          : null,
+      )
+    }
+
+    const RefreshButton = ({ t, onClick, spinning }) =>
+      h(
+        'button',
+        { type: 'button', className: 'yk-btn yk-iconBtn yk-btn-ghost', onClick, disabled: spinning, title: t('refresh'), 'aria-label': t('refresh') },
+        h(RefreshIcon, { className: spinning ? 'yk-spin' : undefined }),
+      )
+
+    /* ---------------------------------------------------------------- overview */
+
+    /** Panel order for the overview grid: mounted components are buttons, the rest are greyed. */
+    const OVERVIEW_ORDER = ['chats', 'files', 'rules', 'skills', 'presets', 'sites', 'proxy', 'github', 'browser', 'purge', 'runtime']
+
+    function OverviewTab({ t, components, onGo }) {
+      const [state, setState] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const [busy, setBusy] = React.useState(false)
+      const { signal, alive } = useAbortOnUnmount()
+      const on = (name) => components === null || Boolean(components[name])
+
+      const load = React.useCallback(async () => {
+        setBusy(true)
+        const want = (name, url) => (on(name) ? getJson(url, signal) : Promise.resolve(null))
+        const settled = await Promise.allSettled([
+          want('chats', `${API.chats}/state`),
+          want('runtime', `${API.runtime}/state`),
+          want('sites', `${API.sites}/list`),
+          want('proxy', `${API.proxy}/state`),
+          want('browser', `${API.browser}/state`),
+          want('files', `${API.files}/roots`),
+          want('purge', `${API.purge}/config`),
+          want('rules', `${API.rules}/config`),
+          want('github', `${API.github}/state`),
+          want('presets', `${API.presets}/state`),
+          want('skills', `${API.skills}/state`),
+        ])
+        if (!alive.current) return
+        const pick = (index) => (settled[index].status === 'fulfilled' ? settled[index].value : null)
+        const broken = settled.find((item) => item.status === 'rejected' && item.reason?.name !== 'AbortError')
+        setState({
+          chats: pick(0)?.state ?? null,
+          runtime: pick(1)?.state ?? null,
+          sites: pick(2),
+          proxy: pick(3)?.state ?? null,
+          browser: pick(4)?.state ?? null,
+          files: pick(5),
+          purge: pick(6),
+          rules: pick(7),
+          github: pick(8)?.state ?? null,
+          presets: pick(9)?.items ?? null,
+          skills: pick(10)?.items ?? null,
+        })
+        setFailure(broken === undefined ? null : failureOf(broken.reason))
+        setBusy(false)
+      }, [components])
+
+      React.useEffect(() => { load() }, [load])
+
+      const { chats, runtime, sites, proxy, browser, files, purge, rules, github, presets, skills } = state ?? {}
+      const activeNode = proxy?.nodes?.find((node) => node.active)
+      const browserBusy = browser?.status === 'installing' || browser?.status === 'checking'
+      const pending = busy ? t('loading') : ''
+
+      const detail = {
+        chats: [chats ? fill(t('cTotal'), { n: chats.totals.all }) : '—', chats ? `${chats.totals.archived} ${t('ovArchived')} · ${formatBytes(chats.totals.bytes)}` : pending],
+        files: [files?.roots ? fill(t('ovFiles'), { n: files.roots.length }) : '—', files?.roots?.[0]?.title ?? pending],
+        sites: [sites ? counted(t, 'sCountOne', 'sCount', sites.sites.length) : '—', sites?.sites?.[0]?.title ?? t('sEmpty')],
+        proxy: [proxy ? (proxy.enabled ? t('pEnabled') : t('pDisabled')) : '—', activeNode?.name ?? t('pNoNodes')],
+        github: [
+          github ? (github.configured ? t('ghConnected') : t('ghDisconnected')) : '—',
+          github?.account?.login ?? (github?.git?.helperInstalled ? t('ghHelperOn') : t('ghHelperOff')),
+        ],
+        browser: [
+          browser?.status === 'ready' ? t('ovReady') : browserBusy ? t('bInstalling') : t('bAutomatic'),
+          browser?.version ?? `${components?.browser?.viewportWidth ?? 1280}×${components?.browser?.viewportHeight ?? 900}`,
+        ],
+        purge: [
+          purge?.stats?.assembled > 0 ? fill(t('ovPurgeUsed'), { n: purge.stats.assembled }) : t('ovReady'),
+          t('ovPurgeHow'),
+        ],
+        rules: [
+          rules
+            ? fill(t('ovRulesActive'), {
+                n:
+                  (rules.global?.exists && rules.global.bytes > 0 ? 1 : 0) +
+                  (rules.workspaces ?? []).filter((workspace) => workspace.exists && workspace.bytes > 0).length,
+              })
+            : '—',
+          rules?.stats?.assembled > 0 ? fill(t('ovPurgeUsed'), { n: rules.stats.assembled }) : t('ovRulesHow'),
+        ],
+        presets: [
+          presets ? fill(t('ovPresets'), { n: presets.length }) : '—',
+          presets?.find((item) => item.isDefault)?.name ?? t('ovPresetsHow'),
+        ],
+        skills: [
+          skills ? fill(t('ovSkills'), { a: skills.filter((item) => item.state === 'enabled').length, b: skills.length }) : '—',
+          skills?.find((item) => item.state === 'enabled')?.name ?? t('skEmpty'),
+        ],
+        runtime: [`DSH ${runtime?.runtime?.version ?? '—'}`, runtime?.disk?.stale ? t('rNeedsRestart') : runtime?.runtime?.uptime ?? t('rCheck')],
+      }
+      const icons = { chats: ChatIcon, files: FolderIcon, rules: RulesIcon, skills: SkillIcon, presets: PresetsIcon, sites: SitesIcon, proxy: RouteIcon, github: GithubIcon, browser: GlobeIcon, purge: PurgeIcon, runtime: PowerIcon }
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        h(
+          'div',
+          { className: 'yk-toolbar' },
+          h('span', { className: 'yk-foot' }, fill(t('ovCount'), { n: OVERVIEW_ORDER.filter(on).length })),
+          h('span', { className: 'yk-grow' }),
+          h(RefreshButton, { t, onClick: load, spinning: busy }),
+        ),
+        h(Failure, { t, name: 'overview', error: failure, onRetry: load }),
+        state === null && busy
+          ? h(Loading, { text: t('loading') })
+          : h(
+              'div',
+              { className: 'yk-serviceGrid' },
+              OVERVIEW_ORDER.map((key) => {
+                const [value, hint] = detail[key]
+                const Icon = icons[key]
+                return on(key)
+                  ? h(
+                      'button',
+                      { type: 'button', className: 'yk-service', key, onClick: () => onGo(key) },
+                      h('div', { className: 'yk-serviceHead' }, h(Icon, { width: 16, height: 16 }), h('span', { className: 'yk-serviceTitle' }, t(COMPONENT_LABEL[key])), h('span', { className: 'yk-serviceArrow' }, '→')),
+                      h('div', { className: 'yk-serviceValue' }, value),
+                      h('div', { className: 'yk-serviceHint' }, hint),
+                    )
+                  : h(
+                      'div',
+                      { className: 'yk-service yk-service-off', key, 'aria-disabled': 'true' },
+                      h('div', { className: 'yk-serviceHead' }, h(Icon, { width: 16, height: 16 }), h('span', { className: 'yk-serviceTitle' }, t(COMPONENT_LABEL[key]))),
+                      h('div', { className: 'yk-serviceHint' }, t('ovOff')),
+                    )
+              }),
+            ),
+      )
+    }
+
+    function BrowserTab({ t }) {
+      const [state, setState] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const { signal, alive } = useAbortOnUnmount()
+      const load = React.useCallback(async (quiet = false) => {
+        try { const payload = await getJson(`${API.browser}/state`, signal); if (alive.current) { setState(payload.state); setFailure(null) } }
+        catch (error) { if (!quiet && alive.current && error?.name !== 'AbortError') setFailure(failureOf(error)) }
+      }, [])
+      React.useEffect(() => { load() }, [load])
+      const status = state?.status
+      // Keep polling through `error` too: the host retries provisioning on its own
+      // (0/15/45s), so a first-boot failure that already succeeded by the time you
+      // open the tab must not require a page refresh to disappear. The tick budget
+      // covers that window and then stops.
+      const provisioning = status === 'installing' || status === 'checking' || status === 'error'
+      usePolling(() => load(true), provisioning ? 1500 : 0, [provisioning, load], { maxTicks: 60 })
+      const [flash, show] = useFlash()
+      const [checking, setChecking] = React.useState(false)
+      const retry = async () => {
+        setChecking(true)
+        try {
+          setFailure(null)
+          setState((await postJson(`${API.browser}/install/retry`, {})).state)
+          show('check', t('bChecked'))
+        } catch (error) {
+          setFailure(failureOf(error))
+        } finally {
+          setChecking(false)
+        }
+      }
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'browser' }))
+      const busy = status === 'installing' || status === 'checking'
+      // The runtime reports `progress.percent`; reading `state.percent` left the bar at 5%.
+      const percent = Number.isFinite(state?.progress?.percent) ? state.progress.percent : null
+      return h('div', { className: 'yk-body' },
+        h(Failure, { t, name: 'browser', error: failure, onRetry: load }),
+        h(Card, { title: t('compBrowser'), icon: h(GlobeIcon, { width: 16, height: 16 }), action: h(RefreshButton, { t, onClick: load, spinning: busy }) },
+          state === null ? h(Loading, { text: t('loading') }) : h(React.Fragment, null,
+            h('div', { className: 'yk-heroTitle' }, busy ? t('bInstalling') : status === 'ready' ? t('ovReady') : t('bInstall')),
+            state?.version ? h('div', { className: 'yk-cardHint' }, `Chrome for Testing ${state.version}`) : null,
+            state?.libraries
+              ? h('div', { className: 'yk-cardHint' }, fill(t('bLibraries'), { n: state.libraries.packages }))
+              : null,
+            status === 'ready' && state?.launch
+              ? state.launch.ok
+                ? h(Chip, { kind: 'ok', dot: true }, t('bLaunchOk'))
+                : h(React.Fragment, null,
+                    h('div', { className: 'yk-toolbar' },
+                      h(Chip, { kind: 'danger', dot: true }, t('bLaunchFail')),
+                      state.launch.missing?.length > 0
+                        ? h(Chip, { kind: 'warn' }, fill(t('bMissingLibs'), { n: state.launch.missing.length }))
+                        : null,
+                    ),
+                    h(Banner, { kind: 'warn', text: t('bLaunchFailHint') }),
+                    state.launch.missing?.length > 0
+                      ? h('div', { className: 'yk-mono yk-libs' }, state.launch.missing.slice(0, 8).join(', ') + (state.launch.missing.length > 8 ? ` +${state.launch.missing.length - 8}` : ''))
+                      : null,
+                    state.launch.command
+                      ? h(React.Fragment, null,
+                          h('div', { className: 'yk-cardHint' }, t('bFixHint')),
+                          h('div', { className: 'yk-cmdRow' },
+                            h('pre', { className: 'yk-out' }, state.launch.command),
+                            h(CopyButton, { text: state.launch.command, label: t('copy'), t }),
+                          ),
+                        )
+                      : null,
+                  )
+              : null,
+            busy
+              ? h(
+                  'div',
+                  { className: 'yk-progress', role: 'progressbar', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': percent ?? 0 },
+                  h('div', { className: 'yk-progressBar', style: { width: `${percent ?? 5}%` } }),
+                )
+              : null,
+            status === 'error' ? h(Banner, { kind: 'error', text: state.error }) : null,
+            status === 'error' ? h('div', { className: 'yk-cardHint' }, t('bRetrying')) : null,
+            !busy
+              ? h('div', { className: 'yk-toolbar' },
+                  h('button', { type: 'button', className: 'yk-btn', onClick: retry, disabled: checking },
+                    checking ? h(Spinner) : h(DownloadIcon),
+                    status === 'ready' ? t('bVerify') : t('bInstall')),
+                  h(FlashNote, { flash, keys: ['check'] }),
+                )
+              : null,
+          ),
+        ),
+      )
+    }
+
+    /* ---------------------------------------------------------------- chats */
+
+    const CHATS_GROUP_KEY = 'yukari-dsh-plugin:chats-group'
+
+    /**
+     * 格式化预览消息中的行内标记（加粗与行内代码），使对话摘要更易读。
+     * @param text - 纯文本内容。
+     */
+    function formatPreviewText(text) {
+      if (typeof text !== 'string' || text === '') return ''
+      const parts = text.split(/(\*\*[^*]+\*\*|`[^`]+`)/g)
+      if (parts.length === 1) return text
+      return parts.map((part, index) => {
+        if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+          return h('strong', { key: index, className: 'yk-chatPreviewStrong' }, part.slice(2, -2))
+        }
+        if (part.startsWith('`') && part.endsWith('`') && part.length >= 2) {
+          return h('code', { key: index, className: 'yk-chatPreviewCode' }, part.slice(1, -1))
+        }
+        return part
+      })
+    }
+
+    function ChatPreviewCard({ t, title, rect, data, error }) {
+      const gap = 8
+      const edge = 8
+      const width = Math.min(380, window.innerWidth - edge * 2)
+      const left = Math.max(edge, Math.min(rect.left, window.innerWidth - width - edge))
+      const below = window.innerHeight - edge - (rect.bottom + gap)
+      const above = rect.top - gap - edge
+      const placeBelow = below >= 180 || below >= above
+      const maxHeight = Math.max(120, Math.min(360, placeBelow ? below : above))
+      const top = placeBelow ? rect.bottom + gap : Math.max(edge, rect.top - gap - maxHeight)
+      const style = placeBelow
+        ? { left, top, width, maxHeight }
+        : { left, top, bottom: window.innerHeight - rect.top + gap, width, maxHeight }
+      return h(
+        'div',
+        {
+          className: placeBelow ? 'yk-chatPreview yk-chatPreview-below' : 'yk-chatPreview yk-chatPreview-above',
+          role: 'tooltip',
+          'aria-hidden': 'true',
+          style,
+        },
+        h(
+          'div',
+          { className: 'yk-chatPreviewHead' },
+          h(ChatIcon, { className: 'yk-chatPreviewIcon', width: 14, height: 14 }),
+          h('span', { className: 'yk-chatPreviewTitle', title }, title),
+          data === null ? null : h('span', { className: 'yk-chatPreviewMeta' }, fill(t('cPreviewTurns'), { n: data.turns })),
+        ),
+        error !== null
+          ? h('div', { className: 'yk-chatPreviewNote' }, fill(t('cPreviewFail'), { reason: error }))
+          : data === null
+            ? h('div', { className: 'yk-chatPreviewNote' }, h(Spinner, { size: 12 }), h('span', null, t('loading')))
+            : data.messages.length === 0
+              ? h('div', { className: 'yk-chatPreviewNote' }, t('cPreviewEmpty'))
+              : h(
+                  'div',
+                  { className: 'yk-chatPreviewList' },
+                  data.messages.map((message, index) =>
+                    h(
+                      'div',
+                      { key: index, className: message.role === 'user' ? 'yk-chatPreviewMsg yk-chatPreviewMine' : 'yk-chatPreviewMsg' },
+                      h('div', { className: 'yk-chatPreviewText' }, formatPreviewText(message.text)),
+                    ),
+                  )
+                          ),
+      )
+    }
+
+    function ChatsTab({ t, ui, active }) {
+      const [data, setData] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const [flash, show] = useFlash()
+      const [busy, setBusy] = React.useState('')
+      const [query, setQuery] = React.useState('')
+      const [filter, setFilter] = React.useState('all')
+      const [groupBy, setGroupByState] = React.useState(() => {
+        try {
+          return window.localStorage.getItem(CHATS_GROUP_KEY) === 'flat' ? 'flat' : 'workspace'
+        } catch {
+          return 'workspace'
+        }
+      })
+      const [collapsed, setCollapsed] = React.useState([])
+      const [selected, setSelected] = React.useState([])
+      const [confirming, setConfirming] = React.useState(null)
+      // 打开确认时把焦点交给"取消"：键盘用户不会误按 Enter 直接删掉会话。
+      const confirmCancelRef = React.useRef(null)
+      React.useEffect(() => {
+        if (confirming === null) return
+        confirmCancelRef.current?.focus()
+      }, [confirming])
+      const [rowConfirm, setRowConfirm] = React.useState(null)
+      const [expandedKids, setExpandedKids] = React.useState([])
+      const [deleteFiles, setDeleteFiles] = React.useState(false)
+      const [deleteDir, setDeleteDir] = React.useState(false)
+      const { signal, alive } = useAbortOnUnmount()
+
+      /** 悬停预览：{ row, node, rect, data, error }，null 表示卡片关着。 */
+      const [hint, setHint] = React.useState(null)
+      const hintTimer = React.useRef(0)
+      /** 预览按行的 `updatedAt` 缓存：会话没变就不重复读日志。 */
+      const hintCache = React.useRef(new Map())
+
+      const hideHint = () => {
+        window.clearTimeout(hintTimer.current)
+        setHint(null)
+      }
+
+      /**
+       * 悬停 240 ms 才去读日志：鼠标划过整个列表时不该每行都请求一次。
+       * @param row - 列表行。
+       * @param node - 行元素，用来定位并跟随滚动。
+       */
+      const showHint = (row, node) => {
+        const rect = node.getBoundingClientRect()
+        // 同一行已经开着（或正在加载）时只跟着挪位置：触屏一按会先触发悬停计时，
+        // 再点又立刻打开，重复发一次请求只会让卡片闪一下加载态。
+        if (hint !== null && hint.row.id === row.id && hint.row.updatedAt === row.updatedAt && hint.error === null) {
+          setHint((current) => (current === null ? current : { ...current, rect }))
+          return
+        }
+        const cached = hintCache.current.get(row.id)
+        const fresh = cached !== undefined && cached.at === row.updatedAt
+        setHint({ row, node, rect, data: fresh ? cached.data : null, error: null })
+        if (fresh) return
+        // 卡片有高度上限：只要末尾四条，宁少勿被裁掉半句。
+        getJson(`${API.chats}/preview?limit=4&sessionId=${encodeURIComponent(row.id)}`, signal)
+          .then((payload) => {
+            if (!alive.current) return
+            // 重新插入，让最近用过的留在末尾，超量的先丢最早的。
+            hintCache.current.delete(row.id)
+            hintCache.current.set(row.id, { at: row.updatedAt, data: payload.preview })
+            while (hintCache.current.size > 50) hintCache.current.delete(hintCache.current.keys().next().value)
+            setHint((current) => (current !== null && current.row.id === row.id ? { ...current, data: payload.preview } : current))
+          })
+          .catch((error) => {
+            if (!alive.current || error?.name === 'AbortError') return
+            setHint((current) => (current !== null && current.row.id === row.id ? { ...current, error: messageOf(error) } : current))
+          })
+      }
+
+      const queueHint = (row, node) => {
+        window.clearTimeout(hintTimer.current)
+        hintTimer.current = window.setTimeout(() => showHint(row, node), 240)
+      }
+
+      /**
+       * 点行的空白处切换预览。触屏没有悬停，卡片只能靠点击打开，
+       * 也就必须再点一下才收得起来，否则它会一直压在列表上。
+       * @param row - 列表行。
+       * @param node - 行元素，用来定位。
+       * @param target - 点击到的元素，行内按钮上放过。
+       */
+      const toggleHint = (row, node, target) => {
+        // 勾选、打开、子会话、归档、删除各有自己的动作，点它们不该顺手切换预览。
+        if (typeof target?.closest === 'function' && target.closest('button, a') !== null) return
+        if (hint !== null && hint.row.id === row.id) hideHint()
+        else showHint(row, node)
+      }
+
+      React.useEffect(() => () => window.clearTimeout(hintTimer.current), [])
+
+      // 切走标签页时卡片必须收起来：它挂在 body 上，不受标签页的 hidden 约束。
+      React.useEffect(() => {
+        if (active !== true) hideHint()
+      }, [active])
+
+      // 卡片开着时跟随滚动与缩放；行滑出视口就收起来，别停在半截。
+      const hintNode = hint === null ? null : hint.node
+      React.useEffect(() => {
+        if (hintNode === null) return undefined
+        const follow = () => {
+          if (!hintNode.isConnected) {
+            setHint(null)
+            return
+          }
+          const rect = hintNode.getBoundingClientRect()
+          if (rect.bottom < 0 || rect.top > window.innerHeight) {
+            setHint(null)
+            return
+          }
+          setHint((current) => (current === null ? current : { ...current, rect }))
+        }
+        window.addEventListener('scroll', follow, true)
+        window.addEventListener('resize', follow)
+        return () => {
+          window.removeEventListener('scroll', follow, true)
+          window.removeEventListener('resize', follow)
+        }
+      }, [hintNode])
+
+      // 删除、归档、换筛选之后行直接从文档里消失，卡片却还挂在 body 上：
+      // 每一轮渲染后确认行还在，不在就收起来，别等用户滚动才想起来。
+      React.useEffect(() => {
+        if (hint !== null && !hint.node.isConnected) setHint(null)
+      })
+
+      // 行还在文档里、但祖先被隐藏时（切回主界面时宿主可能只藏面板而不卸载），
+      // 尺寸变成 0，IntersectionObserver 会立刻报告不相交，卡片跟着收。
+      React.useEffect(() => {
+        if (hintNode === null || typeof IntersectionObserver !== 'function') return undefined
+        const observer = new IntersectionObserver((entries) => {
+          if (entries.some((entry) => entry.isIntersecting === false)) setHint(null)
+        })
+        observer.observe(hintNode)
+        return () => observer.disconnect()
+      }, [hintNode])
+
+      const setGroupBy = (value) => {
+        setGroupByState(value)
+        try {
+          window.localStorage.setItem(CHATS_GROUP_KEY, value)
+        } catch {
+          /* memory only */
+        }
+      }
+
+      const load = React.useCallback(async () => {
+        setBusy('load')
+        try {
+          const payload = await getJson(`${API.chats}/state`, signal)
+          if (!alive.current) return
+          setData(payload.state)
+          setFailure(null)
+          setSelected((current) => current.filter((id) => payload.state.sessions.some((row) => row.id === id)))
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }, [])
+
+      React.useEffect(() => {
+        load()
+      }, [load])
+
+      React.useEffect(() => {
+        if (confirming === null) return undefined
+        const onKeyDown = (event) => {
+          if (event.key === 'Escape') setConfirming(null)
+        }
+        document.addEventListener('keydown', onKeyDown)
+        return () => document.removeEventListener('keydown', onKeyDown)
+      }, [confirming])
+
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'chats' }))
+
+      const rows = data === null ? [] : data.sessions
+      // Archiving needs the host's workspace registry; a composition without it
+      // hides the control instead of letting the click fail.
+      const canArchive = data?.canArchive !== false
+      const needle = query.trim().toLowerCase()
+      const visible = rows.filter((row) => {
+        if (filter === 'active' && row.archived) return false
+        if (filter === 'archived' && !row.archived) return false
+        if (needle === '') return true
+        return [row.title ?? '', row.id, row.cwd ?? '', row.workspaceTitle ?? ''].join('\n').toLowerCase().includes(needle)
+      })
+
+      const visibleIds = new Set(visible.map((row) => row.id))
+
+      const groups = (() => {
+        if (groupBy !== 'workspace') return null
+        const map = new Map()
+        for (const ws of data?.workspaces ?? []) {
+          map.set(ws.id, { id: ws.id, registered: true, title: ws.title || ws.path || ws.id, path: ws.path || '', rows: [] })
+        }
+        const loose = { id: '__none__', registered: false, title: t('cWorkspaceUnassigned'), path: '', rows: [] }
+        // Everything, not just the filtered rows: deleting a workspace or a parent
+        // must not leave the chats a search happens to hide behind.
+        for (const row of rows) {
+          if (row.workspaceId && map.has(row.workspaceId)) {
+            map.get(row.workspaceId).rows.push(row)
+          } else if (row.cwd) {
+            const key = `cwd:${row.cwd}`
+            if (!map.has(key)) {
+              const base = row.cwd.replace(/\\/g, '/').split('/').filter(Boolean).pop() || row.cwd
+              map.set(key, { id: key, registered: false, title: base, path: row.cwd, rows: [] })
+            }
+            map.get(key).rows.push(row)
+          } else {
+            loose.rows.push(row)
+          }
+        }
+        // Registered workspaces without chats stay listed (unfiltered view) so they can be deleted too.
+        const showEmpty = needle === '' && filter === 'all'
+        const list = [...map.values()].filter((group) => group.rows.length > 0 || (showEmpty && group.registered))
+        if (loose.rows.length > 0) list.push(loose)
+        return list
+      })()
+
+
+      const ask = (target) => {
+        setRowConfirm(null)
+        setDeleteFiles(false)
+        // 目录删除不可逆，且宿主没有回收站：默认不勾，由操作者显式选择。
+        setDeleteDir(false)
+        setConfirming(target)
+      }
+
+      const run = async (name, operation) => {
+        setBusy(name)
+        setFailure(null)
+        try {
+          return await operation()
+        } catch (error) {
+          setFailure(failureOf(error))
+          return null
+        } finally {
+          setBusy('')
+        }
+      }
+
+      /**
+       * One delete request, shared by the inline row confirm and the batch or
+       * workspace panel at the top of the list.
+       */
+      const performDelete = ({ ids, deleteFiles: withFiles, workspace, deleteWorkspaceDir }) =>
+        run('delete', async () => {
+          const payload = await postJson(`${API.chats}/delete`, {
+            ids,
+            deleteFiles: withFiles === true,
+            deleteWorkspace: workspace !== undefined,
+            deleteWorkspaceDir: workspace !== undefined && deleteWorkspaceDir === true,
+            workspaceId: workspace?.registered ? workspace.id : undefined,
+            workspacePath: workspace?.path || undefined,
+          })
+          setData(payload.state)
+          setSelected((current) => current.filter((id) => !payload.ids.includes(id)))
+          setConfirming(null)
+          setRowConfirm(null)
+          const parts = [counted(t, 'cDeletedOne', 'cDeleted', payload.deleted ?? 0)]
+          if (payload.filesDeleted > 0) parts.push(fill(t('cFilesDeleted'), { n: payload.filesDeleted }))
+          if (payload.workspaceDirDeleted) parts.push(t('cDirDeleted'))
+          else if (payload.workspaceRemoved) parts.push(t('cWorkspaceRemoved'))
+          show('delete', parts.join(' · '))
+          const problems = [
+            // A reason with no translation is a raw message from the host: show
+            // it rather than the key that would have named it.
+            ...(payload.failed ?? []).map((item) => {
+              const row = rows.find((candidate) => candidate.id === item.id)
+              const label = t(`cReason_${item.reason}`)
+              const text = label.startsWith('cReason_')
+                ? item.detail ?? item.reason
+                : item.detail
+                  ? `${label}（${item.detail}）`
+                  : label
+              return `${row?.title ?? item.id} · ${text}`
+            }),
+            ...(payload.notes ?? []),
+          ]
+          if (problems.length > 0) {
+            // 每条都是完整句子，先去掉句号再统一补一个，别出现「。；」。
+            const line = problems.slice(0, 6).map((text) => text.replace(/。$/, '')).join('；')
+            setFailure({ message: `${line}。`, off: false })
+          }
+        })
+
+      const remove = () => {
+        const target = confirming
+        if (target === null) return
+        return performDelete({
+          ids: target.ids,
+          deleteFiles,
+          workspace: target.workspace,
+          deleteWorkspaceDir: deleteDir,
+        })
+      }
+
+      const archive = (row) =>
+        run('archive', async () => {
+          const payload = await postJson(`${API.chats}/archive`, { id: row.id, archived: !row.archived })
+          setData(payload.state)
+        })
+
+      const openSession = (id) => {
+        try {
+          ui.openSession(id)
+        } catch (error) {
+          setFailure(failureOf(error))
+        }
+      }
+
+      const confirmTitle =
+        confirming === null
+          ? ''
+          : confirming.workspace !== undefined
+            ? fill(t('cConfirmWorkspace'), { name: confirming.workspace.title, n: confirming.ids.length })
+            : confirming.ids.length === 1
+              ? t('cDeleteOne')
+              : fill(t('cConfirm'), { n: confirming.ids.length })
+
+      /** Children of one chat that the current filter actually shows. */
+      const childrenOf = (group, id) => group.rows.filter((row) => row.parentSession === id && visibleIds.has(row.id))
+
+      /** Every descendant id of one chat, depth first — hidden ones included. */
+      const descendantsOf = (group, id) => {
+        const found = []
+        for (const child of group.rows.filter((row) => row.parentSession === id)) {
+          found.push(child.id, ...descendantsOf(group, child.id))
+        }
+        return found
+      }
+
+      /**
+       * Selecting a chat selects its subagent chats too and deselecting clears
+       * them: deleting a parent must never leave its children behind, so a
+       * child cannot be unticked while an ancestor is selected.
+       */
+      const toggleRow = (row, group) => {
+        const family = descendantsOf(group, row.id)
+        setSelected((current) => {
+          if (current.includes(row.id)) return current.filter((id) => id !== row.id && !family.includes(id))
+          return [...new Set([...current, row.id, ...family])]
+        })
+      }
+
+      /**
+       * One chat row. A single delete confirms on the row's own delete button;
+       * only batch and whole-workspace deletes use the panel at the top.
+       */
+      const renderRow = (row, group, depth = 0, locked = false) => {
+        const checked = selected.includes(row.id)
+        const pending = rowConfirm !== null && rowConfirm.id === row.id ? rowConfirm : null
+        const kids = depth < 3 ? childrenOf(group, row.id) : []
+        const kidsOpen = depth === 0 ? expandedKids.includes(row.id) : true
+        const meta = [
+          groupBy === 'flat' ? row.workspaceTitle ?? null : null,
+          relativeTime(row.updatedAt, t),
+          row.bytes === null ? null : formatBytes(row.bytes),
+        ].filter((item) => item !== null && item !== '')
+
+        // Deleting a parent takes its subagent chats with it; otherwise they
+        // would be left behind as orphans.
+        const family = descendantsOf(group, row.id)
+        const confirmTitle = family.length > 0 ? fill(t('cDeleteOneSub'), { n: family.length }) : t('cDeleteOne')
+        const confirmActions = pending === null ? null : h(ConfirmActions, {
+          key: `${row.id}-confirm`,
+          t,
+          title: confirmTitle,
+          busy,
+          checked: pending.deleteFiles === true,
+          onToggleFiles: (value) => setRowConfirm({ ...pending, deleteFiles: value }),
+          onCancel: () => setRowConfirm(null),
+          onConfirm: () => performDelete({ ids: [row.id, ...family], deleteFiles: pending.deleteFiles === true }),
+        })
+
+        const rowNode = h(
+          'div',
+          {
+            className: checked ? 'yk-item yk-item-selected' : 'yk-item',
+            onMouseEnter: (event) => queueHint(row, event.currentTarget),
+            onMouseLeave: hideHint,
+            onClick: (event) => toggleHint(row, event.currentTarget, event.target),
+          },
+          h(
+            'button',
+            {
+              type: 'button',
+              className: locked ? 'yk-check yk-check-locked' : 'yk-check',
+              role: 'checkbox',
+              'aria-checked': checked ? 'true' : 'false',
+              'aria-disabled': locked ? 'true' : undefined,
+              title: locked ? t('cLockedByParent') : undefined,
+              'aria-label': row.title ?? row.id,
+              disabled: locked,
+              onClick: () => toggleRow(row, group),
+            },
+            checked ? h(CheckIcon, { width: 11, height: 11 }) : null,
+          ),
+          h(
+            'div',
+            { className: 'yk-itemMain' },
+            h(
+              'div',
+              { className: 'yk-itemTitleRow' },
+              h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => { hideHint(); openSession(row.id) } }, row.title ?? row.id),
+              row.origin === 'subagent' ? h(Chip, null, t('cSubagentTag')) : null,
+              row.stored === false ? h(Chip, { kind: 'danger', dot: true }, t('cMissingRecord')) : null,
+              row.archived ? h(Chip, null, t('cArchivedTag')) : null,
+              row.running ? h(Chip, { kind: 'warn', dot: true }, t('cRunning')) : row.live ? h(Chip, { kind: 'ok', dot: true }, t('cLive')) : null,
+              kids.length > 0
+                ? h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'yk-subToggle',
+                      'aria-expanded': kidsOpen ? 'true' : 'false',
+                      title: kidsOpen ? t('collapse') : t('expand'),
+                      onClick: () => setExpandedKids((current) => current.includes(row.id) ? current.filter((id) => id !== row.id) : [...current, row.id]),
+                    },
+                    h(kidsOpen ? ChevronDownIcon : ChevronRightIcon, { width: 12, height: 12 }),
+                    fill(t('cSubSessions'), { n: kids.length }),
+                  )
+                : null,
+            ),
+            h('div', { className: 'yk-itemMeta' }, meta.map((part, index) => h('span', { key: index }, part))),
+          ),
+          h(
+            'div',
+            { className: pending === null ? 'yk-itemActions' : 'yk-itemActions yk-itemActionsConfirm' },
+            pending === null
+              ? h(
+                  React.Fragment,
+                  null,
+                  h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn', onClick: () => { hideHint(); openSession(row.id) }, title: t('open'), 'aria-label': t('open') }, h(OpenIcon)),
+                  canArchive
+                    ? h(
+                        'button',
+                        {
+                          type: 'button',
+                          className: 'yk-btn yk-btn-ghost yk-iconBtn',
+                          onClick: () => archive(row),
+                          disabled: busy !== '',
+                          title: row.archived ? t('cUnarchive') : t('cArchive'),
+                          'aria-label': row.archived ? t('cUnarchive') : t('cArchive'),
+                        },
+                        h(ArchiveIcon),
+                      )
+                    : null,
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'yk-btn yk-btn-ghost yk-iconBtn yk-dangerHover',
+                      title: t('cDelete'),
+                      'aria-label': t('cDelete'),
+                      disabled: busy !== '',
+                      onClick: () => setRowConfirm({ id: row.id, deleteFiles: false }),
+                    },
+                    h(TrashIcon),
+                  ),
+                )
+              : confirmActions,
+          ),
+        )
+
+        return h(
+          'div',
+          { className: depth === 0 ? 'yk-itemWrap' : 'yk-itemWrap yk-childWrap', key: row.id },
+          rowNode,
+          kids.length > 0 && kidsOpen
+            ? h('div', { className: 'yk-children' }, kids.map((kid) => renderRow(kid, group, depth + 1, locked || checked)))
+            : null,
+        )
+      }
+
+      const renderGroup = (group) => {
+        const isCollapsed = collapsed.includes(group.id)
+        const ids = group.rows.map((row) => row.id)
+        const shown = group.rows.filter((row) => visibleIds.has(row.id))
+        // 勾选范围跟着当前筛选走：在「已归档」里点工作区，选中的只能是看得到的那些；
+        // 删除工作区仍然用全部 ids，那是整组连同目录一起删，另有确认和目录校验。
+        const selectable = shown.map((row) => row.id)
+        const picked = selectable.filter((id) => selected.includes(id)).length
+        const allPicked = selectable.length > 0 && picked === selectable.length
+        const roots = shown.filter((row) => !row.parentSession || !shown.some((candidate) => candidate.id === row.parentSession))
+        return h(
+          'section',
+          { className: 'yk-wsGroup', key: group.id },
+          h(
+            'div',
+            { className: 'yk-wsHeader' },
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'yk-check',
+                role: 'checkbox',
+                'aria-checked': allPicked ? 'true' : picked > 0 ? 'mixed' : 'false',
+                'aria-label': `${t('cSelectWorkspace')} ${group.title}`,
+                onClick: () => setSelected((current) => (allPicked ? current.filter((id) => !selectable.includes(id)) : [...new Set([...current, ...selectable])])),
+              },
+              allPicked ? h(CheckIcon, { width: 11, height: 11 }) : null,
+            ),
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'yk-wsToggleBtn',
+                'aria-expanded': isCollapsed ? 'false' : 'true',
+                title: isCollapsed ? t('expand') : t('collapse'),
+                onClick: () => setCollapsed((current) => (current.includes(group.id) ? current.filter((id) => id !== group.id) : [...current, group.id])),
+              },
+              h(isCollapsed ? ChevronRightIcon : ChevronDownIcon, { width: 14, height: 14 }),
+              h(FolderIcon, { width: 15, height: 15 }),
+              h('span', { className: 'yk-wsTitle' }, group.title),
+              h('span', { className: 'yk-wsCount' }, String(roots.length)),
+              group.path ? h('span', { className: 'yk-wsPath', title: group.path }, group.path) : null,
+            ),
+            group.path
+              ? h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'yk-btn yk-btn-ghost yk-btn-sm yk-dangerHover',
+                    disabled: busy !== '',
+                    title: t('cDeleteWorkspace'),
+                    onClick: () => ask({ ids, workspace: group }),
+                  },
+                  h(TrashIcon, { width: 13, height: 13 }),
+                  h('span', { className: 'yk-btnLabel' }, t('cDeleteWorkspace')),
+                )
+              : null,
+          ),
+          isCollapsed ? null : h('div', { className: 'yk-list' }, roots.map((row) => renderRow(row, group))),
+        )
+      }
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        h(
+          'div',
+          { className: 'yk-toolbar' },
+          h(SearchBox, { value: query, onChange: (value) => { setQuery(value); setSelected([]) }, placeholder: t('cSearch'), t }),
+          h(Segmented, {
+            value: filter,
+            onChange: (value) => { setFilter(value); setSelected([]) },
+            label: t('cFilter'),
+            items: [
+              { key: 'all', label: t('cAll'), count: data?.totals?.all },
+              { key: 'active', label: t('cActive'), count: data?.totals?.active },
+              { key: 'archived', label: t('cArchived'), count: data?.totals?.archived },
+            ],
+          }),
+          h(Segmented, {
+            value: groupBy,
+            onChange: (value) => { setGroupBy(value); setSelected([]) },
+            label: t('cGroupByWorkspace'),
+            items: [
+              { key: 'workspace', label: t('cGroupByWorkspace') },
+              { key: 'flat', label: t('cFlatList') },
+            ],
+          }),
+          h(RefreshButton, { t, onClick: load, spinning: busy === 'load' }),
+          h(FlashNote, { flash, keys: ['delete'] }),
+        ),
+
+        selected.length > 0
+          ? h(
+              'div',
+              { className: 'yk-batchBar' },
+              h('span', null, fill(t('cSelected'), { n: selected.length })),
+              h(
+                'div',
+                { className: 'yk-batchActions' },
+                h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setSelected([]) }, t('cancel')),
+                h(
+                  'button',
+                  { type: 'button', className: 'yk-btn yk-btn-danger', disabled: busy !== '', onClick: () => ask({ ids: [...selected] }) },
+                  h(TrashIcon),
+                  fill(t('cDeleteN'), { n: selected.length }),
+                ),
+              ),
+            )
+          : null,
+
+        h(Failure, { t, name: 'chats', error: failure, onRetry: load }),
+
+        // 宿主在快照里带着「哪一段没读出来」的原因，不显示的话坏掉的会话只剩一个 id。
+        ...(data?.warnings ?? []).map((warning, index) =>
+          h(Banner, { key: `warn-${index}`, kind: 'warn', text: String(warning) }),
+        ),
+
+        confirming !== null
+          ? h(
+              'div',
+              { className: 'yk-confirm', role: 'alertdialog', 'aria-modal': 'true', 'aria-label': confirmTitle },
+              h('div', { className: 'yk-confirmTitle' }, confirmTitle),
+              h('div', { className: 'yk-confirmHint' }, t('cConfirmHint')),
+              h(
+                'div',
+                { className: 'yk-options' },
+                h(Option, {
+                  checked: deleteFiles,
+                  onChange: setDeleteFiles,
+                  label: t('cDeleteFiles'),
+                  hint: t('cDeleteFilesHint'),
+                }),
+                confirming.workspace?.path
+                  ? h(Option, {
+                      checked: deleteDir,
+                      onChange: setDeleteDir,
+                      danger: true,
+                      label: t('cDeleteWorkspaceDir'),
+                      hint: fill(t('cDeleteWorkspaceDirHint'), { path: confirming.workspace.path }),
+                    })
+                  : null,
+              ),
+              h(
+                'div',
+                { className: 'yk-confirmActions' },
+                h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', ref: confirmCancelRef, onClick: () => setConfirming(null), disabled: busy !== '' }, t('cancel')),
+                h(
+                  'button',
+                  { type: 'button', className: 'yk-btn yk-btn-danger', onClick: remove, disabled: busy !== '' },
+                  busy === 'delete' ? h(Spinner) : h(TrashIcon),
+                  t('cDelete'),
+                ),
+              ),
+            )
+          : null,
+
+        data === null && busy === 'load'
+          ? h(Loading, { text: t('loading') })
+          : visible.length === 0
+            ? data === null
+              ? null
+              : h(Empty, {
+                  icon: h(needle !== '' ? SearchIcon : ChatIcon, { width: 22, height: 22 }),
+                  title: rows.length === 0 ? t('cNoChats') : t('cNoMatch'),
+                  hint: rows.length === 0 ? t('cNoChatsHint') : t('cNoMatchHint'),
+                })
+            : groups !== null
+              ? h('div', { className: 'yk-groups' }, groups.map(renderGroup))
+              : h('div', { className: 'yk-list' }, (() => {
+                  const flat = { id: '__flat__', rows }
+                  const roots = visible.filter((row) => !row.parentSession || !visible.some((candidate) => candidate.id === row.parentSession))
+                  return roots.map((row) => renderRow(row, flat))
+                })()),
+
+        data !== null ? h('div', { className: 'yk-foot' }, counted(t, 'cTotalOne', 'cTotal', visible.filter((row) => row.parentSession === null).length)) : null,
+
+        hint === null
+          ? null
+          : ReactDOM.createPortal(
+              h(ChatPreviewCard, {
+                t,
+                title: hint.row.title ?? hint.row.id,
+                rect: hint.rect,
+                data: hint.data,
+                error: hint.error,
+              }),
+              document.body,
+            ),
+      )
+    }
+
+    /* ---------------------------------------------------------------- sites */
+
+    function SitesTab({ t }) {
+      const [payload, setPayload] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const [flash, show] = useFlash()
+      const [busy, setBusy] = React.useState('')
+      const [query, setQuery] = React.useState('')
+      const [confirming, setConfirming] = React.useState('')
+      const [prefix, setPrefix] = React.useState('')
+      const [prefixTouched, setPrefixTouched] = React.useState(false)
+      const { signal, alive } = useAbortOnUnmount()
+
+      const adopt = (next) => {
+        setPayload(next)
+        setPrefix(next.publicBase ?? '')
+        setPrefixTouched(false)
+      }
+
+      const load = React.useCallback(async () => {
+        setBusy('load')
+        try {
+          const next = await getJson(`${API.sites}/list`, signal)
+          if (!alive.current) return
+          adopt(next)
+          setFailure(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }, [])
+
+      React.useEffect(() => {
+        load()
+      }, [load])
+
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'sites' }))
+
+      const run = async (name, operation) => {
+        setBusy(name)
+        setFailure(null)
+        try {
+          await operation()
+        } catch (error) {
+          setFailure(failureOf(error))
+        } finally {
+          setBusy('')
+        }
+      }
+
+      const savePrefix = (value) =>
+        run('prefix', async () => {
+          adopt(await postJson(`${API.sites}/settings`, { publicBase: value }))
+          show('prefix', t('saved'))
+        })
+
+      const remove = (slug) =>
+        run('delete', async () => {
+          const result = await postJson(`${API.sites}/delete`, { slug })
+          setPayload((current) => ({ ...(current ?? {}), sites: result.sites }))
+          setConfirming('')
+        })
+
+      const sites = payload?.sites ?? null
+      const needle = query.trim().toLowerCase()
+      const visible = (sites ?? []).filter(
+        (site) => needle === '' || String(site.title).toLowerCase().includes(needle) || String(site.slug).toLowerCase().includes(needle),
+      )
+      const linkOf = (site) => (/^https?:\/\//i.test(site.url) ? site.url : `${window.location.origin}${site.url}`)
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        h(
+          'div',
+          { className: 'yk-toolbar' },
+          h(SearchBox, { value: query, onChange: setQuery, placeholder: t('sSearch'), t }),
+          h(RefreshButton, { t, onClick: load, spinning: busy === 'load' }),
+        ),
+        h(Failure, { t, name: 'sites', error: failure, onRetry: load }),
+
+        sites === null
+          ? busy === 'load'
+            ? h(Loading, { text: t('loading') })
+            : null
+          : sites.length === 0
+            ? h(Empty, { icon: h(SitesIcon, { width: 22, height: 22 }), title: t('sEmpty'), hint: t('sEmptyHint') })
+            : visible.length === 0
+              ? h(Empty, { icon: h(SearchIcon, { width: 22, height: 22 }), title: t('sNoMatch') })
+              : h(
+                  'div',
+                  { className: 'yk-list' },
+                  visible.map((site) => {
+                    const href = linkOf(site)
+                    const asking = confirming === site.slug
+                    return h(
+                      'div',
+                      { className: 'yk-itemWrap', key: site.slug },
+                      h(
+                        'div',
+                        { className: 'yk-item' },
+                        h('span', { className: 'yk-itemIcon' }, h(GlobeIcon, { width: 18, height: 18 })),
+                        h(
+                          'div',
+                          { className: 'yk-itemMain' },
+                          h(
+                            'div',
+                            { className: 'yk-itemTitleRow' },
+                            h('a', { className: 'yk-itemTitle', href, target: '_blank', rel: 'noreferrer noopener', title: href }, site.title),
+                            h(Chip, null, fill(t('sVersion'), { version: site.version })),
+                          ),
+                          h(
+                            'div',
+                            { className: 'yk-itemMeta' },
+                            h('span', { className: 'yk-mono yk-link' }, href),
+                            h('span', null, fill(t('sPublished'), { time: relativeTime(site.publishedAt, t) })),
+                            h('span', null, `${fill(t('sFiles'), { n: site.files })} · ${formatBytes(site.bytes)}`),
+                          ),
+                        ),
+                        h(
+                          'div',
+                          { className: asking ? 'yk-itemActions yk-itemActionsConfirm' : 'yk-itemActions' },
+                          asking
+                            ? h(ConfirmActions, {
+                                t,
+                                title: t('confirmUnpublishHint'),
+                                busy,
+                                confirmLabel: t('sUnpublish'),
+                                onCancel: () => setConfirming(''),
+                                onConfirm: () => remove(site.slug),
+                              })
+                            : h(
+                                React.Fragment,
+                                null,
+                                h(CopyButton, { text: href, label: t('copy'), t }),
+                                h('a', { className: 'yk-btn yk-btn-ghost yk-iconBtn', href, target: '_blank', rel: 'noreferrer noopener', title: t('open'), 'aria-label': t('open') }, h(OpenIcon)),
+                                h(
+                                  'button',
+                                  {
+                                    type: 'button',
+                                    className: 'yk-btn yk-btn-ghost yk-dangerHover',
+                                    onClick: () => setConfirming(site.slug),
+                                    disabled: busy !== '',
+                                  },
+                                  t('sUnpublish'),
+                                ),
+                              ),
+                        ),
+                      ),
+                    )
+                  }),
+                ),
+
+        payload !== null
+          ? h(
+              Disclosure,
+              { title: t('sSettings'), badge: payload.customPublicBase ? null : h(Chip, { kind: 'warn' }, t('sPrefixUnsetTag')) },
+              h(
+                'div',
+                { className: 'yk-settingRow' },
+              h('span', { className: 'yk-settingLabel' }, h(LinkIcon, { width: 14, height: 14 }), t('sPrefix')),
+              h('input', {
+                className: 'yk-input yk-mono',
+                value: prefix,
+                placeholder: payload.defaultPublicBase,
+                'aria-label': t('sPrefix'),
+                onChange: (event) => {
+                  setPrefix(event.target.value)
+                  setPrefixTouched(true)
+                },
+                onKeyDown: (event) => {
+                  if (event.key === 'Enter' && prefixTouched) savePrefix(prefix)
+                },
+              }),
+              h(
+                'button',
+                { type: 'button', className: 'yk-btn yk-btn-solid', disabled: busy !== '' || !prefixTouched, onClick: () => savePrefix(prefix) },
+                busy === 'prefix' ? h(Spinner) : null,
+                flashed(flash, 'prefix', t('save')),
+              ),
+              payload.customPublicBase
+                ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', disabled: busy !== '', onClick: () => savePrefix('') }, t('sPrefixDefault'))
+                : null,
+              h('div', { className: 'yk-settingHint' }, payload.customPublicBase ? t('sPrefixHint') : h('span', { className: 'yk-settingWarn' }, t('sPrefixUnset'))),
+            ),
+            )
+          : null,
+
+        payload !== null
+          ? h(
+              'div',
+              { className: 'yk-foot' },
+              h('span', null, counted(t, 'sCountOne', 'sCount', visible.length)),
+              h('span', { className: 'yk-footDot' }, '·'),
+              h('span', null, payload.publicBase),
+            )
+          : null,
+      )
+    }
+
+    /* ---------------------------------------------------------------- files */
+
+    /** 面板预览最多画这么多行；再多的部分直接省略，文件本身仍可完整下载。 */
+    const MAX_PREVIEW_LINES = 3000
+
+    /** Breadcrumb + listing of one workspace, with download and an in-panel preview. */
+    function FilesTab({ t }) {
+      const [roots, setRoots] = React.useState(null)
+      const [rootId, setRootId] = React.useState('')
+      const [path, setPath] = React.useState('')
+      const [entries, setEntries] = React.useState([])
+      // 一次列目录最多 5000 条：被截断时要说出来，否则看到的就是「半个目录」。
+      const [listing, setListing] = React.useState({ truncated: false, limit: 0 })
+      const [selected, setSelected] = React.useState([])
+      const [busy, setBusy] = React.useState('')
+      const [failure, setFailure] = React.useState(null)
+      const [previewTarget, setPreviewTarget] = React.useState(null)
+      const [previewData, setPreviewData] = React.useState(null)
+      const [previewFailure, setPreviewFailure] = React.useState('')
+      const [previewLoading, setPreviewLoading] = React.useState(false)
+      // 预览顶栏的状态：与宿主文档预览一致的那几项开关。
+      const [wrapLines, setWrapLines] = React.useState(true)
+      const [autoRefresh, setAutoRefresh] = React.useState(false)
+      const [copied, setCopied] = React.useState(false)
+      const [zoom, setZoom] = React.useState(0)
+      const { signal, alive } = useAbortOnUnmount()
+      // 请求代次：慢响应回来时如果已经点了别的文件/目录，就丢弃它。
+      const previewSeq = React.useRef(0)
+      const listSeq = React.useRef(0)
+      // 宿主的 MarkdownText 渲染代码块和脚注时要读 labels；不传就是
+      // 「Cannot read properties of undefined (reading 'code')」，整页白屏。
+      const markdownLabels = React.useMemo(
+        () => ({
+          code: {
+            copyLabel: t('copy'),
+            copiedLabel: t('copied'),
+            toolbarLabels: { codeLabel: t('fCode'), wrapLabel: t('fWrap'), unwrapLabel: t('fUnwrap') },
+          },
+          footnotes: t('fFootnotes'),
+        }),
+        [t],
+      )
+
+      const root = roots === null ? null : roots.find((item) => item.id === rootId) ?? null
+
+      // 面板的可视高度不等于视口高度（外面还有标题与导航），量出来再给预览定高：
+      // 上下各留 12px，剩下一撑满，列表怎么滚都不会把预览推出屏幕。
+      const splitRef = React.useRef(null)
+      React.useEffect(() => {
+        const split = splitRef.current
+        const scroller = split?.closest('.yk-page')
+        if (split === null || scroller === null || scroller === undefined) return undefined
+        const sync = () => {
+          // 页面高度本身会被预览撑大，单用它当高度源就是正反馈：夹到视口高度，
+          // 值不变就不写，避免 ResizeObserver 自己吵自己。
+          const viewport = window.innerHeight > 0 ? window.innerHeight : scroller.clientHeight
+          const next = `${Math.max(240, Math.min(scroller.clientHeight, viewport) - 24)}px`
+          if (split.style.getPropertyValue('--yk-preview-height') === next) return
+          split.style.setProperty('--yk-preview-height', next)
+        }
+        sync()
+        if (typeof ResizeObserver !== 'function') return undefined
+        const observer = new ResizeObserver(sync)
+        observer.observe(scroller)
+        return () => observer.disconnect()
+      }, [])
+
+      const loadRoots = React.useCallback(async () => {
+        try {
+          const payload = await getJson(`${API.files}/roots`, signal)
+          if (!alive.current) return
+          setRoots(payload.roots ?? [])
+          setFailure(null)
+          setRootId((current) => (current !== '' ? current : payload.roots?.[0]?.id ?? ''))
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        }
+      }, [])
+
+      React.useEffect(() => { void loadRoots() }, [loadRoots])
+
+      const load = React.useCallback(async () => {
+        // Without roots there is nothing to list: retry the roots request, not the path.
+        if (rootId === '') {
+          await loadRoots()
+          return
+        }
+        const seq = ++listSeq.current
+        setBusy('load')
+        try {
+          const query = `?root=${encodeURIComponent(rootId)}&path=${encodeURIComponent(path)}`
+          const payload = await getJson(`${API.files}/list${query}`, signal)
+          if (!alive.current || seq !== listSeq.current) return
+          setEntries(payload.entries ?? [])
+          setListing({ truncated: payload.truncated === true, limit: Number(payload.limit) || 0 })
+          setSelected([])
+          setFailure(null)
+        } catch (error) {
+          if (alive.current && seq === listSeq.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current && seq === listSeq.current) setBusy('')
+        }
+      }, [rootId, path])
+
+      React.useEffect(() => { load() }, [load])
+
+      const crumbs = path === '' ? [] : path.split('/')
+      const closePreview = () => {
+        setPreviewTarget(null)
+        setPreviewData(null)
+        setPreviewFailure('')
+        setPreviewLoading(false)
+      }
+      // 换目录时收起预览：右栏留着上一个目录的文件会让人看错。
+      const go = (next) => { setPath(next); setSelected([]); closePreview() }
+      const toggle = (entry) => setSelected((current) =>
+        current.includes(entry.path) ? current.filter((item) => item !== entry.path) : [...current, entry.path])
+
+      /**
+       * 在面板内打开预览。
+       *
+       * 与会话无关：内容由本组件的 `/files/api/preview` 读，图片直接用同源的
+       * 内联下载地址，所以不需要切会话、也不碰右侧栏。
+       * @param entry - 列表里的一行。
+       */
+      const showPreview = async (entry, quiet = false) => {
+        if (root === null || entry.type !== 'file') return
+        const seq = ++previewSeq.current
+        setPreviewTarget(entry)
+        if (!quiet) {
+          setPreviewData(null)
+          setPreviewLoading(true)
+        }
+        setPreviewFailure('')
+        try {
+          const query = `?root=${encodeURIComponent(root.id)}&path=${encodeURIComponent(entry.path)}`
+          const payload = await getJson(`${API.files}/preview${query}`, signal)
+          if (alive.current && seq === previewSeq.current) setPreviewData(payload)
+        } catch (error) {
+          if (alive.current && seq === previewSeq.current && error?.name !== 'AbortError') setPreviewFailure(messageOf(error))
+        } finally {
+          if (alive.current && seq === previewSeq.current) setPreviewLoading(false)
+        }
+      }
+
+      // 自动刷新：与宿主的自动刷新同一语义，只是这里按固定间隔重新读一次。
+      usePolling(
+        () => showPreview(previewTarget, true),
+        autoRefresh && previewTarget !== null ? 3000 : 0,
+        [autoRefresh, previewTarget],
+      )
+
+      // 放大查看期间按 Esc 退出。
+      React.useEffect(() => {
+        if (zoom === 0) return undefined
+        const onKey = (event) => { if (event.key === 'Escape') setZoom(0) }
+        window.addEventListener('keydown', onKey)
+        return () => window.removeEventListener('keydown', onKey)
+      }, [zoom])
+
+      const downloadOne = (entry) => {
+        if (root === null) return
+        const query = `?root=${encodeURIComponent(root.id)}&path=${encodeURIComponent(entry.path)}`
+        const anchor = document.createElement('a')
+        anchor.href = `${API.files}/download${query}`
+        anchor.download = entry.name
+        anchor.click()
+      }
+
+      /** 在左侧列表里定位当前预览的文件：切到它所在目录，滚到那一行。 */
+      const revealInTree = () => {
+        const target = previewTarget
+        if (target === null) return
+        const cut = target.path.lastIndexOf('/')
+        const directory = cut === -1 ? '' : target.path.slice(0, cut)
+        if (directory !== path) setPath(directory)
+        window.requestAnimationFrame(() => {
+          const row = document.querySelector(`[data-yk-file="${CSS.escape(target.path)}"]`)
+          row?.scrollIntoView({ block: 'center' })
+        })
+      }
+
+      /** 顶栏的一个图标按钮：尺寸与面板里其它图标按钮一致，必带 title 与 aria-label。 */
+      const barButton = (label, pressed, onClick, Icon) =>
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm',
+            title: label,
+            'aria-label': label,
+            ...(pressed === undefined ? {} : { 'aria-pressed': pressed ? 'true' : 'false' }),
+            onClick,
+          },
+          h(Icon, { width: 14, height: 14 }),
+        )
+
+      /**
+       * 右栏内容：顶栏 + 正文。
+       *
+       * 顶栏照宿主文档预览那一排：查看器名称、换行、自动刷新、复制、刷新、关闭；
+       * markdown 交给宿主的渲染件，其余文本按原生排版（等宽、行号、不加高亮），
+       * 图片走同源内联地址，点开可整屏放大。
+       * @returns 预览区的节点。
+       */
+      const renderPreview = () => {
+        if (previewTarget === null) return null
+        const name = previewTarget.name
+        const isMarkdown = /\.(md|markdown|mdx)$/i.test(name)
+        const isImage = previewData?.kind === 'image'
+        const isText = previewData?.kind === 'text'
+        const imageUrl =
+          isImage && root !== null
+            ? `${API.files}/download?root=${encodeURIComponent(root.id)}&path=${encodeURIComponent(previewTarget.path)}&inline=1`
+            : ''
+
+        const copyAll = async () => {
+          const text = typeof previewData?.text === 'string' ? previewData.text : ''
+          try {
+            await navigator.clipboard.writeText(text)
+            setCopied(true)
+            setTimeout(() => setCopied(false), 1800)
+          } catch {
+            /* 剪贴板被拒时保持原样，不打断阅读 */
+          }
+        }
+
+        // 路径行照宿主文档预览的样子：左边完整路径，右边工具按钮依次排开。
+        const head = h(
+          'div',
+          { className: 'yk-previewHead' },
+          h(
+            'span',
+            // 行里放工作区相对路径：面板只有这么宽，绝对路径会把工具按钮挤掉；完整路径放 title。
+            { className: 'yk-previewPath', title: `${root === null ? '' : `${root.path}/`}${previewTarget.path}` },
+            previewTarget.path,
+          ),
+          isText ? barButton(t('fWrap'), wrapLines, () => setWrapLines((value) => !value), WrapIcon) : null,
+          isText ? barButton(t('fAutoRefresh'), autoRefresh, () => setAutoRefresh((value) => !value), autoRefresh ? PauseIcon : PlayIcon) : null,
+          isText ? barButton(copied ? t('copied') : t('fCopyAll'), undefined, copyAll, copied ? CheckIcon : CopyIcon) : null,
+          isImage ? barButton(t('fFullscreen'), undefined, () => setZoom(1), FullscreenIcon) : null,
+          barButton(t('refresh'), undefined, () => showPreview(previewTarget), RefreshIcon),
+          barButton(t('fRevealInTree'), undefined, revealInTree, FolderIcon),
+          barButton(t('close'), undefined, closePreview, ClearIcon),
+        )
+
+        let body = null
+        if (previewLoading) {
+          body = h(Loading, { text: t('loading') })
+        } else if (previewFailure !== '') {
+          body = h('p', { className: 'yk-previewError' }, previewFailure)
+        } else if (previewData !== null) {
+          if (isImage) {
+            body = h('img', {
+              className: 'yk-previewImage',
+              alt: name,
+              src: imageUrl,
+              onClick: () => setZoom(1),
+            })
+          } else if (previewData.kind === 'binary') {
+            body = h('div', { className: 'yk-previewEmpty' }, t('fPreviewBinary'))
+          } else {
+            const text = typeof previewData.text === 'string' ? previewData.text : ''
+            if (isMarkdown && MarkdownView !== null) {
+              body = h('div', { className: 'yk-previewDoc' }, h(MarkdownView, { text, labels: markdownLabels }))
+            } else {
+              // 与宿主的文档预览同一形态：等宽、保留空白、左侧行号；行数封顶，避免几万行撑死。
+              const lines = text.split('\n').slice(0, MAX_PREVIEW_LINES)
+              body = h(
+                'div',
+                { className: wrapLines ? 'yk-previewCode' : 'yk-previewCode yk-previewCode-nowrap' },
+                lines.map((line, index) =>
+                  h(
+                    'div',
+                    { className: 'yk-previewLine', key: index },
+                    h('span', { className: 'yk-previewLineNo', 'aria-hidden': true }, String(index + 1)),
+                    h('span', { className: 'yk-previewLineText' }, line === '' ? '\u200b' : line),
+                  ),
+                ),
+              )
+            }
+          }
+        }
+
+        return h(
+          React.Fragment,
+          null,
+          head,
+          body,
+          previewData?.truncated === true ? h('div', { className: 'yk-previewNote' }, t('fPreviewTruncated')) : null,
+          zoom === 0 || !isImage
+            ? null
+            : ReactDOM.createPortal(
+                h(
+                  'div',
+                  {
+                    className: 'yk-lightbox',
+                    role: 'dialog',
+                    // 同回撤浮层：body 上的浮层要自己声明免拖拽区域（仅 macOS Desktop 需要）。
+                    'data-window-drag-exclude': '',
+                    'aria-label': name,
+                    onClick: () => setZoom(0),
+                    onWheel: (event) => {
+                      event.preventDefault()
+                      setZoom((value) => Math.min(8, Math.max(0.25, value - event.deltaY * 0.0016)))
+                    },
+                  },
+                  h('img', {
+                    className: 'yk-lightboxImage',
+                    alt: name,
+                    src: imageUrl,
+                    style: { transform: `scale(${zoom})` },
+                    onClick: (event) => event.stopPropagation(),
+                  }),
+                  h(
+                    'div',
+                    { className: 'yk-lightboxBar', onClick: (event) => event.stopPropagation() },
+                    barButton(t('fZoomOut'), undefined, () => setZoom((value) => Math.max(0.25, value - 0.25)), MinusIcon),
+                    barButton(t('fZoomIn'), undefined, () => setZoom((value) => Math.min(8, value + 0.25)), PlusIcon),
+                    barButton(t('close'), undefined, () => setZoom(0), ClearIcon),
+                  ),
+                ),
+                document.body,
+              ),
+        )
+      }
+
+      /** Files alone go straight to the browser; a folder (or a large batch) becomes one ZIP. */
+      const entryOf = (target) => entries.find((entry) => entry.path === target) ?? null
+      const hasDirectory = selected.some((target) => entryOf(target)?.type === 'dir')
+      const packAsZip = hasDirectory || selected.length > 10
+
+      const downloadSelected = async () => {
+        if (root === null || selected.length === 0) return
+        if (!packAsZip) {
+          for (const target of selected) {
+            const entry = entryOf(target)
+            if (entry !== null) downloadOne(entry)
+          }
+          return
+        }
+        setBusy('archive')
+        setFailure(null)
+        try {
+          const response = await fetch(`${API.files}/archive`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ root: root.id, paths: selected }),
+          })
+          if (!response.ok) {
+            const type = response.headers.get('content-type') ?? ''
+            const payload = type.includes('json') ? await response.json() : null
+            throw new Error(payload?.error ?? `HTTP ${response.status}`)
+          }
+          const blob = await response.blob()
+          const url = URL.createObjectURL(blob)
+          const anchor = document.createElement('a')
+          anchor.href = url
+          anchor.download = `${root.title || 'workspace'}.zip`
+          anchor.click()
+          setTimeout(() => URL.revokeObjectURL(url), 10000)
+        } catch (error) {
+          if (alive.current) setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const allPicked = entries.length > 0 && entries.every((entry) => selected.includes(entry.path))
+
+      // 关闭态必须放在所有 hook 之后：提前 return 会让下一次渲染少调用几个
+      // useEffect，React 直接抛 "Rendered fewer hooks than expected" 并白屏。
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'files' }))
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        h(
+          'div',
+          { className: 'yk-toolbar' },
+          roots === null
+            ? null
+            : h(
+                'select',
+                {
+                  className: 'yk-input yk-select',
+                  value: rootId,
+                  'aria-label': t('fWorkspace'),
+                  onChange: (event) => { setRootId(event.target.value); setPath(''); setSelected([]) },
+                },
+                roots.map((item) => h('option', { key: item.id, value: item.id }, item.title)),
+              ),
+          h(
+            'div',
+            { className: 'yk-crumbs' },
+            h('button', { type: 'button', className: 'yk-crumb', onClick: () => go('') }, root?.title ?? t('fRoot')),
+            crumbs.map((name, index) =>
+              h(
+                'span',
+                { key: `${name}-${index}`, className: 'yk-crumbWrap' },
+                h(ChevronRightIcon, { width: 12, height: 12 }),
+                h('button', { type: 'button', className: 'yk-crumb', onClick: () => go(crumbs.slice(0, index + 1).join('/')) }, name),
+              ),
+            ),
+          ),
+          h(RefreshButton, { t, onClick: load, spinning: busy === 'load' }),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'yk-btn yk-btn-solid',
+              onClick: downloadSelected,
+              disabled: busy !== '' || selected.length === 0,
+              title: !packAsZip || hasDirectory ? undefined : fill(t('fZipReason'), { n: 10 }),
+            },
+            busy === 'archive' ? h(Spinner) : h(DownloadIcon),
+            packAsZip ? fill(t('fZipN'), { n: selected.length }) : counted(t, 'fDownloadFilesOne', 'fDownloadFilesN', selected.length),
+          ),
+        ),
+        h(Failure, { t, name: 'files', error: failure, onRetry: load }),
+
+        h(
+          'div',
+          // 默认只有列表；点了文件才让出右栏，避免空着一块预览区占地方。
+          { className: previewTarget === null ? 'yk-filesBody' : 'yk-filesSplit', ref: splitRef },
+          entries.length === 0
+            ? busy === 'load'
+              ? h(Loading, { text: t('loading') })
+              // 目录读失败时 Failure 已经在上面报过了，这里再说「该目录为空」就是自相矛盾。
+              : failure !== null
+                ? null
+                : h(Empty, { icon: h(FolderIcon, { width: 22, height: 22 }), title: t('fEmpty'), hint: t('fEmptyHint') })
+            : h(
+                'div',
+                { className: 'yk-list' },
+                h(
+                  'div',
+                  { className: 'yk-item yk-itemHead' },
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'yk-check',
+                      role: 'checkbox',
+                      'aria-checked': allPicked ? 'true' : selected.length > 0 ? 'mixed' : 'false',
+                      'aria-label': t('fSelectAll'),
+                      onClick: () => setSelected(allPicked ? [] : entries.map((entry) => entry.path)),
+                    },
+                    allPicked ? h(CheckIcon, { width: 11, height: 11 }) : null,
+                  ),
+                  h('span', { className: 'yk-itemTitle' }, t('fName')),
+                  h('span', { className: 'yk-itemMeta yk-metaRight' }, t('fSize')),
+                ),
+                entries.map((entry) => {
+                  const checked = selected.includes(entry.path)
+                  const isDir = entry.type === 'dir'
+                  return h(
+                    'div',
+                    { className: checked ? 'yk-item yk-item-selected' : 'yk-item', key: entry.path, 'data-yk-file': entry.path },
+                    h(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'yk-check',
+                        role: 'checkbox',
+                        'aria-checked': checked ? 'true' : 'false',
+                        'aria-label': entry.name,
+                        onClick: () => toggle(entry),
+                      },
+                      checked ? h(CheckIcon, { width: 11, height: 11 }) : null,
+                    ),
+                    h(
+                      'div',
+                      { className: 'yk-itemMain' },
+                      h(
+                        'div',
+                        { className: 'yk-itemTitleRow' },
+                        isDir
+                          ? h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => go(entry.path) }, `${entry.name}/`)
+                          : h('button', { type: 'button', className: 'yk-itemTitle', onClick: () => showPreview(entry), title: t('fPreview') }, entry.name),
+                        entry.type === 'symlink' ? h(Chip, { kind: 'warn' }, t('fSymlink')) : null,
+                      ),
+                    ),
+                    h('span', { className: 'yk-itemMeta yk-metaRight yk-mono' }, isDir ? '' : entry.size > 0 ? formatBytes(entry.size) : '—'),
+                    h(
+                      'div',
+                      { className: 'yk-itemActions' },
+                      isDir
+                        ? null
+                        : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm', title: t('fPreview'), 'aria-label': t('fPreview'), onClick: () => showPreview(entry) }, h(OpenIcon, { width: 14, height: 14 })),
+                      isDir
+                        ? null
+                        : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm', title: t('fDownload'), 'aria-label': t('fDownload'), onClick: () => downloadOne(entry) }, h(DownloadIcon, { width: 14, height: 14 })),
+                    ),
+                  )
+                }),
+              ),
+
+          previewTarget === null ? null : h('section', { className: 'yk-preview', 'aria-label': t('fPreview') }, renderPreview()),
+        ),
+        listing.truncated
+          ? h(Banner, { kind: 'warn', text: fill(t('fTruncated'), { n: listing.limit }) })
+          : null,
+        h('div', { className: 'yk-foot' }, fill(t('fHint'), { n: selected.length })),
+      )
+    }
+
+    /* ---------------------------------------------------------------- proxy */
+
+    function ProxyTab({ t }) {
+      const [state, setState] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const [flash, show] = useFlash()
+      const [busy, setBusy] = React.useState('')
+      const [importText, setImportText] = React.useState('')
+      const [removing, setRemoving] = React.useState('')
+      const [confirmReset, setConfirmReset] = React.useState(false)
+      const [showSettings, setShowSettings] = React.useState(false)
+      const [settings, setSettings] = React.useState({ localPort: '', bypass: '' })
+      const { signal, alive } = useAbortOnUnmount()
+
+      const adopt = (next) => {
+        if (next === null || next === undefined) return
+        setState(next)
+        setSettings({ localPort: String(next.localPort ?? ''), bypass: next.bypass ?? '' })
+      }
+
+      const load = React.useCallback(async () => {
+        setBusy('load')
+        try {
+          const payload = await getJson(`${API.proxy}/state`, signal)
+          if (!alive.current) return
+          adopt(payload.state)
+          setFailure(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }, [])
+
+      React.useEffect(() => {
+        load()
+      }, [load])
+
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'proxy' }))
+
+      const run = async (name, operation) => {
+        setBusy(name)
+        setFailure(null)
+        try {
+          await operation()
+        } catch (error) {
+          setFailure(failureOf(error))
+          // A failed test or switch is what makes the host fail closed, and that
+          // decision is not in the error body: re-read the state instead.
+          void load()
+        } finally {
+          setBusy('')
+          setRemoving('')
+          setConfirmReset(false)
+        }
+      }
+
+      const nodes = state?.nodes ?? []
+      const nameOf = (id) => nodes.find((node) => node.id === id)?.name ?? id
+
+      const toggle = () =>
+        run('toggle', async () => {
+          const wasOn = state?.enabled === true
+          const payload = await postJson(`${API.proxy}/${wasOn ? 'disable' : 'enable'}`, {})
+          adopt(payload.state)
+        })
+
+      const importNodes = () =>
+        run('import', async () => {
+          const payload = await postJson(`${API.proxy}/import`, { text: importText })
+          adopt(payload.state)
+          setImportText('')
+          let text = fill(t('pImported'), { added: payload.added ?? 0 })
+          if (payload.updated > 0) text += fill(t('pImportedUpdated'), { updated: payload.updated })
+          if (payload.skipped > 0) text += fill(t('pImportedSkipped'), { skipped: payload.skipped })
+          show('import', text)
+        })
+
+      const select = (id) =>
+        run(`select:${id}`, async () => {
+          const payload = await postJson(`${API.proxy}/select`, { id })
+          adopt(payload.state)
+        })
+
+      const test = (id) =>
+        run(`test:${id}`, async () => {
+          // The result lands on the node's latency chip; a failed probe is a result too, not an error banner.
+          try {
+            adopt((await postJson(`${API.proxy}/test`, { id })).state)
+          } catch (error) {
+            if (error?.state === undefined) throw error
+            adopt(error.state)
+          }
+        })
+
+      const testAll = () =>
+        run('test-all', async () => {
+          adopt((await postJson(`${API.proxy}/test-all`, {})).state)
+        })
+
+      const removeNode = (id) =>
+        run(`remove:${id}`, async () => {
+          adopt((await postJson(`${API.proxy}/remove`, { id })).state)
+          setRemoving('')
+        })
+
+      const reset = () =>
+        run('reset', async () => {
+          adopt((await postJson(`${API.proxy}/reset`, {})).state)
+        })
+
+      const saveSettings = () => {
+        const localPort = Number(settings.localPort)
+        if (!Number.isInteger(localPort) || localPort < 1024 || localPort > 65535) {
+          setFailure({ message: t('pInvalidPort'), off: false })
+          return
+        }
+        run('settings', async () => {
+          adopt((await postJson(`${API.proxy}/configure`, { localPort, bypass: settings.bypass.trim() })).state)
+          show('settings', t('saved'))
+        })
+      }
+
+      const latency = (node) => {
+        const result = node.lastTest
+        if (result === null || result === undefined) return null
+        if (result.ok === false) return h(Chip, { kind: 'danger' }, result.error ? String(result.error).slice(0, 40) : t('rFail'))
+        const ms = Number(result.ms)
+        return h(Chip, { kind: ms < 400 ? 'ok' : 'warn' }, `${ms}ms`)
+      }
+
+      const stats = state?.stats
+      const statusText = state === null ? '' : state.enabled ? (state.running ? t('pEnabled') : t('pPending')) : t('pDisabled')
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        state !== null
+          ? h(
+              'div',
+              { className: state.enabled ? 'yk-hero yk-hero-on' : 'yk-hero' },
+              h('span', { className: 'yk-heroDot', 'aria-hidden': true }),
+              h(
+                'div',
+                { className: 'yk-heroMain' },
+                h('div', { className: 'yk-heroTitle' }, statusText),
+                h(
+                  'div',
+                  { className: 'yk-heroSub' },
+                  state.node?.server ? `${nodes.find((node) => node.active)?.name ?? state.node.server} · 127.0.0.1:${state.localPort}` : t('pNoNodes'),
+                  stats && state.enabled && stats.active > 0 ? ` · ${stats.active} ${t('pActive')}` : '',
+                ),
+              ),
+              h(
+                'button',
+                {
+                  type: 'button',
+                  className: state.enabled ? 'yk-btn yk-btn-danger' : 'yk-btn yk-btn-solid',
+                  onClick: toggle,
+                  disabled: busy !== '' || nodes.length === 0,
+                },
+                busy === 'toggle' ? h(Spinner) : h(PowerIcon),
+                state.enabled ? t('pDisable') : t('pEnable'),
+              ),
+            )
+          : null,
+
+        h(Failure, { t, name: 'proxy', error: failure, onRetry: load }),
+        state?.lastError ? h(Banner, { kind: 'warn', text: `${t('pLastError')} · ${state.lastError}` }) : null,
+        state === null && busy === 'load' ? h(Loading, { text: t('loading') }) : null,
+
+        state !== null
+          ? h(
+              Card,
+              {
+                title: t('pNodes'),
+                span: true,
+                icon: h(RouteIcon, { width: 16, height: 16 }),
+                note: nodes.length > 0 ? String(nodes.length) : undefined,
+                action: h(
+                  'div',
+                  { className: 'yk-cardTools' },
+                  nodes.length > 1
+                    ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: testAll, disabled: busy !== '' }, busy === 'test-all' ? h(Spinner, { size: 13 }) : null, busy === 'test-all' ? t('pTesting') : t('pTestAll'))
+                    : null,
+                  h(RefreshButton, { t, onClick: load, spinning: busy === 'load' }),
+                ),
+              },
+              nodes.length === 0
+                ? h(Empty, { icon: h(RouteIcon, { width: 22, height: 22 }), title: t('pNoNodes'), hint: t('pNoNodesHint') })
+                : h(
+                    'div',
+                    { className: 'yk-nodeList', role: 'radiogroup', 'aria-label': t('pNodes') },
+                    nodes.map((node) => {
+                      const asking = removing === node.id
+                      return h(
+                        'div',
+                        { key: node.id, className: 'yk-itemWrap' },
+                        h(
+                          'div',
+                          { className: node.active ? 'yk-node yk-node-active' : 'yk-node' },
+                          h(
+                            'button',
+                            {
+                              type: 'button',
+                              role: 'radio',
+                              className: 'yk-radio',
+                              'aria-checked': node.active ? 'true' : 'false',
+                              'aria-label': `${t('pUse')} ${node.name}`,
+                              disabled: busy !== '' || node.active,
+                              onClick: () => select(node.id),
+                            },
+                            busy === `select:${node.id}` ? h(Spinner, { size: 12 }) : null,
+                          ),
+                          h(
+                            'div',
+                            { className: 'yk-itemMain' },
+                            h(
+                              'div',
+                              { className: 'yk-itemTitleRow' },
+                              h('span', { className: 'yk-nodeName', title: node.name }, node.name),
+                              node.active ? h(Chip, { kind: 'ok', dot: true }, t('pInUse')) : null,
+                              latency(node),
+                            ),
+                            h('div', { className: 'yk-itemMeta' }, h('span', { className: 'yk-mono' }, `${node.server}:${node.port}`), h('span', { className: 'yk-mono' }, node.method)),
+                          ),
+                          h(
+                            'div',
+                            { className: asking ? 'yk-itemActions yk-itemActionsConfirm' : 'yk-itemActions' },
+                            asking
+                              ? h(ConfirmActions, {
+                                  t,
+                                  title: t('confirmRemoveNodeHint'),
+                                  busy,
+                                  busyKey: `remove:${node.id}`,
+                                  confirmLabel: t('pRemove'),
+                                  onCancel: () => setRemoving(''),
+                                  onConfirm: () => removeNode(node.id),
+                                })
+                              : h(
+                                  React.Fragment,
+                                  null,
+                                  h(
+                                    'button',
+                                    { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => test(node.id), disabled: busy !== '' },
+                                    busy === `test:${node.id}` || busy === 'test-all' ? h(Spinner, { size: 13 }) : null,
+                                    t('pTest'),
+                                  ),
+                                  node.active
+                                    ? null
+                                    : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => select(node.id), disabled: busy !== '' }, t('pUse')),
+                                  h(
+                                    'button',
+                                    {
+                                      type: 'button',
+                                      className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm yk-dangerHover',
+                                      title: t('pRemove'),
+                                      'aria-label': t('pRemove'),
+                                      onClick: () => setRemoving(node.id),
+                                      disabled: busy !== '',
+                                    },
+                                    h(TrashIcon, { width: 14, height: 14 }),
+                                  ),
+                                ),
+                          ),
+                        ),
+                      )
+                    }),
+                  ),
+              h(
+                'div',
+                { className: 'yk-importBox' },
+                h('textarea', {
+                  className: 'yk-input yk-textarea',
+                  rows: 3,
+                  value: importText,
+                  placeholder: t('pImportPlaceholder'),
+                  'aria-label': t('pImportTitle'),
+                  spellCheck: false,
+                  onChange: (event) => setImportText(event.target.value),
+                }),
+                h(
+                  'button',
+                  { type: 'button', className: 'yk-btn yk-btn-solid', onClick: importNodes, disabled: busy !== '' || importText.trim() === '' },
+                  busy === 'import' ? h(Spinner) : h(DownloadIcon),
+                  t('pImport'),
+                ),
+              ),
+              h(FlashNote, { flash, keys: ['import'] }),
+            )
+          : null,
+
+        state !== null
+          ? h(
+              'div',
+              { className: 'yk-disclosure' },
+              h(
+                'button',
+                { type: 'button', className: 'yk-disclosureBtn', 'aria-expanded': showSettings ? 'true' : 'false', onClick: () => setShowSettings((value) => !value) },
+                h(showSettings ? ChevronDownIcon : ChevronRightIcon, { width: 14, height: 14 }),
+                t('pSettings'),
+              ),
+              showSettings
+                ? h(
+                    'div',
+                    { className: 'yk-disclosureBody' },
+                    h(
+                      'div',
+                      { className: 'yk-form' },
+                      h(
+                        'label',
+                        { className: 'yk-field' },
+                        h('span', { className: 'yk-fieldLabel' }, t('pLocalPort')),
+                        h('input', { className: 'yk-input', value: settings.localPort, inputMode: 'numeric', onChange: (event) => setSettings((s) => ({ ...s, localPort: event.target.value })) }),
+                      ),
+                      h(
+                        'label',
+                        { className: 'yk-field' },
+                        h('span', { className: 'yk-fieldLabel' }, t('pBypass')),
+                        h('input', { className: 'yk-input', value: settings.bypass, placeholder: 'localhost,127.0.0.1,::1', onChange: (event) => setSettings((s) => ({ ...s, bypass: event.target.value })) }),
+                      ),
+                    ),
+                    h(
+                      'div',
+                      { className: 'yk-toolbar' },
+                      h('button', { type: 'button', className: 'yk-btn', onClick: saveSettings, disabled: busy !== '' }, busy === 'settings' ? h(Spinner) : null, flashed(flash, 'settings', t('save'))),
+                      h('span', { className: 'yk-grow' }),
+                      confirmReset
+                        ? h(
+                            React.Fragment,
+                            null,
+                            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirmReset(false) }, t('cancel')),
+                            h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: reset, disabled: busy !== '' }, t('pConfirmReset')),
+                          )
+                        : h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-dangerHover', onClick: () => setConfirmReset(true), disabled: busy !== '' || nodes.length === 0 }, t('pReset')),
+                    ),
+                    stats && (stats.active > 0 || stats.failures > 0)
+                      ? h('div', { className: 'yk-rows yk-rows-2col' },
+                          h(Row, { label: t('pActive'), value: String(stats.active ?? 0) }),
+                          h(Row, { label: t('pFailures'), value: String(stats.failures ?? 0) }),
+                        )
+                      : null,
+                    h('div', { className: 'yk-foot' }, t('pStateFile')),
+                  )
+                : null,
+            )
+          : null,
+      )
+    }
+
+    /* ---------------------------------------------------------------- github */
+
+    function GithubTab({ t }) {
+      const [state, setState] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const [busy, setBusy] = React.useState('')
+      const [token, setToken] = React.useState('')
+      const [reveal, setReveal] = React.useState(false)
+      const [repo, setRepo] = React.useState('')
+      const [repoResult, setRepoResult] = React.useState(null)
+      const [repoFailure, setRepoFailure] = React.useState(null)
+      const [confirmClear, setConfirmClear] = React.useState(false)
+      const [confirmSigningOff, setConfirmSigningOff] = React.useState(false)
+      const [flash, show] = useFlash()
+      const { signal, alive } = useAbortOnUnmount()
+
+      const load = React.useCallback(async () => {
+        setBusy('load')
+        try {
+          const payload = await getJson(`${API.github}/state`, signal)
+          if (!alive.current) return
+          setState(payload.state)
+          setFailure(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }, [])
+
+      React.useEffect(() => { load() }, [load])
+
+      const save = async () => {
+        const value = token.trim()
+        if (value === '' || busy !== '') return
+        setBusy('save')
+        setFailure(null)
+        try {
+          const response = await fetch(`${API.github}/token`, {
+            method: 'POST',
+            headers: {
+              accept: 'application/json',
+              'content-type': 'application/json',
+              'x-yukari-github-token': value,
+            },
+            body: '{}',
+            cache: 'no-store',
+          })
+          const payload = await response.json().catch(() => ({}))
+          if (!response.ok) {
+            const error = new Error(payload.error ?? `HTTP ${response.status}`)
+            error.status = response.status
+            throw error
+          }
+          if (!payload?.state) throw new Error(t('ghNoState'))
+          if (!alive.current) return
+          setState(payload.state)
+          setToken('')
+          setReveal(false)
+          setRepoResult(null)
+          setRepoFailure(null)
+          show('save', payload.state.git?.helperInstalled ? t('ghTokenSaved') : t('ghSavedNoHelper'))
+        } catch (error) {
+          if (alive.current) setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const verify = async () => {
+        setBusy('verify')
+        setFailure(null)
+        try {
+          const payload = await postJson(`${API.github}/verify`, {})
+          if (!payload?.state) throw new Error(t('ghNoState'))
+          if (!alive.current) return
+          setState(payload.state)
+          show('verify', t('ghVerified'))
+        } catch (error) {
+          if (alive.current) setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const repair = async () => {
+        setBusy('repair')
+        setFailure(null)
+        try {
+          const payload = await postJson(`${API.github}/install`, {})
+          if (!payload?.state) throw new Error(t('ghNoState'))
+          if (!alive.current) return
+          setState(payload.state)
+          show('repair', t('ghRepaired'))
+        } catch (error) {
+          if (alive.current) setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const clear = async () => {
+        setBusy('clear')
+        setFailure(null)
+        try {
+          const payload = await postJson(`${API.github}/clear`, {})
+          if (!payload?.state) throw new Error(t('ghNoState'))
+          if (!alive.current) return
+          setState(payload.state)
+          setConfirmClear(false)
+          setToken('')
+          setReveal(false)
+          setRepoResult(null)
+          setRepoFailure(null)
+        } catch (error) {
+          if (alive.current) setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const enableSigning = async () => {
+        setBusy('sign')
+        setFailure(null)
+        try {
+          const payload = await postJson(`${API.github}/enable-signing`, {})
+          if (!payload?.state) throw new Error(t('ghNoState'))
+          if (!alive.current) return
+          setState(payload.state)
+          show('sign', payload.state.signing.registered ? t('ghSignReady') : t('ghSignReadyUnregistered'))
+        } catch (error) {
+          if (alive.current) setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const disableSigning = async () => {
+        setBusy('signOff')
+        setFailure(null)
+        try {
+          const payload = await postJson(`${API.github}/disable-signing`, {})
+          if (!payload?.state) throw new Error(t('ghNoState'))
+          if (!alive.current) return
+          setState(payload.state)
+          setConfirmSigningOff(false)
+          show('signOff', t('ghSignOffDone'))
+        } catch (error) {
+          if (alive.current) setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const markSigningManual = async () => {
+        setBusy('signManual')
+        setFailure(null)
+        try {
+          const payload = await postJson(`${API.github}/signing-manual`, {})
+          if (!payload?.state) throw new Error(t('ghNoState'))
+          if (!alive.current) return
+          setState(payload.state)
+          show('sign', t('ghSignManualDone'))
+        } catch (error) {
+          if (alive.current) setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const checkRepo = async () => {
+        const value = repo.trim()
+        if (value === '' || busy !== '') return
+        setBusy('repo')
+        setRepoFailure(null)
+        try {
+          const payload = await postJson(`${API.github}/repo`, { repo: value })
+          if (!payload?.repo) throw new Error(t('ghNoRepo'))
+          if (!alive.current) return
+          setRepoResult(payload.repo)
+        } catch (error) {
+          if (alive.current) {
+            setRepoResult(null)
+            setRepoFailure(failureOf(error))
+          }
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const tokenFields = (withSteps) =>
+        h(
+          React.Fragment,
+          null,
+          withSteps ? h('p', { className: 'yk-cardText' }, t('ghStepAccess')) : null,
+          h(
+            'div',
+            { className: 'yk-toolbar' },
+            h('input', {
+              className: 'yk-input yk-mono yk-fill',
+              type: reveal ? 'text' : 'password',
+              value: token,
+              placeholder: t('ghTokenPlaceholder'),
+              'aria-label': t('ghTokenLabel'),
+              autoComplete: 'off',
+              spellCheck: false,
+              onChange: (event) => setToken(event.target.value),
+            }),
+            h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => setReveal((value) => !value) },
+              h(reveal ? EyeOffIcon : EyeIcon, { width: 14, height: 14 }),
+              t(reveal ? 'ghHide' : 'ghShow'),
+            ),
+            h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-solid', onClick: save, disabled: busy !== '' || token.trim() === '' },
+              busy === 'save' ? h(Spinner) : null,
+              t('ghSave'),
+            ),
+          ),
+          h(
+            'div',
+            { className: 'yk-toolbar' },
+            h(
+              'a',
+              { className: 'yk-link', href: 'https://github.com/settings/personal-access-tokens/new', target: '_blank', rel: 'noreferrer noopener' },
+              t('ghCreate'),
+            ),
+          ),
+          h('div', { className: 'yk-foot' }, `${t('ghStorage')} ${t('ghSecurityHint')}`),
+        )
+
+      if (state === null) {
+        return h(
+          'div',
+          { className: 'yk-body' },
+          h(Failure, { t, name: 'github', error: failure, onRetry: load }),
+          failure === null ? h(Loading, { text: t('loading') }) : null,
+        )
+      }
+
+      const account = state.account
+      const typeLabel =
+        account?.tokenType === 'fine-grained' ? t('ghFineGrained')
+          : account?.tokenType === 'classic' ? t('ghClassic')
+            : t('ghUnknown')
+      const expiry = account?.expiresAt === null || account?.expiresAt === undefined ? t('ghNeverExpires') : formatTime(account.expiresAt)
+      const expiresAt = account?.expiresAt === null || account?.expiresAt === undefined ? NaN : Date.parse(account.expiresAt)
+      const expiresSoon = Number.isFinite(expiresAt) && expiresAt > Date.now() && expiresAt - Date.now() < 7 * 86400000
+      const warnings = [
+        account?.expired ? h(Banner, { key: 'expired', kind: 'error', text: t('ghExpired') }) : null,
+        account?.tokenType === 'classic' ? h(Banner, { key: 'classic', kind: 'warn', text: t('ghClassicWarning') }) : null,
+        account !== null && account?.expiresAt === null ? h(Banner, { key: 'expiry', kind: 'warn', text: t('ghExpiryWarning') }) : null,
+        expiresSoon ? h(Banner, { key: 'soon', kind: 'warn', text: fill(t('ghExpiringSoon'), { time: formatTime(account.expiresAt) }) }) : null,
+      ].filter(Boolean)
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        h(Failure, { t, name: 'github', error: failure, onRetry: load }),
+        h(FlashNote, { flash, keys: ['save', 'verify', 'repair', 'sign', 'signOff'] }),
+
+        state.configured
+          ? h(
+              React.Fragment,
+              null,
+              h(
+                'div',
+                { className: 'yk-grid' },
+                h(
+                  Card,
+                  {
+                    title: t('ghAccount'),
+                    icon: h(GithubIcon, { width: 16, height: 16 }),
+                    action: h(Chip, { kind: 'ok', dot: true }, t('ghConfigured')),
+                  },
+                  h(
+                    'div',
+                    { className: 'yk-rows' },
+                    h(Row, { label: t('ghLogin'), value: account?.login ?? '—', mono: true }),
+                    h(Row, { label: t('ghTokenType'), value: typeLabel }),
+                    h(Row, {
+                      label: t('ghExpiry'),
+                      value: expiry,
+                      chips: account?.expired ? [{ kind: 'danger', text: t('ghExpired') }] : [],
+                    }),
+                  ),
+                  h(
+                    'div',
+                    { className: 'yk-toolbar' },
+                    h(
+                      'button',
+                      { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: verify, disabled: busy !== '' },
+                      busy === 'verify' ? h(Spinner) : null,
+                      t('ghVerify'),
+                    ),
+                  ),
+                ),
+                h(
+                  Card,
+                  {
+                    title: t('ghGit'),
+                    icon: h(GithubIcon, { width: 16, height: 16 }),
+                    action: h(
+                      Chip,
+                      { kind: state.git.helperInstalled ? 'ok' : 'danger', dot: true },
+                      state.git.helperInstalled ? t('ghHelperOn') : t('ghHelperOff'),
+                    ),
+                  },
+                  h(
+                    'div',
+                    { className: 'yk-rows' },
+                    h(Row, { label: t('ghGitVersion'), value: state.git.version ?? '—', mono: true }),
+                    h(Row, { label: t('ghTokenFile'), value: state.git.tokenFile ?? '—', mono: true, clamp: true }),
+                    h(Row, { label: 'include.path', value: state.git.includePath ?? '—', mono: true, clamp: true }),
+                  ),
+                  state.git.error ? h(Banner, { kind: 'error', text: state.git.error }) : null,
+                  !state.git.helperInstalled
+                    ? h(
+                        'div',
+                        { className: 'yk-toolbar' },
+                        h(
+                          'button',
+                          { type: 'button', className: 'yk-btn', onClick: repair, disabled: busy !== '' },
+                          busy === 'repair' ? h(Spinner) : null,
+                          t('ghRepair'),
+                        ),
+                      )
+                    : null,
+                ),
+              ),
+              warnings.length > 0 ? warnings : null,
+              h(
+                Card,
+                {
+                  title: t('ghSign'),
+                  icon: h(GithubIcon, { width: 16, height: 16 }),
+                  action: h(
+                    Chip,
+                    { kind: state.signing.enabled ? (state.signing.registered ? 'ok' : 'warn') : undefined, dot: true },
+                    state.signing.enabled ? t('ghSignOn') : t('ghSignOff'),
+                  ),
+                },
+                state.signing.publicKey === null
+                  ? h(
+                      'div',
+                      { className: 'yk-toolbar' },
+                      h(
+                        'button',
+                        { type: 'button', className: 'yk-btn yk-btn-solid', onClick: enableSigning, disabled: busy !== '' },
+                        busy === 'sign' ? h(Spinner) : null,
+                        t('ghSignEnable'),
+                      ),
+                    )
+                  : h(
+                      React.Fragment,
+                      null,
+                      h(
+                        'div',
+                        { className: 'yk-rows' },
+                        h(Row, { label: t('ghSignFingerprint'), value: state.signing.fingerprint ?? '—', mono: true, clamp: true }),
+                        h(Row, { label: t('ghSignKeyFile'), value: state.signing.keyFile, mono: true, clamp: true }),
+                        h(Row, {
+                          label: t('ghSignRegistered'),
+                          value: state.signing.registeredAt === null ? '—' : formatTime(state.signing.registeredAt),
+                          chips: [{
+                            kind: state.signing.registered ? 'ok' : 'warn',
+                            text: state.signing.registered
+                              ? (state.signing.manual ? t('ghSignRegisteredManual') : t('ghSignRegisteredYes'))
+                              : t('ghSignRegisteredNo'),
+                          }],
+                        }),
+                        state.git.identity?.email
+                          ? h(Row, {
+                              label: t('ghSignIdentity'),
+                              value: `${state.git.identity.name || '—'} <${state.git.identity.email}>`,
+                              mono: true,
+                              clamp: true,
+                            })
+                          : null,
+                      ),
+                      !state.signing.enabled && state.signing.error === null ? h(Banner, { kind: 'warn', text: t('ghSignInactive') }) : null,
+                      state.signing.error ? h(Banner, { kind: 'error', text: state.signing.error }) : null,
+                      state.signing.registered
+                        ? null
+                        : h(
+                            React.Fragment,
+                            null,
+                            h('p', { className: 'yk-cardText' }, t('ghSignManual')),
+                            h('textarea', {
+                              className: 'yk-input yk-textarea yk-mono',
+                              readOnly: true,
+                              value: state.signing.publicKey,
+                              rows: 3,
+                              'aria-label': t('ghSignPublicKey'),
+                            }),
+                            h(
+                              'div',
+                              { className: 'yk-toolbar' },
+                              h(CopyButton, { text: state.signing.publicKey, t }),
+                              h(
+                                'a',
+                                { className: 'yk-link', href: 'https://github.com/settings/ssh/new', target: '_blank', rel: 'noreferrer noopener' },
+                                t('ghSignOpen'),
+                              ),
+                              h('span', { className: 'yk-grow' }),
+                              h(
+                                'button',
+                                { type: 'button', className: 'yk-btn', onClick: markSigningManual, disabled: busy !== '' },
+                                busy === 'signManual' ? h(Spinner) : null,
+                                t('ghSignAdded'),
+                              ),
+                              h(
+                                'button',
+                                { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: enableSigning, disabled: busy !== '' },
+                                busy === 'sign' ? h(Spinner) : null,
+                                t('ghSignRetry'),
+                              ),
+                            ),
+                            h('div', { className: 'yk-foot' }, t('ghSignScope')),
+                          ),
+                      h(
+                        'div',
+                        { className: 'yk-toolbar' },
+                        // 密钥已在账号上、只是本机配置没生效时，这里给一次重试；未登记的
+                        // 情况由上面的「重新登记」负责，不再放第二个同样的按钮。
+                        !state.signing.enabled && state.signing.registered
+                          ? h(
+                              'button',
+                              { type: 'button', className: 'yk-btn yk-btn-solid', onClick: enableSigning, disabled: busy !== '' },
+                              busy === 'sign' ? h(Spinner) : null,
+                              t('ghSignEnable'),
+                            )
+                          : null,
+                        h('span', { className: 'yk-grow' }),
+                        confirmSigningOff
+                          ? null
+                          : h(
+                              'button',
+                              { type: 'button', className: 'yk-btn yk-btn-ghost yk-dangerHover', onClick: () => setConfirmSigningOff(true), disabled: busy !== '' },
+                              t('ghSignDisable'),
+                            ),
+                      ),
+                      confirmSigningOff
+                        ? h(ConfirmStrip, {
+                            t,
+                            title: t('ghSignDisableTitle'),
+                            hint: state.signing.manual ? t('ghSignDisableManualHint') : t('ghSignDisableHint'),
+                            confirmLabel: t('ghSignDisableConfirm'),
+                            busy: busy === 'signOff',
+                            onCancel: () => setConfirmSigningOff(false),
+                            onConfirm: disableSigning,
+                          })
+                        : null,
+                    ),
+              ),
+              h(
+                Card,
+                {
+                  title: t('ghRepoCheck'),
+                  icon: h(SearchIcon),
+                },
+                h(
+                  'div',
+                  { className: 'yk-toolbar' },
+                  h('input', {
+                    className: 'yk-input yk-mono yk-fill',
+                    value: repo,
+                    placeholder: t('ghRepoPlaceholder'),
+                    'aria-label': t('ghRepoPlaceholder'),
+                    spellCheck: false,
+                    onChange: (event) => {
+                      setRepo(event.target.value)
+                      setRepoResult(null)
+                      setRepoFailure(null)
+                    },
+                  }),
+                  h(
+                    'button',
+                    { type: 'button', className: 'yk-btn', onClick: checkRepo, disabled: busy !== '' || repo.trim() === '' },
+                    busy === 'repo' ? h(Spinner) : null,
+                    t('ghCheck'),
+                  ),
+                ),
+                repoFailure ? h(Banner, { kind: 'error', text: repoFailure.message }) : null,
+                repoResult
+                  ? h(
+                      'div',
+                      { className: 'yk-rows' },
+                      h(Row, { label: t('ghRepo'), value: repoResult.fullName, mono: true }),
+                      h(Row, {
+                        label: t('ghVisibility'),
+                        value: repoResult.private ? t('ghRepoPrivate') : t('ghRepoPublic'),
+                        chips: [{ kind: repoResult.canPush ? 'ok' : 'danger', text: repoResult.canPush ? t('ghCanPush') : t('ghCannotPush') }],
+                      }),
+                      h(Row, { label: t('ghDefaultBranch'), value: repoResult.defaultBranch || '—', mono: true }),
+                      repoResult.latestCommit
+                        ? h(Row, {
+                            label: t('ghLatestCommit'),
+                            value: repoResult.latestCommit.sha.slice(0, 7),
+                            mono: true,
+                            chips: [{
+                              kind: repoResult.latestCommit.verification.verified ? 'ok' : 'warn',
+                              text: repoResult.latestCommit.verification.verified ? t('ghCommitVerified') : t('ghCommitUnverified'),
+                            }],
+                          })
+                        : null,
+                      repoResult.latestCommit !== null && !repoResult.latestCommit.verification.verified
+                        ? h(Row, { label: t('ghSignature'), value: repoResult.latestCommit.verification.reason || '—', mono: true })
+                        : null,
+                    )
+                  : null,
+                repoResult?.latestCommitError ? h(Banner, { kind: 'error', text: repoResult.latestCommitError }) : null,
+                repoResult !== null && repoResult.latestCommit === null && !repoResult.latestCommitError
+                  ? h('div', { className: 'yk-cardHint' }, t('ghNoCommits'))
+                  : null,
+                h('div', { className: 'yk-foot' }, t('ghRepoCheckHint')),
+              ),
+              h(Disclosure, { title: t('ghReplace') }, h('div', { className: 'yk-form' }, tokenFields(false))),
+              h(
+                Card,
+                {
+                  title: t('ghDanger'),
+                  icon: h(TrashIcon, { width: 16, height: 16 }),
+                },
+                h('div', { className: 'yk-foot' }, t('ghClearHint')),
+                h(
+                  'div',
+                  { className: 'yk-toolbar' },
+                  h('span', { className: 'yk-grow' }),
+                  confirmClear
+                    ? null
+                    : h(
+                        'button',
+                        { type: 'button', className: 'yk-btn yk-btn-ghost yk-dangerHover', onClick: () => setConfirmClear(true), disabled: busy !== '' },
+                        t('ghClear'),
+                      ),
+                ),
+                confirmClear
+                  ? h(ConfirmStrip, {
+                      t,
+                      title: t('ghClearTitle'),
+                      hint: t('ghClearHint'),
+                      confirmLabel: t('ghClearConfirm'),
+                      busy: busy === 'clear',
+                      onCancel: () => setConfirmClear(false),
+                      onConfirm: clear,
+                    })
+                  : null,
+              ),
+            )
+          : h(
+              Card,
+              {
+                title: t('ghIntro'),
+                icon: h(GithubIcon, { width: 16, height: 16 }),
+                action: h(Chip, { kind: 'warn', dot: true }, t('ghUnconfigured')),
+              },
+              tokenFields(true),
+            ),
+      )
+    }
+
+    /* ----------------------------------------------------------------- rules */
+
+    function RulesTab({ t }) {
+      const [config, setConfig] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const [busy, setBusy] = React.useState('')
+      const [flash, show] = useFlash()
+      const [probe, setProbe] = React.useState(null)
+      const [globalDoc, setGlobalDoc] = React.useState(null)
+      const [workspaceId, setWorkspaceId] = React.useState('')
+      const [projectDoc, setProjectDoc] = React.useState(null)
+      const [pendingSwitch, setPendingSwitch] = React.useState(null)
+      const [confirmClear, setConfirmClear] = React.useState('')
+      const { signal, alive } = useAbortOnUnmount()
+
+      const withDoc = (doc) => ({ ...doc, draft: doc.text })
+
+      const load = React.useCallback(async (targetId) => {
+        setBusy('load')
+        try {
+          const payload = await getJson(`${API.rules}/config`, signal)
+          if (!alive.current) return
+          const ids = (payload.workspaces ?? []).map((workspace) => workspace.id)
+          const id = typeof targetId === 'string' && ids.includes(targetId) ? targetId : ids[0] ?? ''
+          const [globalPayload, projectPayload] = await Promise.all([
+            getJson(`${API.rules}/doc?scope=global`, signal),
+            id === '' ? Promise.resolve(null) : getJson(`${API.rules}/doc?scope=workspace&id=${encodeURIComponent(id)}`, signal),
+          ])
+          if (!alive.current) return
+          setWorkspaceId(id)
+          setConfig(payload)
+          setGlobalDoc(withDoc(globalPayload.doc))
+          setProjectDoc(projectPayload === null ? null : withDoc(projectPayload.doc))
+          setFailure(null)
+          setPendingSwitch(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }, [])
+
+      React.useEffect(() => {
+        load()
+      }, [load])
+
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'rules' }))
+      if (config === null) {
+        return h(
+          'div',
+          { className: 'yk-body' },
+          h(Failure, { t, name: 'rules', error: failure, onRetry: () => load() }),
+          failure === null ? h(Loading, { text: t('loading') }) : null,
+        )
+      }
+
+      const run = async (name, operation) => {
+        setBusy(name)
+        setFailure(null)
+        try {
+          await operation()
+        } catch (error) {
+          setFailure(failureOf(error))
+        } finally {
+          setBusy('')
+          setConfirmClear('')
+        }
+      }
+
+      const refreshConfig = async () => {
+        const next = await getJson(`${API.rules}/config`, signal)
+        if (alive.current) setConfig(next)
+      }
+
+      const saveDoc = (scope) => {
+        const state = scope === 'global' ? globalDoc : projectDoc
+        if (state === null) return undefined
+        return run(`save-${scope}`, async () => {
+          const body =
+            scope === 'global'
+              ? { scope: 'global', text: state.draft }
+              : { scope: 'workspace', id: workspaceId, text: state.draft }
+          const payload = await postJson(`${API.rules}/doc`, body)
+          if (!alive.current) return
+          if (scope === 'global') setGlobalDoc(withDoc(payload.doc))
+          else setProjectDoc(withDoc(payload.doc))
+          setProbe(null)
+          show(`save-${scope}`, t('kSavedNext'))
+          await refreshConfig()
+        })
+      }
+
+      const clearDoc = (scope) =>
+        run(`clear-${scope}`, async () => {
+          const body = scope === 'global' ? { scope: 'global' } : { scope: 'workspace', id: workspaceId }
+          const payload = await postJson(`${API.rules}/reset`, body)
+          if (!alive.current) return
+          if (scope === 'global') setGlobalDoc(withDoc(payload.doc))
+          else setProjectDoc(withDoc(payload.doc))
+          setProbe(null)
+          show(`clear-${scope}`, t('kClearDone'))
+          await refreshConfig()
+        })
+
+      const importDoc = (scope) =>
+        run(`import-${scope}`, async () => {
+          const query = scope === 'global' ? '?scope=global' : `?scope=workspace&id=${encodeURIComponent(workspaceId)}`
+          const payload = await getJson(`${API.rules}/import${query}`, signal)
+          if (!alive.current) return
+          if (payload.source === null || payload.source === undefined) {
+            show(`import-${scope}`, t('kImportNone'))
+            return
+          }
+          const file = String(payload.source).split(/[\\/]/).pop()
+          if (scope === 'global') setGlobalDoc((current) => ({ ...current, draft: payload.text }))
+          else setProjectDoc((current) => ({ ...current, draft: payload.text }))
+          show(`import-${scope}`, fill(t('kImported'), { file }))
+        })
+
+      const flip = (key) =>
+        run(key, async () => {
+          const payload = await postJson(`${API.rules}/settings`, { [key]: !(config.settings?.[key] ?? true) })
+          if (!alive.current) return
+          setConfig((current) => ({ ...current, settings: payload.settings }))
+          setProbe(null)
+        })
+
+      const runProbe = () =>
+        run('probe', async () => {
+          const payload = await getJson(`${API.rules}/probe`, signal)
+          if (alive.current) setProbe(payload.probe ?? null)
+        })
+
+      const openWorkspace = async (id) => {
+        setPendingSwitch(null)
+        setBusy('doc')
+        try {
+          const payload = await getJson(`${API.rules}/doc?scope=workspace&id=${encodeURIComponent(id)}`, signal)
+          if (!alive.current) return
+          setWorkspaceId(id)
+          setProjectDoc(withDoc(payload.doc))
+          setProbe(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const switchWorkspace = (id) => {
+        if (id === workspaceId || busy !== '') return
+        const dirty = projectDoc !== null && projectDoc.draft !== projectDoc.text
+        if (dirty) {
+          setPendingSwitch(id)
+          return
+        }
+        openWorkspace(id)
+      }
+
+      const settings = config.settings ?? {}
+      const stats = config.stats
+      const workspaces = config.workspaces ?? []
+      const selected = workspaces.find((workspace) => workspace.id === workspaceId) ?? null
+      const disabled = busy !== ''
+
+      const pathRow = (doc) =>
+        h(
+          'div',
+          { className: 'yk-foot' },
+          h('span', { className: 'yk-fieldLabel' }, t('kPath')),
+          h('span', { className: 'yk-mono yk-link', title: doc?.path ?? '' }, doc?.path ?? '—'),
+          h(CopyButton, { text: doc?.path ?? '', label: t('copy'), t }),
+          doc !== null && doc.exists ? h(Chip, { kind: 'ok' }, t('kExists')) : h(Chip, { kind: 'warn' }, t('kMissing')),
+          doc?.truncated === true ? h(Chip, { kind: 'warn' }, t('kTruncated')) : null,
+        )
+
+      const editorNodes = (scope, doc) => {
+        if (doc === null) return []
+        const dirty = doc.draft !== doc.text
+        return [
+          h('textarea', {
+            key: 'editor',
+            className: 'yk-input yk-textarea yk-editor',
+            value: doc.draft,
+            placeholder: t('kPlaceholder'),
+            spellCheck: false,
+            disabled: busy === 'load',
+            onChange: (event) => {
+              const value = event.target.value
+              if (scope === 'global') setGlobalDoc((current) => ({ ...current, draft: value }))
+              else setProjectDoc((current) => ({ ...current, draft: value }))
+            },
+          }),
+          // 面板显示全文不代表模型看得到全文：注入上限是另一道闸。
+          doc.injected?.truncated === true
+            ? h(Banner, { kind: 'warn', text: fill(t('kInjectedTruncated'), { n: formatBytes(config.limits?.maxBytes ?? 0) }) })
+            : null,
+          h(
+            'div',
+            { key: 'bar', className: 'yk-toolbar' },
+            h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-solid', onClick: () => saveDoc(scope), disabled: disabled || !dirty },
+              busy === `save-${scope}` ? h(Spinner) : null,
+              flashed(flash, `save-${scope}`, t('save')),
+            ),
+            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => importDoc(scope), disabled }, t('kImport')),
+            h('span', { className: 'yk-grow' }),
+            confirmClear === scope
+              ? h(
+                  React.Fragment,
+                  null,
+                  h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirmClear('') }, t('cancel')),
+                  h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: () => clearDoc(scope), disabled }, t('kClear')),
+                )
+              : h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'yk-btn yk-btn-ghost yk-dangerHover',
+                    onClick: () => setConfirmClear(scope),
+                    disabled: disabled || !doc.exists,
+                  },
+                  t('kClear'),
+                ),
+          ),
+          confirmClear === scope
+            ? h(
+                'div',
+                { key: 'confirm', className: 'yk-foot' },
+                h('span', { className: 'yk-fieldLabel' }, t('kConfirmClear')),
+                fill(t('kConfirmClearHint'), { path: doc.path }),
+              )
+            : null,
+          h(
+            'div',
+            { key: 'note', className: 'yk-foot' },
+            h(FlashNote, { flash, keys: [`import-${scope}`, `clear-${scope}`] }),
+            h('span', { className: 'yk-cardNote' }, dirty ? t('kUnsaved') : fill(t('kChars'), { n: doc.draft.length })),
+          ),
+        ]
+      }
+
+      const actionChip = (doc) => {
+        const dirty = doc !== null && doc.draft !== doc.text
+        return h(
+          Chip,
+          { kind: dirty ? 'warn' : undefined },
+          dirty ? t('kUnsaved') : fill(t('kChars'), { n: (doc?.draft ?? '').length }),
+        )
+      }
+
+      const probeNote =
+        probe === null
+          ? null
+          : h(
+              'div',
+              { className: 'yk-foot' },
+              probe.ok === true
+                ? `${probe.hasHead && probe.hasAnchor ? t('kProbeOk') : t('kProbeMiss')} · ${probe.sessionId ?? '?'} · ${formatBytes(
+                    (probe.bytes?.head ?? 0) + (probe.bytes?.anchor ?? 0),
+                  )}`
+                : probe.reason === 'no-session' || probe.reason === 'not-live'
+                  ? t('kProbeNone')
+                  : fill(t('kProbeFail'), { reason: probe.reason ?? 'unknown' }),
+            )
+
+      const statsNote = h(
+        'div',
+        { className: 'yk-foot' },
+        stats && stats.assembled > 0
+          ? fill(t('kStats'), { a: stats.assembled, b: stats.globalHits ?? 0, c: stats.projectHits ?? 0 })
+          : t('kStatsNone'),
+      )
+
+      const settingsChips = [
+        ['global', t('kToggleGlobal')],
+        ['project', t('kToggleProject')],
+        ['tailAnchor', t('kToggleAnchor')],
+      ].map(([key, label]) =>
+        h(
+          'button',
+          {
+            key,
+            type: 'button',
+            className: 'yk-chip yk-chip-toggle',
+            'aria-pressed': settings[key] ? 'true' : 'false',
+            title: `${label}：${settings[key] ? t('gOn') : t('gOff')}`,
+            disabled,
+            onClick: () => flip(key),
+          },
+          h('span', { className: 'yk-chip-dot', 'aria-hidden': true }),
+          label,
+        ),
+      )
+
+      const workspaceHeader = h(
+        'div',
+        { key: 'workspace', className: 'yk-toolbar' },
+        h(
+          'select',
+          {
+            className: 'yk-input yk-select',
+            value: workspaceId,
+            'aria-label': t('fWorkspace'),
+            disabled,
+            onChange: (event) => switchWorkspace(event.target.value),
+          },
+          workspaces.map((workspace) => h('option', { key: workspace.id, value: workspace.id }, workspace.title || workspace.path)),
+        ),
+        selected !== null && selected.dirExists === false ? h(Chip, { kind: 'danger' }, t('kDirMissing')) : null,
+      )
+
+      const workspaceChildren =
+        projectDoc === null
+          ? [workspaceHeader, h('div', { key: 'empty', className: 'yk-foot' }, workspaces.length === 0 ? t('kNoWorkspaces') : t('loading'))]
+          : [workspaceHeader, pathRow(projectDoc), ...editorNodes('workspace', projectDoc)]
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        h(Failure, { t, name: 'rules', error: failure, onRetry: () => load(workspaceId) }),
+        // 注册表不可用时注入侧会退回进程目录：不说明，用户会以为看到的就是注入的那一份。
+        config?.workspacesDegraded
+          ? h(Banner, { kind: 'warn', text: fill(t('kDegraded'), { reason: String(config.workspacesDegraded.message ?? config.workspacesDegraded.reason ?? '') }) })
+          : null,
+        h(
+          Card,
+          {
+            title: t('kTitle'),
+            span: true,
+            icon: h(RulesIcon, { width: 16, height: 16 }),
+            action: h(
+              'div',
+              { className: 'yk-cardTools' },
+              h(Chip, { kind: 'accent' }, fill(t('kLimit'), { n: formatBytes(config.limits?.maxBytes ?? 0) })),
+            ),
+          },
+          h(
+            'div',
+            { className: 'yk-toggleRow' },
+            settingsChips,
+            h('span', { className: 'yk-grow' }),
+            h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: runProbe, disabled },
+              busy === 'probe' ? h(Spinner, { size: 13 }) : t('kProbe'),
+            ),
+          ),
+          probeNote,
+          h(Disclosure, { title: t('kDetails') }, statsNote, h('div', { className: 'yk-foot' }, t('kPrecedence')), h('div', { className: 'yk-foot' }, t('kAgentsNote'))),
+        ),
+        h(
+          'div',
+          { className: 'yk-grid' },
+          h(
+            Card,
+            {
+              key: 'global',
+              title: t('kGlobalTitle'),
+              icon: h(RulesIcon, { width: 16, height: 16 }),
+              action: actionChip(globalDoc),
+            },
+            h('div', { className: 'yk-cardNote' }, t('kGlobalNote')),
+            pathRow(globalDoc),
+            ...editorNodes('global', globalDoc),
+          ),
+          h(
+            Card,
+            {
+              key: 'workspace',
+              title: t('kProjectTitle'),
+              icon: h(RulesIcon, { width: 16, height: 16 }),
+              action: actionChip(projectDoc),
+            },
+            h('div', { className: 'yk-cardNote' }, t('kProjectNote')),
+            ...workspaceChildren,
+          ),
+        ),
+        pendingSwitch !== null
+          ? h(ConfirmStrip, {
+              t,
+              title: t('kSwitchDirty'),
+              confirmLabel: t('kDiscard'),
+              busy: false,
+              onCancel: () => setPendingSwitch(null),
+              onConfirm: () => openWorkspace(pendingSwitch),
+            })
+          : null,
+      )
+    }
+
+    /* ---------------------------------------------------------------- purge */
+
+    function PurgeTab({ t }) {
+      const [config, setConfig] = React.useState(null)
+      const [prompt, setPrompt] = React.useState('')
+      const [busy, setBusy] = React.useState('')
+      const [flash, show] = useFlash()
+      const [failure, setFailure] = React.useState(null)
+      const [confirmReset, setConfirmReset] = React.useState(false)
+      const [probe, setProbe] = React.useState(null)
+      const { signal, alive } = useAbortOnUnmount()
+
+      const load = React.useCallback(async () => {
+        setBusy('load')
+        try {
+          const payload = await getJson(`${API.purge}/config`, signal)
+          if (!alive.current) return
+          setConfig(payload)
+          setPrompt(payload.prompt ?? '')
+          setFailure(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }, [])
+
+      React.useEffect(() => {
+        load()
+      }, [load])
+
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'purge' }))
+
+      const run = async (name, operation) => {
+        setBusy(name)
+        setFailure(null)
+        try {
+          await operation()
+        } catch (error) {
+          setFailure(failureOf(error))
+        } finally {
+          setBusy('')
+          setConfirmReset(false)
+        }
+      }
+
+      const save = () =>
+        run('save', async () => {
+          await postJson(`${API.purge}/config`, { prompt })
+          setConfig((current) => ({ ...current, prompt, isCustom: true }))
+          show('save', t('saved'))
+        })
+
+      const reset = () =>
+        run('reset', async () => {
+          const payload = await postJson(`${API.purge}/reset`, {})
+          setConfig(payload)
+          setPrompt(payload.prompt ?? '')
+          show('reset', t('gResetDone'))
+        })
+
+      const flip = (key) =>
+        run(key, async () => {
+          const payload = await postJson(`${API.purge}/config`, { [key]: !(config.settings?.[key] ?? true) })
+          setConfig((current) => ({ ...current, settings: payload.settings, stats: payload.stats }))
+          setProbe(null)
+        })
+
+      const runProbe = () =>
+        run('probe', async () => {
+          setProbe((await getJson(`${API.purge}/probe`, signal)).probe ?? null)
+        })
+
+      const dirty = config !== null && prompt !== (config.prompt ?? '')
+
+      const switches = config?.settings ?? {}
+      const stats = config?.stats
+      const capabilityRow = h(
+        'div',
+        { className: 'yk-toggleRow' },
+        [
+          ['anchor', t('gAnchor')],
+          ['refusalRetry', t('gRetry')],
+          ['stripHostLimits', t('gScrub')],
+        ].map(([key, label]) =>
+          h(
+            'button',
+            {
+              key,
+              type: 'button',
+              className: 'yk-chip yk-chip-toggle',
+              'aria-pressed': switches[key] ? 'true' : 'false',
+              title: `${label}：${switches[key] ? t('gOn') : t('gOff')}`,
+              disabled: busy !== '',
+              onClick: () => flip(key),
+            },
+            h('span', { className: 'yk-chip-dot', 'aria-hidden': true }),
+            label,
+          ),
+        ),
+        h('span', { className: 'yk-grow' }),
+        h(
+          'button',
+          { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: runProbe, disabled: busy !== '' },
+          busy === 'probe' ? h(Spinner, { size: 13 }) : t('gProbe'),
+        ),
+      )
+      const probeNote =
+        probe === null
+          ? null
+          : h(
+              'div',
+              { className: 'yk-foot' },
+              probe.ok === true
+                ? `${probe.hasInject && probe.hasAnchor ? t('gProbeOk') : t('gProbeMiss')} · ${probe.sessionId ?? '?'}`
+                : fill(t('gProbeFail'), { reason: probe.reason ?? 'unknown' }),
+            )
+      const statsNote = h(
+        'div',
+        { className: 'yk-foot' },
+        stats && stats.assembled > 0
+          ? `${fill(t('gStats'), { a: stats.assembled, b: (stats.scrubbed ?? 0) + (stats.tools ?? 0), c: stats.retried ?? 0 })}${
+              stats.lastAt ? ` · ${String(stats.lastAt).slice(11, 19)}` : ''
+            }`
+          : t('gStatsNone'),
+      )
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        h(Failure, { t, name: 'purge', error: failure, onRetry: load }),
+        config === null && busy === 'load' ? h(Loading, { text: t('loading') }) : null,
+        config !== null
+          ? h(
+              Card,
+              {
+                title: t('gTitle'),
+                span: true,
+                icon: h(PurgeIcon, { width: 16, height: 16 }),
+                action: h(
+                  'div',
+                  { className: 'yk-cardTools' },
+                  h(Chip, { kind: 'accent', dot: true }, t('gPresetUnrestricted')),
+                  h(Chip, { kind: config.isCustom ? 'warn' : undefined }, config.isCustom ? t('gCustom') : t('gDefault')),
+                ),
+              },
+              capabilityRow,
+              probeNote,
+              statsNote,
+              h(
+                'div',
+                { className: 'yk-editorHead' },
+                h('span', { className: 'yk-fieldLabel' }, t('gPrompt')),
+                h('span', { className: 'yk-cardNote' }, dirty ? t('gUnsaved') : fill(t('gChars'), { n: prompt.length })),
+              ),
+              h('textarea', {
+                className: 'yk-input yk-textarea yk-editor',
+                value: prompt,
+                placeholder: t('gPlaceholder'),
+                spellCheck: false,
+                disabled: busy === 'load',
+                onChange: (event) => setPrompt(event.target.value),
+              }),
+              h(
+                'div',
+                { className: 'yk-toolbar' },
+                h('button', { type: 'button', className: 'yk-btn yk-btn-solid', onClick: save, disabled: busy !== '' || (!dirty && flash?.key !== 'save') }, busy === 'save' ? h(Spinner) : null, flashed(flash, 'save', t('gSave'))),
+                h(CopyButton, { text: prompt, label: t('copy'), t }),
+                h(FlashNote, { flash, keys: ['reset'] }),
+                h('span', { className: 'yk-grow' }),
+                confirmReset
+                  ? h(
+                      React.Fragment,
+                      null,
+                      h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirmReset(false) }, t('cancel')),
+                      h('button', { type: 'button', className: 'yk-btn yk-btn-danger', onClick: reset, disabled: busy !== '' }, t('gConfirmReset')),
+                    )
+                  : config.isCustom
+                    ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: () => setConfirmReset(true), disabled: busy !== '' }, t('gReset'))
+                    : null,
+              ),
+            )
+          : null,
+      )
+    }
+
+    /* --------------------------------------------------------------- runtime */
+
+    function RuntimeTab({ t, onRestart }) {
+      const [snap, setSnap] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const [flash, show] = useFlash()
+      const [busy, setBusy] = React.useState('')
+      const [confirmRestart, setConfirmRestart] = React.useState(false)
+      const [picking, setPicking] = React.useState(false)
+      const [version, setVersion] = React.useState('')
+      const { signal, alive } = useAbortOnUnmount()
+
+      const load = React.useCallback(async () => {
+        try {
+          const payload = await getJson(`${API.runtime}/state`, signal)
+          if (!alive.current) return
+          setSnap(payload.state)
+          setFailure(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        }
+      }, [])
+
+      React.useEffect(() => {
+        load()
+      }, [load])
+
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'runtime' }))
+
+      const run = async (name, operation) => {
+        setBusy(name)
+        setFailure(null)
+        try {
+          await operation()
+        } catch (error) {
+          setFailure(failureOf(error))
+        } finally {
+          setBusy('')
+          setConfirmRestart(false)
+        }
+      }
+
+      const check = () =>
+        run('check', async () => {
+          const payload = await postJson(`${API.runtime}/check`, {})
+          if (payload.state !== undefined) setSnap(payload.state)
+          if (payload.state?.update?.available !== true) show('check', t('rLatestShort'))
+        })
+
+      const update = (target) =>
+        run('update', async () => {
+          const payload = await postJson(`${API.runtime}/update`, { version: target, restart: true })
+          if (payload.state !== undefined) setSnap(payload.state)
+          show('update', payload.changed ? fill(t('rUpdated'), { version: payload.installed ?? '?' }) : fill(t('rUpdatedSame'), { version: payload.installed ?? '?' }))
+          if (payload.restarted === true) onRestart()
+        })
+
+      const restart = () =>
+        run('restart', async () => {
+          await postJson(`${API.runtime}/restart`, { delayMs: 600 })
+          onRestart()
+        })
+
+      const runtime = snap?.runtime
+      const disk = snap?.disk
+      const feed = snap?.update
+      const previous = snap?.lastUpdate ?? null
+      // 磁盘上已经不是这次更新的目标版本：这次更新被回退或被旧版接管了。
+      const missed = previous !== null && previous.applied === false && previous.to !== (disk?.version ?? null)
+      const strategy = snap?.restart?.strategy === 'execve' ? t('rExecve') : snap?.restart?.strategy === 'command' ? t('rCommand') : t('rExit')
+      const disabled = busy !== ''
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        snap !== null
+          ? h(
+              'div',
+              { className: 'yk-hero' + (feed?.available || missed ? ' yk-hero-warn' : '') },
+              h('span', { className: 'yk-heroDot', 'aria-hidden': true }),
+              h(
+                'div',
+                { className: 'yk-heroMain' },
+                h('div', { className: 'yk-heroTitle yk-mono' }, `DSH ${runtime?.version ?? '?'}`),
+                h(
+                  'div',
+                  { className: 'yk-heroSub' },
+                  missed
+                    ? fill(t('rUpgradeMissed'), { version: previous.to, current: runtime?.version ?? '?' })
+                    : disk?.stale
+                      ? t('rNeedsRestart')
+                      : feed?.available
+                        ? fill(t('rUpdateReady'), { version: feed.latest })
+                        : feed?.checkedAt
+                          ? fill(t('rUpToDate'), { channel: runtime?.channel ?? '' })
+                          : t('rNotChecked'),
+                ),
+              ),
+              h(
+                'div',
+                { className: 'yk-heroActions' },
+                h(FlashNote, { flash, keys: ['update'] }),
+                feed?.available
+                  ? h('button', { type: 'button', className: 'yk-btn yk-btn-solid', onClick: () => update(undefined), disabled }, busy === 'update' ? h(Spinner) : h(DownloadIcon), busy === 'update' ? t('rUpdating') : fill(t('rUpdateTo'), { version: feed.latest }))
+                  : h('button', { type: 'button', className: 'yk-btn', onClick: check, disabled }, busy === 'check' ? h(Spinner) : flash?.key === 'check' ? null : h(RefreshIcon), busy === 'check' ? t('rChecking') : flashed(flash, 'check', t('rCheck'))),
+                h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: disk?.stale || confirmRestart ? 'yk-btn yk-btn-solid' : 'yk-btn yk-btn-ghost',
+                    'aria-expanded': confirmRestart ? 'true' : 'false',
+                    onClick: () => setConfirmRestart((value) => !value),
+                    disabled,
+                  },
+                  h(PowerIcon),
+                  t('rRestart'),
+                ),
+              ),
+            )
+          : null,
+
+        snap !== null && confirmRestart
+          ? h(ConfirmStrip, {
+              t,
+              title: t('confirmRestart'),
+              hint: t('confirmRestartHint'),
+              confirmLabel: t('rRestart'),
+              busy: busy === 'restart',
+              onCancel: () => setConfirmRestart(false),
+              onConfirm: restart,
+            })
+          : null,
+
+        h(Failure, { t, name: 'runtime', error: failure, onRetry: load }),
+        snap === null && failure === null ? h(Loading, { text: t('loading') }) : null,
+
+        snap !== null ? h('div', { className: 'yk-grid' },
+          h(Card, { title: t('rCardVersion'), icon: h(DownloadIcon, { width: 16, height: 16 }), action: h('button', { type: 'button', className: 'yk-cardAction', 'aria-expanded': picking ? 'true' : 'false', onClick: () => setPicking((value) => !value) }, picking ? t('rPickVersionClose') : t('rPickVersion')) },
+            h('div', { className: 'yk-rows' },
+              disk?.stale ? h(Row, { label: t('rOnDisk'), value: disk?.version ?? '—', mono: true }) : null,
+              h(Row, { label: t('rChannel'), value: runtime?.channel ?? '—', mono: true }),
+              feed?.latest ? h(Row, { label: t('rLatest'), value: feed.latest, mono: true }) : null,
+              previous?.from
+                ? h(Row, {
+                  label: t('rPrevious'),
+                  value: previous.from,
+                  mono: true,
+                  action: h('button', {
+                    type: 'button',
+                    className: 'yk-btn yk-btn-ghost yk-btn-sm',
+                    title: fill(t('rRollbackTitle'), { version: previous.from }),
+                    onClick: () => update(previous.from),
+                    disabled,
+                  }, t('rRollback')),
+                })
+                : null,
+              disk?.error ? h(Row, { label: t('rDiskError'), value: disk.error, mono: true, clamp: true }) : null,
+            ),
+            picking ? h('div', { className: 'yk-toolbar' },
+              h('input', { className: 'yk-input yk-mono yk-fill', value: version, placeholder: t('rVersionInput'), onChange: (event) => setVersion(event.target.value) }),
+              h('button', { type: 'button', className: 'yk-btn', onClick: () => update(version.trim()), disabled: disabled || version.trim() === '' }, t('rInstall')),
+            ) : null,
+          ),
+          h(Card, { title: t('rCardProcess'), icon: h(PowerIcon, { width: 16, height: 16 }) },
+            h('div', { className: 'yk-rows' },
+              h(Row, { label: t('rNode'), value: runtime?.node ?? '—', mono: true }),
+              h(Row, { label: t('rUptime'), value: runtime?.uptime ?? '—' }),
+              h(Row, { label: t('rStrategy'), value: strategy }),
+            ),
+          ),
+          snap.lastAction?.output ? h(Card, { title: t('rCardActivity'), span: true }, h('pre', { className: 'yk-out' }, snap.lastAction.output)) : null,
+        ) : null,
+        h('div', { className: 'yk-foot' }, t('rHint')),
+      )
+    }
+
+    /* ----------------------------------------------------------------- presets */
+
+    /** One preset row's source tag. */
+    const PRESET_SOURCE_LABEL = {
+      store: 'pSourceStore',
+      declared: 'pSourceDeclared',
+      builtin: 'pSourceBuiltin',
+      runtime: 'pSourceRuntime',
+    }
+
+    /** Group heading and hint for each source, in reading order. */
+    const PRESET_GROUPS = [
+      ['store', 'pMine', 'pMineHint'],
+      ['declared', 'pDeclared', 'pDeclaredHint'],
+      ['builtin', 'pBuiltin', 'pBuiltinHint'],
+      ['runtime', 'pRuntimeGroup', 'pRuntimeHint'],
+    ]
+
+    /** A copy id that is both valid and unused. */
+    function copyPresetId(from, taken) {
+      const base = `${from === '' || from === undefined ? 'preset' : from}-copy`
+      if (!taken.has(base)) return base
+      for (let index = 2; index < 100; index += 1) {
+        const candidate = `${base}-${index}`
+        if (!taken.has(candidate)) return candidate
+      }
+      return `${base}-${Date.now().toString(36)}`
+    }
+
+    /** Whether a row's disable flag is a `!!js` condition the panel must not flip. */
+    const rowCondition = (row) =>
+      row !== null && typeof row === 'object' && row.disabled !== null && typeof row.disabled === 'object' && typeof row.disabled.__jsExpr === 'string'
+        ? row.disabled.__jsExpr
+        : null
+
+    /** Rows an import picker can offer: the top level of one composition. */
+    function importableRows(plugins) {
+      return (plugins ?? []).filter((row) => row !== null && typeof row === 'object' && typeof row.name === 'string')
+    }
+
+    /* ---------------------------------------------------------------- skills */
+
+    /** 一个技能为什么不会被加载 → 面板文案键。 */
+    const SKILL_PROBLEM_LABEL = {
+      'no-frontmatter': 'skProblemNoFrontmatter',
+      'bad-yaml': 'skProblemBadYaml',
+      'missing-name': 'skProblemMissingName',
+      'missing-description': 'skProblemMissingDescription',
+      'bad-name': 'skProblemBadName',
+      'bad-invocation': 'skProblemBadInvocation',
+      unreadable: 'skProblemUnreadable',
+    }
+
+    /** 下载地址：目录型回 zip，单文件型回 .md。 */
+    const skillDownload = (item) =>
+      `${API.skills}/download?key=${encodeURIComponent(item.key)}&form=${encodeURIComponent(item.form)}`
+
+    /**
+     * 本地技能库：列表、上传、编辑、下载、启停与删除。
+     *
+     * 技能本身由宿主发现：`$DSH_HOME/skills` 是 user-dsh 根，改动由监听器送进
+     * 下一次模型步，所以这里没有「重启后生效」这一步，页面也只说文件写了什么。
+     */
+    function SkillsTab({ t }) {
+      const [payload, setPayload] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const [busy, setBusy] = React.useState('')
+      const [flash, show] = useFlash()
+      const [query, setQuery] = React.useState('')
+      const [confirming, setConfirming] = React.useState('')
+      const [notes, setNotes] = React.useState([])
+      const [editor, setEditor] = React.useState(null)
+      const fileRef = React.useRef(null)
+      const { signal, alive } = useAbortOnUnmount()
+
+      // 写操作之后的重载不抢 busy：按钮上的进度与「已完成」还要留在原地。
+      const load = React.useCallback(async (quiet = false) => {
+        if (!quiet) setBusy('load')
+        try {
+          const next = await getJson(`${API.skills}/state`, signal)
+          if (!alive.current) return
+          setPayload(next)
+          setFailure(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (!quiet && alive.current) setBusy('')
+        }
+      }, [])
+
+      React.useEffect(() => {
+        load()
+      }, [load])
+
+      if (failure?.off) return h('div', { className: 'yk-body' }, h(OffState, { t, name: 'skills' }))
+
+      const run = async (name, operation) => {
+        setBusy(name)
+        setFailure(null)
+        setNotes([])
+        try {
+          await operation()
+        } catch (error) {
+          if (alive.current) setFailure(failureOf(error))
+        } finally {
+          if (alive.current) {
+            setBusy('')
+            setConfirming('')
+          }
+        }
+      }
+
+      const toggle = (item) => {
+        const off = item.state === 'enabled'
+        return run(off ? 'disable' : 'enable', async () => {
+          await postJson(`${API.skills}/${off ? 'disable' : 'enable'}`, { key: item.key, form: item.form })
+          if (!alive.current) return
+          show(off ? 'disable' : 'enable', fill(t(off ? 'skDisabledDone' : 'skEnabledDone'), { name: item.name }))
+          await load(true)
+        })
+      }
+
+      const remove = (item) =>
+        run('delete', async () => {
+          await postJson(`${API.skills}/delete`, { key: item.key, form: item.form })
+          if (!alive.current) return
+          show('delete', fill(t('skDeleted'), { name: item.name }))
+          await load(true)
+        })
+
+      const upload = (file) =>
+        run('upload', async () => {
+          const bytes = await file.arrayBuffer()
+          const result = await request(`${API.skills}/upload?filename=${encodeURIComponent(file.name)}`, {
+            method: 'POST',
+            headers: { 'content-type': 'application/octet-stream' },
+            body: bytes,
+          })
+          if (!alive.current) return
+          setNotes(result.notes ?? [])
+          show('upload', fill(t('skUploaded'), { name: result.item?.name ?? file.name }))
+          await load(true)
+        })
+
+      const openEditor = async (item) => {
+        setBusy('open')
+        try {
+          const next = await getJson(`${API.skills}/skill?key=${encodeURIComponent(item.key)}&form=${encodeURIComponent(item.form)}`, signal)
+          if (!alive.current) return
+          setEditor({ ...next.item, text: next.text, draft: next.text, truncated: next.truncated === true })
+          setFailure(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }
+
+      const saveEditor = () =>
+        run('save', async () => {
+          const result = await postJson(`${API.skills}/save`, { key: editor.key, form: editor.form, text: editor.draft })
+          if (!alive.current) return
+          setNotes(result.notes ?? [])
+          setEditor(null)
+          show('save', t('skSaved'))
+          await load(true)
+        })
+
+      const textKb = payload?.limits?.textKb ?? 256
+
+      if (editor !== null) {
+        return h(
+          'div',
+          { className: 'yk-body' },
+          h(SubpageHeader, { t, title: editor.name === '' ? editor.key : editor.name, note: editor.path, onBack: () => setEditor(null) }),
+          editor.problem !== null
+            ? h(Banner, { kind: 'warn', text: fill(t('skProblemLine'), { reason: t(SKILL_PROBLEM_LABEL[editor.problem] ?? 'skProblemOther') }) })
+            : null,
+          editor.truncated === true ? h(Banner, { kind: 'warn', text: fill(t('skTruncated'), { kb: textKb }) }) : null,
+          h('textarea', {
+            className: 'yk-input yk-textarea yk-editor',
+            value: editor.draft,
+            spellCheck: false,
+            'aria-label': t('skEditorTitle'),
+            disabled: busy === 'save',
+            onChange: (event) => setEditor((current) => (current === null ? null : { ...current, draft: event.target.value })),
+          }),
+          h(
+            'div',
+            { className: 'yk-toolbar' },
+            h('span', { className: 'yk-foot' }, fill(t('skEditorHint'), { kb: textKb })),
+            h('span', { className: 'yk-grow' }),
+            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', disabled: busy !== '', onClick: () => setEditor(null) }, t('close')),
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'yk-btn yk-btn-solid',
+                disabled: busy !== '' || editor.draft === editor.text,
+                onClick: saveEditor,
+              },
+              busy === 'save' ? h(Spinner) : null,
+              flashed(flash, 'save', t('save')),
+            ),
+          ),
+          h(Failure, { t, name: 'skills', error: failure, onRetry: () => setFailure(null) }),
+        )
+      }
+
+      const items = payload?.items ?? null
+      const needle = query.trim().toLowerCase()
+      const visible = (items ?? []).filter(
+        (item) =>
+          needle === '' ||
+          item.name.toLowerCase().includes(needle) ||
+          item.key.toLowerCase().includes(needle) ||
+          item.description.toLowerCase().includes(needle),
+      )
+
+      const renderItem = (item) => {
+        const asking = confirming === `${item.form}:${item.key}`
+        const problem = item.problem === null ? '' : t(SKILL_PROBLEM_LABEL[item.problem] ?? 'skProblemOther')
+        return h(
+          'div',
+          { className: 'yk-itemWrap', key: `${item.form}:${item.key}` },
+          h(
+            'div',
+            { className: 'yk-item' },
+            h('span', { className: 'yk-itemIcon' }, h(SkillIcon, { width: 18, height: 18 })),
+            h(
+              'div',
+              { className: 'yk-itemMain' },
+              h(
+                'div',
+                { className: 'yk-itemTitleRow' },
+                h('span', { className: 'yk-itemTitle', title: item.path }, item.name === '' ? item.key : item.name),
+                item.state === 'enabled' ? h(Chip, { kind: 'ok' }, t('skEnabled')) : h(Chip, null, t('skDisabled')),
+                item.problem === null ? null : h(Chip, { kind: 'warn' }, t('skUnloadable')),
+                item.modelInvocable === true ? null : h(Chip, null, t('skUserOnly')),
+                h(Chip, null, item.form === 'bundle' ? t('skFormBundle') : t('skFormFile')),
+              ),
+              h('div', { className: 'yk-itemDesc' }, item.description === '' ? t('skNoDescription') : item.description),
+              h(
+                'div',
+                { className: 'yk-itemMeta' },
+                h('span', { className: 'yk-mono' }, item.key),
+                h('span', null, formatBytes(item.size)),
+                item.mtime === null ? null : h('span', null, formatTime(item.mtime)),
+                problem === '' ? null : h('span', { className: 'yk-dangerText' }, problem),
+              ),
+            ),
+            h(
+              'div',
+              { className: asking ? 'yk-itemActions yk-itemActionsConfirm' : 'yk-itemActions' },
+              asking
+                ? h(ConfirmActions, {
+                    t,
+                    title: t('skDeleteHint'),
+                    busy,
+                    confirmLabel: t('skDelete'),
+                    onCancel: () => setConfirming(''),
+                    onConfirm: () => remove(item),
+                  })
+                : h(
+                    React.Fragment,
+                    null,
+                    h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', disabled: busy !== '', onClick: () => openEditor(item) }, t('skEdit')),
+                    h(
+                      'a',
+                      { className: 'yk-btn yk-btn-ghost yk-iconBtn', href: skillDownload(item), title: t('skDownload'), 'aria-label': t('skDownload') },
+                      h(DownloadIcon, { width: 15, height: 15 }),
+                    ),
+                    h(
+                      'button',
+                      { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', disabled: busy !== '', onClick: () => toggle(item) },
+                      t(item.state === 'enabled' ? 'skDisable' : 'skEnable'),
+                    ),
+                    h(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'yk-btn yk-btn-ghost yk-btn-sm yk-dangerHover',
+                        disabled: busy !== '',
+                        onClick: () => setConfirming(`${item.form}:${item.key}`),
+                      },
+                      t('skDelete'),
+                    ),
+                  ),
+            ),
+          ),
+        )
+      }
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        h(
+          'div',
+          { className: 'yk-toolbar' },
+          h(SearchBox, { value: query, onChange: setQuery, placeholder: t('skSearch'), t }),
+          h('span', { className: 'yk-grow' }),
+          h(FlashNote, { flash, keys: ['upload', 'delete', 'enable', 'disable', 'save'] }),
+          h('input', {
+            ref: fileRef,
+            type: 'file',
+            accept: '.md,.zip',
+            className: 'yk-fileInput',
+            tabIndex: -1,
+            'aria-hidden': 'true',
+            onChange: (event) => {
+              const file = event.target.files?.[0]
+              event.target.value = ''
+              if (file !== undefined) upload(file)
+            },
+          }),
+          h(
+            'button',
+            { type: 'button', className: 'yk-btn yk-btn-solid', disabled: busy !== '', onClick: () => fileRef.current?.click() },
+            busy === 'upload' ? h(Spinner) : h(UploadIcon, { width: 14, height: 14 }),
+            t('skUpload'),
+          ),
+          h(RefreshButton, { t, onClick: () => load(), spinning: busy === 'load' }),
+        ),
+        h(Failure, { t, name: 'skills', error: failure, onRetry: () => load() }),
+        notes.includes('name-differs') ? h(Banner, { kind: 'warn', text: t('skNameDiffers') }) : null,
+        items === null
+          ? busy === 'load'
+            ? h(Loading, { text: t('loading') })
+            : null
+          : items.length === 0
+            ? h(Empty, { icon: h(SkillIcon, { width: 22, height: 22 }), title: t('skEmpty'), hint: t('skEmptyHint') })
+            : visible.length === 0
+              ? h(Empty, { icon: h(SearchIcon, { width: 22, height: 22 }), title: t('skNoMatch') })
+              : h('div', { className: 'yk-list' }, visible.map(renderItem)),
+        payload === null
+          ? null
+          : h(
+              'div',
+              { className: 'yk-foot' },
+              h('span', null, counted(t, 'skCountOne', 'skCount', visible.length)),
+              h('span', { className: 'yk-footDot' }, '·'),
+              h('span', { className: 'yk-mono' }, payload.root),
+              h(CopyButton, { text: payload.root, label: t('copy'), t }),
+              h('span', { className: 'yk-footDot' }, '·'),
+              h('span', { className: 'yk-mono' }, payload.disabledRoot),
+            ),
+      )
+    }
+
+    function PresetsTab({ t }) {
+      const [state, setState] = React.useState(null)
+      const [failure, setFailure] = React.useState(null)
+      const [busy, setBusy] = React.useState('')
+      const [flash, show] = useFlash(4200)
+      const [view, setView] = React.useState('list')
+      const [draft, setDraft] = React.useState(null)
+      const [composition, setComposition] = React.useState(null)
+      const [confirmId, setConfirmId] = React.useState('')
+      const [pickPurpose, setPickPurpose] = React.useState('template')
+      const [importFrom, setImportFrom] = React.useState(null)
+      const [chosen, setChosen] = React.useState([])
+      const [advanced, setAdvanced] = React.useState(null)
+      const [jsonError, setJsonError] = React.useState('')
+      const [customRow, setCustomRow] = React.useState(null)
+      const { signal, alive } = useAbortOnUnmount()
+
+      const load = React.useCallback(async () => {
+        setBusy('load')
+        try {
+          const payload = await getJson(`${API.presets}/state`, signal)
+          if (!alive.current) return
+          setState(payload)
+          setFailure(null)
+        } catch (error) {
+          if (alive.current && error?.name !== 'AbortError') setFailure(failureOf(error))
+        } finally {
+          if (alive.current) setBusy('')
+        }
+      }, [])
+
+      React.useEffect(() => {
+        load()
+      }, [load])
+
+      const items = state?.items ?? []
+      const busyNow = busy !== ''
+
+      const run = async (name, operation) => {
+        setBusy(name)
+        setFailure(null)
+        try {
+          await operation()
+        } catch (error) {
+          setFailure(failureOf(error))
+        } finally {
+          setBusy('')
+          setCustomRow(null)
+        }
+      }
+
+      const readTemplate = async (id) => {
+        const payload = await getJson(`${API.presets}/template?id=${encodeURIComponent(id)}`, signal)
+        return payload
+      }
+
+      /** Start a new preset from `item`'s composition, or from nothing. */
+      const startCreate = (item) =>
+        run('template', async () => {
+          const taken = new Set(items.map((row) => row.id))
+          let plugins = []
+          let source = 'blank'
+          let notes = []
+          if (item !== null && item !== undefined) {
+            const payload = await readTemplate(item.id)
+            plugins = payload.plugins ?? []
+            source = payload.source ?? item.source
+            notes = payload.notes ?? []
+          }
+          if (!alive.current) return
+          setComposition(null)
+          setAdvanced(null)
+          setJsonError('')
+          setDraft({
+            mode: 'create',
+            declared: false,
+            id: item === null || item === undefined ? '' : copyPresetId(item.id, taken),
+            name: item === null || item === undefined ? '' : fill(t('pCopyName'), { name: item.name ?? item.id }),
+            description: item?.description ?? '',
+            order: '',
+            plugins,
+            template: item === null || item === undefined ? null : { id: item.id, name: item.name ?? item.id, source, notes },
+          })
+          setView('edit')
+        })
+
+      const startEdit = (item) =>
+        run('get', async () => {
+          const payload = await getJson(`${API.presets}/get?id=${encodeURIComponent(item.id)}`, signal)
+          if (!alive.current) return
+          setComposition(null)
+          setAdvanced(null)
+          setJsonError('')
+          setDraft({
+            mode: 'edit',
+            declared: item.source !== 'store',
+            id: item.id,
+            name: item.name ?? '',
+            description: item.description ?? '',
+            order: item.order === null || item.order === undefined ? '' : String(item.order),
+            plugins: payload.plugins ?? [],
+            template: null,
+          })
+          setView('edit')
+        })
+
+      const showComposition = (item) =>
+        run('get', async () => {
+          const payload = await getJson(`${API.presets}/get?id=${encodeURIComponent(item.id)}`, signal)
+          if (!alive.current) return
+          setComposition({ item, plugins: payload.plugins, yaml: payload.yaml })
+          setView('composition')
+        })
+
+      const save = () =>
+        run('save', async () => {
+          if (draft === null) return
+          const body = {
+            id: draft.id.trim(),
+            name: draft.name.trim(),
+            description: draft.description.trim(),
+            plugins: draft.plugins,
+          }
+          if (String(draft.order).trim() !== '') body.order = Number(draft.order)
+          const action = draft.mode === 'create' ? 'create' : 'update'
+          await postJson(`${API.presets}/${action}`, body, signal)
+          if (!alive.current) return
+          setDraft(null)
+          setView('list')
+          show('save', t('pSaved'))
+          await load()
+        })
+
+      const removeItem = (id) =>
+        run('delete', async () => {
+          await postJson(`${API.presets}/delete`, { id }, signal)
+          if (!alive.current) return
+          setConfirmId('')
+          show('delete', t('pDeleted'))
+          await load()
+        })
+
+      const startImport = () => {
+        setPickPurpose('import')
+        setImportFrom(null)
+        setChosen([])
+        setView('template')
+      }
+
+      const chooseImport = (item) =>
+        run('template', async () => {
+          const payload = await readTemplate(item.id)
+          if (!alive.current) return
+          const rows = importableRows(payload.plugins)
+          setImportFrom({ id: item.id, name: item.name ?? item.id, rows })
+          setChosen(rows.map(() => false))
+          setPickPurpose('import')
+          setView('import')
+        })
+
+      const confirmImport = () => {
+        if (importFrom === null) return
+        const picked = importFrom.rows.filter((row, index) => chosen[index] === true)
+        setDraft((current) =>
+          current === null ? current : { ...current, plugins: [...current.plugins, ...structuredClone(picked)] },
+        )
+        setView('edit')
+        setImportFrom(null)
+        setChosen([])
+      }
+
+      /* ------------------------------------------------------------- editor ops */
+
+      const patchRow = (index, change) =>
+        setDraft((current) =>
+          current === null
+            ? current
+            : { ...current, plugins: current.plugins.map((row, position) => (position === index ? change(structuredClone(row)) : row)) },
+        )
+
+      const removeRow = (index) =>
+        setDraft((current) =>
+          current === null ? current : { ...current, plugins: current.plugins.filter((row, position) => position !== index) },
+        )
+
+      const addRow = (row) => setDraft((current) => (current === null ? current : { ...current, plugins: [...current.plugins, row] }))
+
+      const personaIndex =
+        draft === null ? -1 : draft.plugins.findIndex((row) => row !== null && typeof row === 'object' && row.name === '@deepseek-ai/dsh-persona')
+      const persona = personaIndex === -1 ? null : draft.plugins[personaIndex]
+
+      const setPersona = (field, value) =>
+        patchRow(personaIndex, (row) => ({
+          ...row,
+          config: { ...(row.config && typeof row.config === 'object' ? row.config : {}), [field]: value },
+        }))
+
+      const applyAdvanced = () => {
+        let parsed
+        try {
+          parsed = JSON.parse(advanced ?? JSON.stringify(draft?.plugins ?? [], null, 2))
+        } catch (error) {
+          setJsonError(fill(t('pJsonInvalid'), { error: messageOf(error) }))
+          return
+        }
+        if (!Array.isArray(parsed)) {
+          setJsonError(t('pJsonShape'))
+          return
+        }
+        const bad = parsed.findIndex((row) => row === null || typeof row !== 'object' || typeof row.name !== 'string' || row.name === '')
+        if (bad !== -1) {
+          setJsonError(`${t('pJsonShape')}（${fill(t('pJsonRow'), { n: bad + 1 })}）`)
+          return
+        }
+        setJsonError('')
+        setDraft((current) => (current === null ? current : { ...current, plugins: parsed }))
+        setAdvanced(null)
+      }
+
+      /* ------------------------------------------------------------------ views */
+
+      const closeEditor = () => {
+        setDraft(null)
+        setAdvanced(null)
+        setJsonError('')
+        setView('list')
+      }
+
+      const editorHeader = () =>
+        h(SubpageHeader, {
+          t,
+          title: draft.mode === 'create' ? t('pNewTitle') : t('pEditTitle'),
+          note:
+            draft.template === null
+              ? draft.mode === 'create' ? t('pBlankTitle') : draft.declared ? t('pDeclaredHint') : t('pMine')
+              : fill(t('pTemplateTag'), { name: draft.template.name }),
+          onBack: closeEditor,
+        })
+
+      const field = (labelKey, control, hint) =>
+        h(
+          'label',
+          { className: 'yk-field' },
+          h('span', { className: 'yk-fieldLabel' }, t(labelKey)),
+          control,
+          hint === undefined ? null : h('span', { className: 'yk-itemMeta' }, hint),
+        )
+
+      const renderRow = (row, index) => {
+        const condition = rowCondition(row)
+        const group = row.group === true && Array.isArray(row.config)
+        return h(
+          'li',
+          { className: 'yk-presetRow', key: `${row.id ?? row.name}-${index}` },
+          h(
+            'div',
+            { className: 'yk-presetRowHead' },
+            h('code', { className: 'yk-presetRowName' }, row.name),
+            row.id === undefined ? null : h('span', { className: 'yk-itemMeta' }, row.id),
+            group ? h(Chip, { kind: 'accent' }, `${t('pRowGroup')} ${row.config.length}`) : null,
+            condition !== null ? h(Chip, { kind: 'warn' }, `${t('pRowCondition')}: ${condition}`) : null,
+            row.disabled === true && condition === null ? h(Chip, { kind: 'danger' }, t('pRowDisabled')) : null,
+          ),
+          h(
+            'div',
+            { className: 'yk-itemActions' },
+            condition !== null
+              ? null
+              : h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'yk-btn yk-btn-ghost yk-btn-sm',
+                    'aria-pressed': row.disabled !== true,
+                    onClick: () => patchRow(index, (next) => ({ ...next, disabled: next.disabled === true ? false : true })),
+                  },
+                  row.disabled === true ? t('pRowEnable') : t('pRowDisable'),
+                ),
+            h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm yk-iconBtn', title: t('pRemoveRow'), 'aria-label': t('pRemoveRow'), onClick: () => removeRow(index) },
+              h(TrashIcon, { width: 13, height: 13 }),
+            ),
+          ),
+        )
+      }
+
+      if (view === 'composition') {
+        return h(
+          'div',
+          { className: 'yk-body' },
+          h(SubpageHeader, {
+            t,
+            title: composition?.item?.name ?? composition?.item?.id ?? '',
+            note: composition?.item?.id ?? '',
+            onBack: () => setView('list'),
+          }),
+          composition?.plugins === null || composition?.plugins === undefined
+            ? h('p', { className: 'yk-foot' }, t('pNoStructure'))
+            : h('pre', { className: 'yk-out yk-outTall' }, JSON.stringify(composition.plugins, null, 2)),
+          composition?.yaml === null || composition?.yaml === undefined
+            ? null
+            : h(Card, { title: t('pYaml'), note: t('pYamlHint'), span: true }, h('pre', { className: 'yk-out yk-outTall' }, composition.yaml)),
+        )
+      }
+
+      if (view === 'template' && pickPurpose === 'import') {
+        return h(
+          'div',
+          { className: 'yk-body' },
+          h(Failure, { t, name: 'presets', error: failure, onRetry: () => load() }),
+          h(SubpageHeader, { t, title: t('pImportRows'), onBack: () => setView('edit') }),
+          h('p', { className: 'yk-foot' }, t('pImportPick')),
+          h(
+            'ul',
+            { className: 'yk-list' },
+            items.filter((item) => item.canTemplate).map((item) =>
+              h(
+                'li',
+                { className: 'yk-item', key: item.id },
+                h(
+                  'div',
+                  { className: 'yk-itemMain' },
+                  h('div', { className: 'yk-itemTitleRow' }, h('span', { className: 'yk-itemTitle' }, item.name ?? item.id)),
+                  h(
+                    'div',
+                    { className: 'yk-itemMeta' },
+                    h('span', null, item.id),
+                    h('span', null, item.rows === null ? t('pRowsUnknown') : fill(t('pRowsCount'), { n: item.rows })),
+                  ),
+                ),
+                h(
+                  'div',
+                  { className: 'yk-itemActions' },
+                  h('button', { type: 'button', className: 'yk-btn yk-btn-sm', onClick: () => chooseImport(item), disabled: busyNow }, t('pImportChoose')),
+                ),
+              ),
+            ),
+          ),
+        )
+      }
+
+      if (view === 'import' && importFrom !== null) {
+        const pickedCount = chosen.filter(Boolean).length
+        return h(
+          'div',
+          { className: 'yk-body' },
+          h(Failure, { t, name: 'presets', error: failure, onRetry: () => load() }),
+          h(SubpageHeader, {
+            t,
+            title: fill(t('pImportFrom'), { name: importFrom.name }),
+            note: t('pImportHint'),
+            onBack: () => setView('template'),
+          }),
+          h(
+            'ul',
+            { className: 'yk-list' },
+            importFrom.rows.map((row, index) =>
+              h(
+                'li',
+                { className: 'yk-item', key: `${row.id ?? row.name}-${index}` },
+                h(
+                  'label',
+                  { className: 'yk-itemMain yk-itemMain-row' },
+                  h('input', {
+                    type: 'checkbox',
+                    checked: chosen[index] === true,
+                    onChange: (event) =>
+                      setChosen((current) => current.map((value, position) => (position === index ? event.target.checked : value))),
+                  }),
+                  h('code', { className: 'yk-presetRowName' }, row.name),
+                  row.group === true ? h(Chip, { kind: 'accent' }, t('pRowGroup')) : null,
+                ),
+              ),
+            ),
+          ),
+          h(
+            'div',
+            { className: 'yk-toolbar' },
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'yk-btn yk-btn-sm',
+                onClick: () => setChosen((current) => current.map(() => true)),
+              },
+              t('pSelectAll'),
+            ),
+            h('span', { className: 'yk-grow' }),
+            h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-solid yk-btn-sm', onClick: confirmImport, disabled: pickedCount === 0 },
+              fill(t('pImportAdd'), { n: pickedCount }),
+            ),
+          ),
+        )
+      }
+
+      if (view === 'template') {
+        return h(
+          'div',
+          { className: 'yk-body' },
+          h(Failure, { t, name: 'presets', error: failure, onRetry: () => load() }),
+          h(SubpageHeader, {
+            t,
+            title: t('pChooseTemplate'),
+            note: t('pChooseTemplateHint'),
+            onBack: () => (draft === null ? setView('list') : setView('edit')),
+          }),
+          h(
+            'ul',
+            { className: 'yk-list' },
+            h(
+              'li',
+              { className: 'yk-item', key: '__blank' },
+              h(
+                'div',
+                { className: 'yk-itemMain' },
+                h('div', { className: 'yk-itemTitleRow' }, h('span', { className: 'yk-itemTitle' }, t('pBlankTitle'))),
+                h('div', { className: 'yk-itemMeta' }, h('span', null, t('pBlankHint'))),
+              ),
+              h(
+                'div',
+                { className: 'yk-itemActions' },
+                h('button', { type: 'button', className: 'yk-btn yk-btn-sm', onClick: () => startCreate(null), disabled: busyNow }, t('pUseTemplate')),
+              ),
+            ),
+            items
+              .filter((item) => item.canTemplate)
+              .map((item) =>
+                h(
+                  'li',
+                  { className: 'yk-item', key: item.id },
+                  h(
+                    'div',
+                    { className: 'yk-itemMain' },
+                    h(
+                      'div',
+                      { className: 'yk-itemTitleRow' },
+                      h('span', { className: 'yk-itemTitle' }, item.name ?? item.id),
+                      h(Chip, { kind: item.source === 'store' ? 'accent' : undefined }, t(PRESET_SOURCE_LABEL[item.source])),
+                      item.isDefault ? h(Chip, { kind: 'ok' }, t('pDefault')) : null,
+                    ),
+                    h(
+                      'div',
+                      { className: 'yk-itemMeta' },
+                      h('span', null, item.id),
+                      h('span', null, item.rows === null ? t('pRowsUnknown') : fill(t('pRowsCount'), { n: item.rows })),
+                      item.description ? h('span', null, item.description) : null,
+                    ),
+                  ),
+                  h(
+                    'div',
+                    { className: 'yk-itemActions' },
+                    h('button', { type: 'button', className: 'yk-btn yk-btn-sm', onClick: () => showComposition(item), disabled: busyNow }, t('pView')),
+                    h('button', { type: 'button', className: 'yk-btn yk-btn-solid yk-btn-sm', onClick: () => startCreate(item), disabled: busyNow }, t('pUseTemplate')),
+                  ),
+                ),
+              ),
+          ),
+          busy === 'template' ? h(Loading, { text: t('loading') }) : null,
+        )
+      }
+
+      if (view === 'edit' && draft !== null) {
+        return h(
+          'div',
+          { className: 'yk-body' },
+          h(Failure, { t, name: 'presets', error: failure, onRetry: () => load() }),
+          editorHeader(),
+          h(
+            'div',
+            { className: 'yk-form' },
+            field(
+              'pName',
+              h('input', {
+                className: 'yk-input',
+                value: draft.name,
+                placeholder: t('pNamePlaceholder'),
+                maxLength: state?.limits?.nameMax ?? 80,
+                onChange: (event) => setDraft({ ...draft, name: event.target.value }),
+              }),
+            ),
+            field(
+              'pId',
+              h('input', {
+                className: 'yk-input',
+                value: draft.id,
+                placeholder: t('pIdPlaceholder'),
+                spellCheck: false,
+                disabled: draft.mode === 'edit',
+                onChange: (event) => setDraft({ ...draft, id: event.target.value }),
+              }),
+              draft.mode === 'edit' ? t('pIdLocked') : t('pIdHint'),
+            ),
+            field(
+              'pOrder',
+              h('input', {
+                className: 'yk-input',
+                value: draft.order,
+                inputMode: 'numeric',
+                placeholder: t('pOrderHint'),
+                onChange: (event) => setDraft({ ...draft, order: event.target.value }),
+              }),
+            ),
+          ),
+          field(
+            'pDescription',
+            h('input', {
+              className: 'yk-input',
+              value: draft.description,
+              maxLength: state?.limits?.descMax ?? 500,
+              placeholder: t('pDescriptionPlaceholder'),
+              onChange: (event) => setDraft({ ...draft, description: event.target.value }),
+            }),
+          ),
+          h(
+            Card,
+            { title: t('pPersona'), note: t('pPersonaHint'), span: true },
+            persona === null
+              ? h(
+                  'div',
+                  { className: 'yk-toolbar' },
+                  h('span', { className: 'yk-foot' }, t('pPersonaMissing')),
+                  h(
+                    'button',
+                    {
+                      type: 'button',
+                      className: 'yk-btn yk-btn-sm',
+                      onClick: () => addRow({ id: 'persona', name: '@deepseek-ai/dsh-persona', config: { prefix: '' } }),
+                    },
+                    t('pPersonaAdd'),
+                  ),
+                )
+              : h(
+                  'div',
+                  { className: 'yk-stack' },
+                  h('textarea', {
+                    className: 'yk-input yk-textarea yk-textareaTall',
+                    value: typeof persona.config?.prefix === 'string' ? persona.config.prefix : '',
+                    placeholder: t('pPersonaPlaceholder'),
+                    onChange: (event) => setPersona('prefix', event.target.value),
+                  }),
+                  h('input', {
+                    className: 'yk-input',
+                    value: typeof persona.config?.suffix === 'string' ? persona.config.suffix : '',
+                    placeholder: t('pPersonaSuffix'),
+                    onChange: (event) => setPersona('suffix', event.target.value),
+                  }),
+                ),
+          ),
+          h(
+            Card,
+            {
+              title: fill(t('pRowsTitle'), { n: draft.plugins.length }),
+              note: t('pRowsHint'),
+              span: true,
+              action: h(
+                'div',
+                { className: 'yk-itemActions' },
+                h('button', { type: 'button', className: 'yk-btn yk-btn-sm', onClick: startImport, disabled: busyNow }, t('pImportRows')),
+                h('button', { type: 'button', className: 'yk-btn yk-btn-sm', onClick: () => setCustomRow({ name: '', id: '', config: '' }) }, t('pAddRow')),
+              ),
+            },
+            draft.plugins.length === 0
+              ? h('p', { className: 'yk-foot' }, t('pEmptyComposition'))
+              : h('ul', { className: 'yk-presetRows' }, draft.plugins.map((row, index) => renderRow(row, index))),
+            customRow === null
+              ? null
+              : h(
+                  'div',
+                  { className: 'yk-customRow' },
+                  h('input', {
+                    className: 'yk-input',
+                    value: customRow.name,
+                    placeholder: t('pRowName'),
+                    onChange: (event) => setCustomRow({ ...customRow, name: event.target.value }),
+                  }),
+                  h('input', {
+                    className: 'yk-input',
+                    value: customRow.id,
+                    placeholder: t('pRowId'),
+                    onChange: (event) => setCustomRow({ ...customRow, id: event.target.value }),
+                  }),
+                  h('textarea', {
+                    className: 'yk-input yk-textarea',
+                    value: customRow.config,
+                    placeholder: t('pRowConfig'),
+                    onChange: (event) => setCustomRow({ ...customRow, config: event.target.value }),
+                  }),
+                  h(
+                    'div',
+                    { className: 'yk-toolbar' },
+                    h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => setCustomRow(null) }, t('pCancel')),
+                    h('span', { className: 'yk-grow' }),
+                    h(
+                      'button',
+                      {
+                        type: 'button',
+                        className: 'yk-btn yk-btn-solid yk-btn-sm',
+                        onClick: () =>
+                          run('row', async () => {
+                            const name = customRow.name.trim()
+                            if (name === '') throw new Error(t('pRowNameRequired'))
+                            let config
+                            if (customRow.config.trim() !== '') {
+                              try {
+                                config = JSON.parse(customRow.config)
+                              } catch (error) {
+                                throw new Error(fill(t('pJsonInvalid'), { error: messageOf(error) }))
+                              }
+                            }
+                            const row = { name }
+                            if (customRow.id.trim() !== '') row.id = customRow.id.trim()
+                            if (config !== undefined) row.config = config
+                            addRow(row)
+                          }),
+                      },
+                      t('pAdd'),
+                    ),
+                  ),
+                ),
+          ),
+          h(
+            Disclosure,
+            { title: t('pAdvanced') },
+            h('div', { className: 'yk-foot' }, t('pAdvancedHint')),
+            h('textarea', {
+              className: 'yk-input yk-textarea yk-textareaCode',
+              value: advanced ?? JSON.stringify(draft.plugins, null, 2),
+              spellCheck: false,
+              onChange: (event) => setAdvanced(event.target.value),
+            }),
+            jsonError === '' ? null : h('p', { className: 'yk-foot yk-footError', role: 'alert' }, jsonError),
+            h('div', { className: 'yk-toolbar' }, h('span', { className: 'yk-grow' }), h('button', { type: 'button', className: 'yk-btn yk-btn-sm', onClick: applyAdvanced }, t('pApply'))),
+          ),
+          h(
+            'div',
+            { className: 'yk-toolbar' },
+            h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', onClick: closeEditor, disabled: busyNow }, t('pCancel')),
+            h('span', { className: 'yk-grow' }),
+            flash?.key === 'save' ? h('span', { className: 'yk-flash' }, flash.text) : null,
+            h(
+              'button',
+              { type: 'button', className: 'yk-btn yk-btn-solid', onClick: save, disabled: busyNow },
+              busy === 'save' ? h(Spinner, { size: 13 }) : null,
+              t('pSave'),
+            ),
+          ),
+        )
+      }
+
+      /* ------------------------------------------------------------------- list */
+
+      return h(
+        'div',
+        { className: 'yk-body' },
+        h(Failure, { t, name: 'presets', error: failure, onRetry: () => load() }),
+        state?.storeError ? h(Banner, { kind: 'error', text: fill(t('pStoreBroken'), { error: state.storeError }) }) : null,
+        state?.declaredError ? h(Banner, { kind: 'warn', text: state.declaredError }) : null,
+        h(
+          'div',
+          { className: 'yk-toolbar' },
+          h(
+            'div',
+            { className: 'yk-grow yk-listHead' },
+            h('div', { className: 'yk-listTitle' }, t('tabPresets')),
+            h('div', { className: 'yk-itemMeta' }, `${t('pIntro')} ${t('pTrust')}`),
+          ),
+          flash?.key === 'save' ? h('span', { className: 'yk-flash' }, flash.text) : null,
+          flash?.key === 'delete' ? h('span', { className: 'yk-flash' }, flash.text) : null,
+          h(RefreshButton, { t, onClick: load, spinning: busy === 'load' }),
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'yk-btn yk-btn-solid yk-btn-sm',
+              onClick: () => {
+                setPickPurpose('template')
+                setView('template')
+              },
+              disabled: busyNow,
+            },
+            t('pNew'),
+          ),
+        ),
+        state === null && busy === 'load' ? h(Loading, { text: t('loading') }) : null,
+        PRESET_GROUPS.map(([source, titleKey, hintKey]) => {
+          const rows = items.filter((item) => item.source === source)
+          if (rows.length === 0 && source !== 'store') return null
+          return h(
+            'section',
+            { className: 'yk-presetGroup', key: source },
+            h('div', { className: 'yk-presetGroupHead' }, h('span', null, t(titleKey)), h('span', { className: 'yk-itemMeta' }, t(hintKey))),
+            rows.length === 0
+              ? h('p', { className: 'yk-foot' }, t('pEmptyList'))
+              : h(
+                  'ul',
+                  { className: 'yk-list' },
+                  rows.map((item) => [
+                    h(
+                      'li',
+                      { className: 'yk-item', key: item.id },
+                      h(
+                        'div',
+                        { className: 'yk-itemMain' },
+                        h(
+                          'div',
+                          { className: 'yk-itemTitleRow' },
+                          h('span', { className: 'yk-itemTitle' }, item.name ?? item.id),
+                          item.isDefault ? h(Chip, { kind: 'accent' }, t('pDefault')) : null,
+                          item.broken ? h(Chip, { kind: 'danger' }, t('pConflict')) : null,
+                        ),
+                        h(
+                          'div',
+                          { className: 'yk-itemMeta' },
+                          h('code', { className: 'yk-presetId' }, item.id),
+                          h('span', null, item.rows === null ? t('pRowsUnknown') : fill(t('pRowsCount'), { n: item.rows })),
+                          item.description ? h('span', null, item.description) : null,
+                          item.reason ? h('span', null, item.reason) : null,
+                          item.broken ? h('span', null, item.broken) : null,
+                        ),
+                      ),
+                      h(
+                        'div',
+                        { className: confirmId === item.id ? 'yk-itemActions yk-itemActionsConfirm' : 'yk-itemActions' },
+                        confirmId === item.id
+                          ? h(ConfirmActions, {
+                              t,
+                              title: t('pDeleteHint'),
+                              busy,
+                              confirmLabel: t('pDelete'),
+                              onCancel: () => setConfirmId(''),
+                              onConfirm: () => removeItem(item.id),
+                            })
+                          : h(
+                              React.Fragment,
+                              null,
+                              h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => showComposition(item), disabled: busyNow }, t('pView')),
+                              item.canTemplate
+                                ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => startCreate(item), disabled: busyNow }, t('pCopy'))
+                                : null,
+                              item.canEdit
+                                ? h('button', { type: 'button', className: 'yk-btn yk-btn-sm', onClick: () => startEdit(item), disabled: busyNow }, t('pEdit'))
+                                : null,
+                              item.canDelete
+                                ? h(
+                                    'button',
+                                    {
+                                      type: 'button',
+                                      className: 'yk-btn yk-btn-ghost yk-btn-sm yk-dangerHover',
+                                      onClick: () => setConfirmId(item.id),
+                                      disabled: busyNow,
+                                    },
+                                    t('pDelete'),
+                                  )
+                                : null,
+                            ),
+                      ),
+                    ),
+                  ]),
+                ),
+          )
+        }),
+      )
+    }
+
+    /* ----------------------------------------------------------------- shell */
+
+    const TABS = ['overview', 'chats', 'sites', 'files', 'rules', 'skills', 'presets', 'proxy', 'github', 'browser', 'purge', 'runtime']
+    const TAB_STORAGE_KEY = 'yukari-dsh-plugin:tab'
+    const TAB_LABEL = { overview: 'tabOverview', chats: 'tabChats', sites: 'tabSites', files: 'tabFiles', rules: 'tabRules', skills: 'tabSkills', presets: 'tabPresets', proxy: 'tabProxy', github: 'tabGithub', browser: 'compBrowser', purge: 'tabPurge', runtime: 'tabRuntime' }
+    const TAB_ICON = { overview: OverviewIcon, chats: ChatIcon, sites: SitesIcon, files: FolderIcon, rules: RulesIcon, skills: SkillIcon, presets: PresetsIcon, proxy: RouteIcon, github: GithubIcon, browser: GlobeIcon, purge: PurgeIcon, runtime: PowerIcon }
+
+    function readStoredTab() {
+      try {
+        const stored = window.localStorage.getItem(TAB_STORAGE_KEY)
+        return stored !== null && TABS.includes(stored) ? stored : 'overview'
+      } catch {
+        return 'overview'
+      }
+    }
+
+    /** 重启意图的落盘键；值里带当前 Host 的启动标识。 */
+    const RESTART_KEY = 'yukari-dsh-plugin:restarting'
+
+    /** 一份重启意图两分钟内有效：超时说明这次重启根本没发生。 */
+    const RESTART_TTL_MS = 120000
+
+    /**
+     * 读回未完成的重启意图。
+     *
+     * 更新插件会换掉 `client.js`，客户端模块随即重载、面板整体重建；只把
+     * "正在重启"放在内存里的结果就是重建之后回到主界面，还要再点一次重启。
+     * @returns `{ at, bootId }`，没有或已过期时为 null。
+     */
+    function readRestart() {
+      try {
+        const parsed = JSON.parse(window.localStorage.getItem(RESTART_KEY) ?? 'null')
+        if (parsed === null || typeof parsed !== 'object') return null
+        const at = Number(parsed.at)
+        if (!Number.isFinite(at) || Date.now() - at > RESTART_TTL_MS) return null
+        return { at, bootId: typeof parsed.bootId === 'string' && parsed.bootId !== '' ? parsed.bootId : null }
+      } catch {
+        return null
+      }
+    }
+
+    /** 记下"正在重启"，返回同一条记录。 */
+    function markRestart(bootId) {
+      const value = { at: Date.now(), bootId: typeof bootId === 'string' && bootId !== '' ? bootId : null }
+      try {
+        window.localStorage.setItem(RESTART_KEY, JSON.stringify(value))
+      } catch {
+        /* 存不下只是少一次跨重载的恢复 */
+      }
+      return value
+    }
+
+    function clearRestart() {
+      try {
+        window.localStorage.removeItem(RESTART_KEY)
+      } catch {
+        /* 同上 */
+      }
+    }
+
+    /** Header update control: check first, then offer the update, then the restart. */
+    function UpdateControl({ t, components, onRestart }) {
+      const [phase, setPhase] = React.useState('idle')
+      const [info, setInfo] = React.useState(null)
+      const [message, setMessage] = React.useState('')
+
+      React.useEffect(() => {
+        if (phase !== 'latest') return undefined
+        const timer = setTimeout(() => setPhase('idle'), 4000)
+        return () => clearTimeout(timer)
+      }, [phase])
+
+      const check = async () => {
+        setPhase('checking')
+        try {
+          const payload = await getJson(API.update)
+          setInfo(payload.update)
+          setPhase(payload.update.pendingRestart ? 'pending' : payload.update.available ? (payload.update.updatable ? 'available' : 'manual') : 'latest')
+        } catch (error) {
+          setMessage(fill(t('upFailed'), { error: messageOf(error) }))
+          setPhase('error')
+        }
+      }
+
+      const update = async () => {
+        setPhase('updating')
+        try {
+          // 同一次请求允许 Host 在必须重启时直接安排；HMR 已应用的新版不再重启。
+          // 若确需重启，Host 会在写回响应之后执行，客户端重载不会丢掉这一步。
+          const payload = await postJson(API.update, { restart: true })
+          setInfo({ ...payload.update, installed: payload.installed ?? payload.update?.installed })
+          if (payload.restarted === true) {
+            onRestart()
+            return
+          }
+          setPhase(payload.updated ? (payload.update?.pendingRestart ? 'pending' : 'done') : 'latest')
+        } catch (error) {
+          setMessage(fill(t('upUpdateFailed'), { error: messageOf(error) }))
+          setPhase('error')
+        }
+      }
+
+      const restart = async () => {
+        try {
+          await requestRestart(components)
+          onRestart()
+        } catch (error) {
+          setMessage(fill(t('upUpdateFailed'), { error: messageOf(error) }))
+          setPhase('error')
+        }
+      }
+
+      const status =
+        phase === 'checking' ? { kind: 'busy', text: t('upChecking') }
+          : phase === 'updating' ? { kind: 'busy', text: t('upUpdating') }
+            : phase === 'latest' ? { kind: 'ok', text: t('upLatest') }
+              : phase === 'available' ? { kind: 'warn', text: fill(t('upAvailable'), { version: `v${info?.latest ?? ''}${info?.latestCommit ? ` (${info.latestCommit})` : ''}` }), action: h('button', { type: 'button', className: 'yk-btn yk-btn-solid yk-btn-sm', onClick: update }, t('upNow')) }
+                : phase === 'manual' ? { kind: 'warn', text: t('upManual') }
+                  : phase === 'done' ? { kind: 'ok', text: fill(t('upDone'), { version: `v${info?.installed ?? info?.latest ?? ''}` }) }
+                  : phase === 'pending' ? { kind: 'warn', text: fill(t('upPending'), { version: `v${info?.installed ?? info?.latest ?? ''}` }), action: h('button', { type: 'button', className: 'yk-btn yk-btn-solid yk-btn-sm', onClick: restart }, h(PowerIcon, { width: 13, height: 13 }), t('upRestart')) }
+                    : phase === 'error' ? { kind: 'error', text: message }
+                      : null
+
+      // One pill that changes in place: idle → checking → result (→ updating → restart).
+      const idleLike = status === null
+      const clickable = idleLike || phase === 'latest' || phase === 'error'
+      return h(
+        'div',
+        { className: 'yk-update', role: 'status', 'aria-live': 'polite' },
+        h(
+          clickable ? 'button' : 'div',
+          {
+            ...(clickable ? { type: 'button', onClick: check, title: t('upCheck') } : {}),
+            className: `yk-updatePill${status === null ? '' : ` yk-updateStatus-${status.kind}`}${clickable ? ' yk-updatePill-click' : ''}`,
+          },
+          idleLike
+            ? h(React.Fragment, null, h(RefreshIcon, { width: 13, height: 13 }), h('span', null, t('upCheck')))
+            : h(
+                React.Fragment,
+                null,
+                status.kind === 'busy' ? h(Spinner, { size: 13 }) : status.kind === 'ok' ? h(CheckIcon, { width: 13, height: 13 }) : null,
+                h('span', { className: 'yk-updateText', title: status.text }, status.text),
+              ),
+          !clickable && status?.action ? status.action : null,
+          phase === 'manual'
+            ? h('button', { type: 'button', className: 'yk-updateDismiss', 'aria-label': t('close'), onClick: () => setPhase('idle') }, h(ClearIcon, { width: 11, height: 11 }))
+            : null,
+        ),
+      )
+    }
+
+    function YukariPanel({ t, ui }) {
+      const [tab, setTab] = React.useState(readStoredTab)
+      const [overview, setOverview] = React.useState(null)
+      // 重启意图落盘：更新会重载客户端模块，面板整体重建一次，内存里的状态留不住。
+      const [restarting, setRestarting] = React.useState(readRestart)
+      // 落盘的意图还没跟当前进程核对过。核对之前不显示等待界面：安装新版本会先
+      // 重载客户端模块，整页刷新也可能发生在重启完成之后，那两处留下的意图都属于
+      // 一个已经不存在的进程，再显示一次「正在重启」并刷新一次就是白等。
+      const [restartSettled, setRestartSettled] = React.useState(() => restarting === null)
+      const tabsRef = React.useRef(null)
+      // 访问过的标签页保持挂载：切走再回来时草稿、滚动位置与已加载列表都还在。
+      // 没访问过的页面不提前挂载，避免一次打开面板就打 11 个请求。
+      const [visited, setVisited] = React.useState(() => [readStoredTab()])
+
+      const loadOverview = React.useCallback(async () => {
+        try {
+          const payload = await getJson(API.overview)
+          setOverview(payload.overview)
+          return payload.overview
+        } catch {
+          setOverview(null)
+          return null
+        }
+      }, [])
+
+      React.useEffect(() => {
+        let stopped = false
+        loadOverview().then((live) => {
+          if (stopped) return
+          setRestartSettled(true)
+          const intent = readRestart()
+          if (intent === null || intent.bootId === null) return
+          const boot = live?.bootId
+          // 取不到答案说明 Host 正躺着重启，等待界面照旧；取到同一个启动标识说明
+          // 写下意图的进程还在，也必须继续等。不一样的才表示重启早就完成了。
+          if (typeof boot !== 'string' || boot === '' || boot === intent.bootId) return
+          clearRestart()
+          setRestarting(null)
+        })
+        return () => {
+          stopped = true
+        }
+      }, [loadOverview])
+
+      const components = overview?.components ?? null
+      const tabs = TABS.filter((key) => key === 'overview' || components === null || Boolean(components[key]))
+      const current = tabs.includes(tab) ? tab : 'overview'
+
+      /* The tab strip is wider than the panel: the wheel and a left-button drag
+         scroll it sideways, and the fade masks only show on the side that still
+         has tabs hidden. */
+      React.useEffect(() => {
+        const bar = tabsRef.current
+        if (!bar) return undefined
+
+        const maxScroll = () => bar.scrollWidth - bar.clientWidth
+        const syncFade = () => {
+          const max = maxScroll()
+          bar.dataset.scrollable = max > 1 ? 'true' : 'false'
+          bar.style.setProperty('--yk-navFadeL', bar.scrollLeft > 1 ? '22px' : '0px')
+          bar.style.setProperty('--yk-navFadeR', bar.scrollLeft < max - 1 ? '22px' : '0px')
+        }
+
+        const onWheel = (event) => {
+          if (event.ctrlKey) return
+          /* Horizontal deltas already scroll natively; only convert the vertical wheel. */
+          if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+          const max = maxScroll()
+          if (max <= 1) return
+          const step = event.deltaMode === 1 ? event.deltaY * 16 : event.deltaMode === 2 ? event.deltaY * bar.clientWidth : event.deltaY
+          const next = Math.min(max, Math.max(0, bar.scrollLeft + step))
+          /* At either end let the page keep its own scrolling. */
+          if (next === bar.scrollLeft) return
+          bar.scrollLeft = next
+          event.preventDefault()
+          syncFade()
+        }
+
+        /* Drag-to-pan with the left button; a real drag swallows the click so the
+           tab under the cursor is not selected by accident. */
+        let drag = null
+        let swallowClick = false
+
+        const onPointerDown = (event) => {
+          if (event.pointerType !== 'mouse' || event.button !== 0) return
+          if (maxScroll() <= 1) return
+          drag = { id: event.pointerId, x: event.clientX, left: bar.scrollLeft, moved: false }
+        }
+
+        const onPointerMove = (event) => {
+          if (!drag || event.pointerId !== drag.id) return
+          const dx = event.clientX - drag.x
+          if (!drag.moved) {
+            if (Math.abs(dx) < 4) return
+            drag.moved = true
+            bar.dataset.dragging = 'true'
+            bar.setPointerCapture?.(event.pointerId)
+          }
+          event.preventDefault()
+          bar.scrollLeft = drag.left - dx
+          syncFade()
+        }
+
+        const onClickCapture = (event) => {
+          if (!swallowClick) return
+          swallowClick = false
+          event.preventDefault()
+          event.stopPropagation()
+        }
+
+        const endDrag = (event) => {
+          if (!drag) return
+          const moved = drag.moved
+          drag = null
+          delete bar.dataset.dragging
+          if (bar.hasPointerCapture?.(event.pointerId)) bar.releasePointerCapture?.(event.pointerId)
+          if (moved) swallowClick = true
+        }
+
+        bar.addEventListener('wheel', onWheel, { passive: false })
+        bar.addEventListener('pointerdown', onPointerDown)
+        bar.addEventListener('pointermove', onPointerMove)
+        bar.addEventListener('pointerup', endDrag)
+        bar.addEventListener('pointercancel', endDrag)
+        bar.addEventListener('click', onClickCapture, true)
+        bar.addEventListener('scroll', syncFade, { passive: true })
+        window.addEventListener('resize', syncFade)
+        /* The panel lives in a resizable sidebar, so the viewport resizes are not
+           enough: watch the strip itself for width changes. */
+        const watcher = typeof ResizeObserver === 'function' ? new ResizeObserver(syncFade) : null
+        watcher?.observe(bar)
+        syncFade()
+        return () => {
+          watcher?.disconnect()
+          bar.removeEventListener('wheel', onWheel)
+          bar.removeEventListener('pointerdown', onPointerDown)
+          bar.removeEventListener('pointermove', onPointerMove)
+          bar.removeEventListener('pointerup', endDrag)
+          bar.removeEventListener('pointercancel', endDrag)
+          bar.removeEventListener('click', onClickCapture, true)
+          bar.removeEventListener('scroll', syncFade)
+          window.removeEventListener('resize', syncFade)
+        }
+      }, [tabs.length])
+
+      const select = React.useCallback((next) => {
+        setVisited((current) => (current.includes(next) ? current : [...current, next]))
+        setTab(next)
+        try {
+          window.localStorage.setItem(TAB_STORAGE_KEY, next)
+        } catch {
+          /* memory only */
+        }
+      }, [])
+
+      const onTabKeyDown = (event) => {
+        const index = tabs.indexOf(current)
+        const next =
+          event.key === 'ArrowRight' ? (index + 1) % tabs.length
+            : event.key === 'ArrowLeft' ? (index - 1 + tabs.length) % tabs.length
+              : event.key === 'Home' ? 0
+                : event.key === 'End' ? tabs.length - 1
+                  : null
+        if (next === null) return
+        event.preventDefault()
+        select(tabs[next])
+        tabsRef.current?.querySelectorAll('[role="tab"]')?.[next]?.focus()
+      }
+
+      /** 登记"正在重启"并进入等待；`bootId` 传当前这份，用来识别新进程。 */
+      const onRestart = () => {
+        const next = markRestart(overview?.bootId ?? null)
+        setRestarting(next)
+      }
+
+      /** 一个标签页的内容；由外层 map 负责挂载与隐藏。 */
+      const renderTab = (key) =>
+        key === 'overview'
+          ? h(OverviewTab, { t, components, onGo: select })
+          : key === 'chats'
+            ? h(ChatsTab, { t, ui, active: current === 'chats' })
+            : key === 'sites'
+              ? h(SitesTab, { t })
+              : key === 'files'
+                ? h(FilesTab, { t })
+                : key === 'rules'
+                  ? h(RulesTab, { t })
+                  : key === 'skills'
+                    ? h(SkillsTab, { t })
+                    : key === 'presets'
+                    ? h(PresetsTab, { t })
+                    : key === 'proxy'
+                      ? h(ProxyTab, { t })
+                      : key === 'github'
+                        ? h(GithubTab, { t })
+                        : key === 'browser'
+                          ? h(BrowserTab, { t })
+                          : key === 'purge'
+                            ? h(PurgeTab, { t })
+                            : h(RuntimeTab, { t, onRestart })
+
+      /* Keep the active tab inside the visible strip (click, keyboard or restore). */
+      React.useEffect(() => {
+        const bar = tabsRef.current
+        const tabEl = bar?.querySelector(`[data-tab="${current}"]`)
+        if (!bar || !tabEl) return
+        const outer = bar.getBoundingClientRect()
+        const inner = tabEl.getBoundingClientRect()
+        if (inner.left < outer.left) bar.scrollLeft -= outer.left - inner.left + 10
+        else if (inner.right > outer.right) bar.scrollLeft += inner.right - outer.right + 10
+      }, [current, tabs.length])
+
+      return h(
+        'div',
+        { className: 'yk-page', 'data-yukari-panel': PANEL_ID },
+        h('style', { key: 'styles' }, styles),
+        h(
+          'header',
+          { className: 'yk-head' },
+          h(
+            'div',
+            { className: 'yk-headBrand' },
+            h('div', { className: 'yk-headLogo' }, h(PanelIcon, { size: 40, active: true })),
+            h('h1', { className: 'yk-title' }, t('title')),
+            overview !== null ? h(Chip, { kind: 'accent' }, `v${overview.version}`) : null,
+          ),
+          h(UpdateControl, { t, components, onRestart }),
+        ),
+        h(
+          'div',
+          { className: 'yk-navBar', role: 'tablist', 'aria-label': t('title'), ref: tabsRef, onKeyDown: onTabKeyDown },
+          tabs.map((key) =>
+            h(
+              'button',
+              {
+                key,
+                type: 'button',
+                role: 'tab',
+                className: 'yk-navTab',
+                id: `yukari-tab-${key}`,
+                'data-tab': key,
+                'aria-selected': key === current ? 'true' : 'false',
+                // 只有访问过的标签页才真的挂载了对应面板。
+                'aria-controls': visited.includes(key) ? `yukari-panel-${key}` : undefined,
+                tabIndex: key === current ? 0 : -1,
+                onClick: () => select(key),
+              },
+              h(TAB_ICON[key], { width: 14, height: 14 }),
+              t(TAB_LABEL[key]),
+            ),
+          ),
+        ),
+        restarting
+          ? h(
+              'div',
+              { className: 'yk-tabPanel' },
+              restartSettled
+                ? h(RestartWatch, { t, bootId: restarting.bootId, onDone: clearRestart })
+                : h(Loading, { text: t('loading') }),
+            )
+          : tabs
+            .filter((key) => visited.includes(key))
+            .map((key) =>
+              h(
+                'div',
+                {
+                  key,
+                  className: 'yk-tabPanel',
+                  hidden: key !== current,
+                  role: 'tabpanel',
+                  id: `yukari-panel-${key}`,
+                  'aria-labelledby': `yukari-tab-${key}`,
+                },
+                h(TabBoundary, { t, name: key }, renderTab(key)),
+              ),
+            )
+      )
+    }
+
+    /**
+     * 把每个标签页的渲染错误关在它自己的面板里。
+     *
+     * 一个标签页读到坏数据（例如列表少了一个字段）时，原来整块面板一起白屏；
+     * 现在只坏这一页，其它页和导航还能用，重试按钮重置边界后重新挂载。
+     */
+    class TabBoundary extends React.Component {
+      constructor(props) {
+        super(props)
+        this.state = { error: null }
+        this.reset = this.reset.bind(this)
+      }
+
+      static getDerivedStateFromError(error) {
+        return { error }
+      }
+
+      componentDidCatch(error) {
+        console.error('[yukari] tab failed:', this.props.name, error)
+      }
+
+      reset() {
+        this.setState({ error: null })
+      }
+
+      render() {
+        if (this.state.error !== null) {
+          return h('div', { className: 'yk-body' }, h(Failure, {
+            t: this.props.t,
+            name: this.props.name,
+            error: failureOf(this.state.error),
+            onRetry: this.reset,
+          }))
+        }
+        return this.props.children
+      }
+    }
+
+    /** Sidebar rail and header logo. */
+    function PanelIcon({ size, active }) {
+      const edge = size ?? 20
+      const [failed, setFailed] = React.useState(false)
+      if (failed) {
+        return h(
+          'span',
+          { className: 'yk-logoFallback', style: { width: `${edge}px`, height: `${edge}px`, fontSize: `${Math.round(edge * 0.5)}px` }, 'aria-hidden': true },
+          'Y',
+        )
+      }
+      return h('img', {
+        src: API.icon,
+        alt: '',
+        width: edge,
+        height: edge,
+        className: 'yk-logoImg',
+        'aria-hidden': true,
+        draggable: false,
+        onError: () => setFailed(true),
+        // 尺寸随 size 变，只有这两项留在行内。
+        style: { width: `${edge}px`, height: `${edge}px`, opacity: active === false ? 0.8 : 1 },
+      })
+    }
+
+    /* --------------------------------------------------------------- rewind */
+
+    /**
+     * 回撤自己的样式。对话页不加载面板，所以这组规则在安装时注入 `<head>`。
+     * Tooltip 使用宿主组件，按钮尺寸与悬停状态逐字对齐消息操作行。
+     */
+    const REWIND_STYLES = `
+.yk-rewind { display: inline-flex; align-items: center; }
+.yk-rewindBtn { appearance: none; width: calc(28px + var(--dsh-content-font-delta, 0px)); height: calc(28px + var(--dsh-content-font-delta, 0px)); border-radius: var(--dsw-radius-sm); color: var(--dsw-alias-label-tertiary); cursor: pointer; background: none; border: none; justify-content: center; align-items: center; padding: 6px; display: inline-flex; }
+.yk-rewindBtn svg { width: calc(15px + var(--dsh-content-font-delta, 0px)); height: calc(15px + var(--dsh-content-font-delta, 0px)); }
+@media (hover: hover) { .yk-rewindBtn:hover { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-secondary); } }
+.yk-rewindBtn:focus-visible, .yk-rewindCancel:focus-visible, .yk-rewindGo:focus-visible { outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary)); outline-offset: 2px; }
+.yk-rewindPanel { position: fixed; z-index: 100; box-sizing: border-box; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; border: .5px solid var(--dsw-alias-border-l2); border-radius: var(--dsw-radius-lg); background: var(--dsw-alias-bg-layer-3); box-shadow: var(--dsw-shadow-lv3); color: var(--dsw-alias-label-primary); font-family: var(--dsw-font-family); font-size: 13px; line-height: 1.5; text-align: left; }
+.yk-rewindPanel *, .yk-rewindPanel *::before, .yk-rewindPanel *::after { box-sizing: border-box; }
+.yk-rewindTitle { font-size: 14px; font-weight: 600; color: var(--dsw-alias-label-primary); }
+.yk-rewindHint { font-size: 12px; color: var(--dsw-alias-label-secondary); overflow-wrap: anywhere; }
+.yk-rewindError { color: var(--dsw-alias-state-error-primary); }
+.yk-rewindActions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 4px; }
+.yk-rewindCancel, .yk-rewindGo { appearance: none; min-height: 28px; padding: 0 10px; border: .5px solid transparent; border-radius: var(--dsw-radius-md); background: transparent; font: inherit; font-size: 13px; color: var(--dsw-alias-label-secondary); cursor: pointer; transition: background var(--ds-transition-duration) var(--ds-ease-in-out), color var(--ds-transition-duration) var(--ds-ease-in-out); }
+.yk-rewindCancel:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); color: var(--dsw-alias-label-primary); }
+.yk-rewindGo { color: var(--dsw-alias-state-error-primary); font-weight: 600; background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 8%, transparent); }
+.yk-rewindGo:hover:not(:disabled) { background: color-mix(in srgb, var(--dsw-alias-state-error-primary) 14%, transparent); }
+.yk-rewindGo:disabled, .yk-rewindCancel:disabled { opacity: .45; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .yk-rewindPanel * { transition: none !important; } }
+`
+
+    /** 标记与用户消息保持同构，避免把 "(empty message)" 当成真实对话渲染。 */
+    const MARKER_TEXT = '(empty message)'
+
+    /** 回撤区间在 flow item 上的标记：`sessionId:seq`。 */
+    const REWIND_ATTR = 'data-yk-rewind'
+
+    /** 一条会话里已经生效的回撤区间缓存。 */
+    const rewindCuts = new Map()
+    /** 正在取回撤区间的会话。 */
+    const rewindLoading = new Set()
+    /** 取失败的会话与剩余重试次数。 */
+    const rewindRetries = new Map()
+    /** 被我们隐藏过的行 → 原来的 display，取消回撤或卸载时还原。 */
+    const rewindHidden = new Map()
+    /** 已挂载的回撤按钮根元素：隐藏时从它们反查所属的会话容器。 */
+    const rewindRoots = new Set()
+    /** 回撤区间的缓存上限：只记最近打开过的会话，避免长会话列表把 Map 撑爆。 */
+    const REWIND_CACHE_SESSIONS = 50
+
+    /** 记一个会话的回撤区间，超上限先淘汰最早的。 */
+    function rememberCut(sessionId, cuts) {
+      rewindCuts.delete(sessionId)
+      rewindCuts.set(sessionId, cuts)
+      while (rewindCuts.size > REWIND_CACHE_SESSIONS) rewindCuts.delete(rewindCuts.keys().next().value)
+    }
+    /** 当前安装的清理函数。 */
+    let rewindTeardown = null
+
+    /**
+     * 按区间隐藏 flow item。
+     *
+     * 先用区间里的消息 id 去匹配行（`data-chat-node-key` 以 id 结尾），命中就从第一个
+     * 命中的行隐藏到最后一个；命中不到时退回按序号打标（未打标的行跟随上一条）。
+     * 作用域取自按钮自己所在的会话容器——页面上可能同时挂着多个会话容器。
+     * @returns `{ rows, tagged, hidden }`，用于界面与控制台核对。
+     */
+    function applyRewindHiding() {
+      const scopes = new Set()
+      for (const root of rewindRoots) {
+        const scope = root.closest?.('[data-conversation-session]')
+        if (scope !== null && scope !== undefined) scopes.add(scope)
+      }
+      let rows = 0
+      let tagged = 0
+      let hidden = 0
+      for (const scope of scopes) {
+        const sessionId = scope.getAttribute('data-conversation-session') ?? ''
+        const cuts = rewindCuts.get(sessionId) ?? []
+        const list = [...scope.querySelectorAll('[data-chat-flow-key]')]
+        rows += list.length
+        const wanted = new Set()
+        for (const cut of cuts) {
+          const ids = Array.isArray(cut.ids) ? cut.ids : []
+          const hits = []
+          if (ids.length > 0) {
+            list.forEach((row, index) => {
+              const key = row.getAttribute('data-chat-node-key') ?? ''
+              if (key !== '' && ids.some((id) => key.endsWith(id))) hits.push(index)
+            })
+          }
+          if (hits.length > 0) {
+            // 命中之后，一直隐藏到"下一条属于本次回撤之后"的已打标行为止——
+            // 结尾的助手/工具行没有 id 可匹配，靠这条边界才收得干净。
+            let end = list.length - 1
+            for (let index = hits[0]; index < list.length; index += 1) {
+              const tag = list[index].getAttribute(REWIND_ATTR)
+              if (tag === null) continue
+              const seq = Number(tag.slice(tag.lastIndexOf(':') + 1))
+              if (Number.isSafeInteger(seq) && seq > cut.marker) {
+                end = index - 1
+                break
+              }
+            }
+            for (let index = hits[0]; index <= end; index += 1) wanted.add(list[index])
+            continue
+          }
+          let effective = Number.NEGATIVE_INFINITY
+          for (const row of list) {
+            const tag = row.getAttribute(REWIND_ATTR)
+            if (tag !== null) {
+              const seq = Number(tag.slice(tag.lastIndexOf(':') + 1))
+              if (Number.isSafeInteger(seq)) effective = seq
+            }
+            if (effective >= (cut.start ?? cut.target) && effective <= cut.marker) wanted.add(row)
+          }
+        }
+        for (const row of list) {
+          if (row.getAttribute(REWIND_ATTR) !== null) tagged += 1
+          const should = wanted.has(row)
+          if (should) {
+            if (row.style.display !== 'none') {
+              if (!rewindHidden.has(row)) rewindHidden.set(row, row.style.display)
+              row.style.display = 'none'
+            }
+            hidden += 1
+          } else if (row.style.display === 'none' && rewindHidden.has(row)) {
+            row.style.display = rewindHidden.get(row) ?? ''
+            rewindHidden.delete(row)
+          }
+        }
+      }
+      return { rows, tagged, hidden }
+    }
+
+    /**
+     * 把撤下的那条消息放回输入框：只在输入框为空时回填，不覆盖已有草稿。
+     * 文本走宿主的 setDraft，图片按附件 id 走 addAttachments——都是官方输入面动作，
+     * 所以格式与附件元数据都保留。
+     * @param sessionId - 会话 id。
+     * @param content - 消息文本、图片附件 id 与输入面动作。
+     */
+    function refill(sessionId, { text, images, inputActions }) {
+      if (inputActions === undefined || inputActions === null) {
+        console.warn('[yukari-rewind] 输入面动作不可用，撤下的消息没有回填到输入框')
+        return
+      }
+      const scope = document.querySelector(`[data-conversation-session="${sessionId}"]`)
+      const composer = scope?.querySelector('[data-composer-input]')
+      if (composer !== null && composer !== undefined && composer.textContent.trim() !== '') return
+      try {
+        if (typeof text === 'string' && text !== '' && typeof inputActions.setDraft === 'function') inputActions.setDraft(text)
+        if (Array.isArray(images) && images.length > 0 && typeof inputActions.addAttachments === 'function') inputActions.addAttachments(images)
+      } catch {
+        /* 输入面锁定（正在发送）时保持原样，不阻断回撤 */
+      }
+    }
+
+    /** 还原所有被隐藏的行。 */
+    function releaseRewindHiding() {
+      for (const [row, display] of rewindHidden) row.style.display = display
+      rewindHidden.clear()
+    }
+
+    /** 取一个会话的回撤区间；取不到时按"没有区间"处理，并留重试次数。 */
+    function loadRewindCuts(sessionId) {
+      if (rewindCuts.has(sessionId) || rewindLoading.has(sessionId)) return
+      const left = rewindRetries.get(sessionId) ?? 3
+      if (left <= 0) return
+      rewindRetries.set(sessionId, left - 1)
+      while (rewindRetries.size > REWIND_CACHE_SESSIONS) rewindRetries.delete(rewindRetries.keys().next().value)
+      rewindLoading.add(sessionId)
+      getJson(`${API.rewind}/cuts?sessionId=${encodeURIComponent(sessionId)}`)
+        .then((payload) => {
+          rememberCut(sessionId, Array.isArray(payload.cuts) ? payload.cuts : [])
+          applyRewindHiding()
+        })
+        .catch((error) => {
+          // 组件关掉或接口不可用：不隐藏任何行，也别把行藏错。
+          if (error?.status !== 404) console.warn('[yukari-rewind] 取回撤区间失败', error)
+        })
+        .finally(() => rewindLoading.delete(sessionId))
+    }
+
+    /**
+     * 回撤按钮：挂在用户消息的操作行里，点开就地确认，确认后调用 Host。
+     *
+     * 行渲染时拿不到 sessionId（槽位只给 node 和行内工具），从对话容器的
+     * `data-conversation-session` 读：隐藏逻辑本来也要按这段 DOM 对齐。
+     * @param props - 文案与消息序号。
+     */
+    function RewindButton({ t, seq, text, images, inputActions }) {
+      const [phase, setPhase] = React.useState('idle')
+      const [plan, setPlan] = React.useState(null)
+      const [failure, setFailure] = React.useState('')
+      const [placement, setPlacement] = React.useState(null)
+      const [tail, setTail] = React.useState(0)
+      const rootRef = React.useRef(null)
+      const buttonRef = React.useRef(null)
+      const panelRef = React.useRef(null)
+      const mountedRef = React.useRef(true)
+      React.useEffect(() => () => { mountedRef.current = false }, [])
+
+      const sessionOf = () => rootRef.current?.closest('[data-conversation-session]')?.getAttribute('data-conversation-session') ?? ''
+
+      /** 面板贴着按钮放：下方放不下就翻到上方，左右夹在视口内。 */
+      const place = () => {
+        const rect = buttonRef.current?.getBoundingClientRect()
+        if (rect === undefined) return
+        const width = Math.min(268, window.innerWidth - 16)
+        const left = Math.min(Math.max(8, rect.right - width), window.innerWidth - width - 8)
+        const below = window.innerHeight - rect.bottom - 10
+        const above = rect.top - 10
+        if (below < 180 && above > below) {
+          setPlacement({ left, width, bottom: window.innerHeight - rect.top + 6, maxHeight: Math.max(120, above) })
+          return
+        }
+        setPlacement({ left, width, top: rect.bottom + 6, maxHeight: Math.max(120, below) })
+      }
+
+      // 行内打上会话与序号，隐藏逻辑靠它对齐区间。
+      React.useEffect(() => {
+        const element = rootRef.current
+        if (element === null) return undefined
+        rewindRoots.add(element)
+        const sessionId = sessionOf()
+        const row = element.closest('[data-chat-flow-key]')
+        if (row !== null && sessionId !== '') row.setAttribute(REWIND_ATTR, `${sessionId}:${seq}`)
+        if (sessionId !== '') loadRewindCuts(sessionId)
+        applyRewindHiding()
+        return () => {
+          rewindRoots.delete(element)
+        }
+      }, [seq])
+
+      // 面板打开时跟随滚动与缩放重新定位，避免露出一半。
+      React.useEffect(() => {
+        if (phase === 'idle') return undefined
+        place()
+        const update = () => place()
+        const pointerDown = (event) => {
+          if (rootRef.current?.contains(event.target) || panelRef.current?.contains(event.target)) return
+          setPhase('idle')
+          setPlan(null)
+          setFailure('')
+        }
+        const keyDown = (event) => {
+          if (event.key === 'Escape') {
+            setPhase('idle')
+            setPlan(null)
+            setFailure('')
+            buttonRef.current?.focus()
+          }
+        }
+        window.addEventListener('scroll', update, true)
+        window.addEventListener('resize', update)
+        document.addEventListener('pointerdown', pointerDown)
+        document.addEventListener('keydown', keyDown)
+        return () => {
+          window.removeEventListener('scroll', update, true)
+          window.removeEventListener('resize', update)
+          document.removeEventListener('pointerdown', pointerDown)
+          document.removeEventListener('keydown', keyDown)
+        }
+      }, [phase])
+
+      /** 失败信息带上状态码：界面上一眼能看出是哪个环节被拒。 */
+      const describe = (error) => `${messageOf(error)}${Number.isInteger(error?.status) ? `（HTTP ${error.status}）` : ''}`
+
+      /** 目标行之后（含它自己）还有多少行——就是界面上会消失的行数。 */
+      const rowsFromHere = () => {
+        const scope = rootRef.current?.closest('[data-conversation-session]')
+        const row = rootRef.current?.closest('[data-chat-flow-key]')
+        if (scope === null || scope === undefined || row === null || row === undefined) return 0
+        const rows = [...scope.querySelectorAll('[data-chat-flow-key]')]
+        const index = rows.indexOf(row)
+        return index === -1 ? 0 : rows.length - index
+      }
+
+      const open = async () => {
+        setFailure('')
+        setTail(rowsFromHere())
+        place()
+        setPhase('confirm')
+        try {
+          const payload = await postJson(`${API.rewind}/plan`, { sessionId: sessionOf(), seq })
+          if (mountedRef.current) setPlan(payload)
+        } catch (error) {
+          if (mountedRef.current) setFailure(describe(error))
+        }
+      }
+
+      const run = async () => {
+        setPhase('busy')
+        setFailure('')
+        const sessionId = sessionOf()
+        try {
+          const payload = await postJson(`${API.rewind}/apply`, { sessionId, seq, restoreFiles: true, ...(plan === null ? {} : { planToken: plan.planToken }) })
+          if (Array.isArray(payload.cuts)) rememberCut(sessionId, payload.cuts)
+          const stats = applyRewindHiding()
+          console.info('[yukari-rewind] 回撤完成', { sessionId, markerSeq: payload.markerSeq, ...stats })
+          refill(sessionId, { text, images, inputActions })
+          setPhase('idle')
+          setPlan(null)
+        } catch (error) {
+          setFailure(describe(error))
+          setPhase('confirm')
+        }
+      }
+
+      const close = () => {
+        setPhase('idle')
+        setPlan(null)
+        setFailure('')
+      }
+
+      // 「撤下几条」按用户自己发的消息数算：一次对话带多少工具行不该算进去。
+      const count = plan === null ? tail : plan.human > 0 ? plan.human : plan.hidden
+      const hint = failure !== ''
+        ? failure
+        : plan === null
+          ? t('rwBusy')
+          : plan.files.length === 0
+            ? fill(t('rwHintNoFiles'), { n: count })
+            : fill(t('rwHint'), { n: count, m: plan.files.length })
+
+      return h(
+        'span',
+        { className: 'yk-rewind', ref: rootRef },
+        h(
+          Tooltip,
+          { label: t('rwButton'), side: 'bottom', portal: true },
+          h(
+            'button',
+            {
+              ref: buttonRef,
+              type: 'button',
+              className: 'yk-rewindBtn',
+              'aria-label': t('rwButton'),
+              'aria-expanded': phase !== 'idle' ? 'true' : 'false',
+              onClick: phase === 'idle' ? open : close,
+            },
+            h(RewindIcon),
+          ),
+        ),
+        phase === 'idle' || placement === null
+          ? null
+          : ReactDOM.createPortal(
+              h(
+                'div',
+                {
+                  ref: panelRef,
+                  className: 'yk-rewindPanel',
+                  role: 'alertdialog',
+                  // macOS Desktop 只对 data-window-drag 行内的控件免拖拽；挂在 body 上的
+                  // 浮层没有布局盒，必须自己声明可视区域，否则点按钮会拖动窗口。
+                  'data-window-drag-exclude': '',
+                  'aria-label': t('rwTitle'),
+                  style: {
+                    left: `${placement.left}px`,
+                    width: `${placement.width}px`,
+                    ...(placement.top === undefined ? { bottom: `${placement.bottom}px` } : { top: `${placement.top}px` }),
+                    maxHeight: `${placement.maxHeight}px`,
+                  },
+                },
+              h('div', { className: 'yk-rewindTitle' }, t('rwTitle')),
+              h('div', failure === '' ? 'yk-rewindHint' : 'yk-rewindHint yk-rewindError', hint),
+              h(
+                'div',
+                { className: 'yk-rewindActions' },
+                h('button', { type: 'button', className: 'yk-rewindCancel', onClick: close, disabled: phase === 'busy' }, t('cancel')),
+                h('button', { type: 'button', className: 'yk-rewindGo', onClick: run, disabled: phase === 'busy' || plan === null }, t('rwApply')),
+              ),
+            ),
+            document.body,
+          ),
+      )
+    }
+
+    /** 取一个槽项组件的渲染函数（剥掉 memo / forwardRef）。 */
+    function rendererOf(component) {
+      if (typeof component === 'function') return component
+      const inner = component?.type
+      return typeof inner === 'function' ? inner : undefined
+    }
+
+    /**
+     * 接管 `conversation.chat.node` 里 user / steering 两行的渲染身份，把回撤按钮
+     * 通过官方操作行的 `extraActions` 塞进去。宿主换形状时原样返回官方元件，
+     * 最坏是按钮不出现，而不是把行渲染坏。
+     * @param ctx - 客户端根上下文。
+     * @param t - 文案。
+     */
+    function installRewindAction(ctx, t) {
+      const slots = ctx.slots
+      if (slots === undefined || typeof slots.entries !== 'function') return () => {}
+      const keys = new Set(['user', 'steering'])
+      const taken = new Map()
+
+      const withAction = (official) =>
+        function RowWithRewind(props) {
+          const row = official(props)
+          const data = props?.node?.data
+          if (typeof data?.seq !== 'number' || !React.isValidElement(row)) return row
+          const blocks = Array.isArray(data.content) ? data.content : []
+          // 回撤标记只记录替换区间，不是一条对话：整行不渲染，日志里的那条事件保留。
+          if (blocks.length === 1 && blocks[0]?.type === 'text' && blocks[0].text === MARKER_TEXT) return null
+          const buildActions = row.props?.actions
+          if (typeof buildActions !== 'function') return row
+          const wrapped = (value) => {
+            const actionsRow = buildActions(value)
+            if (!React.isValidElement(actionsRow)) return actionsRow
+            try {
+              const text = blocks.map((block) => (block?.type === 'text' && typeof block.text === 'string' ? block.text : '')).join('')
+              const images = blocks
+                .filter((block) => block?.type === 'image' && typeof block.attachment?.attachmentId === 'string')
+                .map((block) => block.attachment.attachmentId)
+              const button = h(RewindButton, { key: 'yk-rewind', t, seq: data.seq, text, images, inputActions: props.inputActions })
+              const existing = actionsRow.props?.extraActions
+              return React.cloneElement(actionsRow, { extraActions: h(React.Fragment, null, existing, button) })
+            } catch {
+              return actionsRow
+            }
+          }
+          return React.cloneElement(row, { actions: wrapped })
+        }
+
+      const takeOver = (entry) => {
+        if (taken.has(entry)) return false
+        const official = rendererOf(entry.component)
+        if (official === undefined) return false
+        const replacement = withAction(official)
+        taken.set(entry, { original: entry.component, replacement })
+        entry.component = replacement
+        return true
+      }
+
+      const sync = () => {
+        for (const entry of slots.entries('conversation.chat.node')) {
+          const key = entry?.options?.key
+          if (key === undefined || !keys.has(key)) continue
+          takeOver(entry)
+        }
+      }
+      sync()
+      const unsubscribe = typeof slots.subscribe === 'function' ? slots.subscribe('conversation.chat.node', sync) : undefined
+      return () => {
+        if (typeof unsubscribe === 'function') unsubscribe()
+        for (const [entry, record] of taken) {
+          if (entry.component === record.replacement) entry.component = record.original
+        }
+        taken.clear()
+        releaseRewindHiding()
+        rewindCuts.clear()
+        rewindRetries.clear()
+      }
+    }
+
+    /** 宿主半在不在：空 sessionId 会拿到 400，路由不存在是 404。 */
+    async function probeRewind() {
+      try {
+        await getJson(`${API.rewind}/cuts?sessionId=`)
+        return true
+      } catch (error) {
+        return error?.status !== 404
+      }
+    }
+
+    /**
+     * 一组 Chat 节点里，被回撤标记覆盖的 anchorSeq 区间。
+     *
+     * 标记是普通 user/message，但 `source` 会被宿主原样带到渲染节点上；回撤时
+     * 我们把自己的 `rewind-marker` 来源连同起点序号写进去，这里据此还原区间。
+     * @param nodes - Chat 视图节点。
+     * @returns `{ start, end }[]`。
+     */
+    function rewindSpansOf(nodes) {
+      const spans = []
+      for (const node of nodes) {
+        const source = node?.data?.source
+        if (source?.kind !== 'rewind-marker') continue
+        if (!Number.isSafeInteger(source.start) || !Number.isSafeInteger(node.anchorSeq)) continue
+        spans.push({ start: source.start, end: node.anchorSeq })
+      }
+      return spans
+    }
+
+    /**
+     * 把区间内的节点标成 `visibility: 'hidden'`。
+     *
+     * `spans` 由调用方传：`apply` 只带增量节点，标记本身通常不在这一批里，所以
+     * builder 需要记住上一次全量时的区间。
+     * @param nodes - Chat 视图节点。
+     * @param spans - `{ start, end }[]`，缺省时从这批节点里现算。
+     * @returns 新数组（有改动时），否则原数组。
+     */
+    function markRewindHidden(nodes, spans) {
+      if (!Array.isArray(nodes) || nodes.length === 0) return nodes
+      const ranges = Array.isArray(spans) ? spans : rewindSpansOf(nodes)
+      if (ranges.length === 0) return nodes
+      let changed = false
+      const next = nodes.map((node) => {
+        const seq = node?.anchorSeq
+        if (!Number.isSafeInteger(seq) || node.visibility === 'hidden') return node
+        if (!ranges.some((span) => seq >= span.start && seq <= span.end)) return node
+        changed = true
+        return { ...node, visibility: 'hidden' }
+      })
+      return changed ? next : nodes
+    }
+
+    /**
+     * 把隐藏交给宿主的 Chat builder。
+     *
+     * 宿主在 `uiConversation.views` 里注册 target 为 `chat` 的定义，`create()` 返回
+     * 一个 builder（`replace` 全量、`apply` 增量）。这里用 Proxy 只拦截这两个方法，
+     * 其余属性与方法原样转发；定义形状不符就放弃，继续走 DOM 隐藏。
+     * @param ctx - 客户端上下文。
+     * @returns 卸载函数，或 null（宿主没有该服务）。
+     */
+    function installChatVisibility(ctx) {
+      if (typeof ctx?.inject !== 'function') return null
+      let cleanup = null
+      let scope = null
+      try {
+        scope = ctx.inject(['uiConversation'], (child) => {
+          const ui = typeof child?.get === 'function' ? child.get('uiConversation') : child?.uiConversation
+          const views = ui?.views
+          if (views === undefined || typeof views.entries !== 'function') return
+          let target = null
+          let original = null
+          const wrapped = function wrapped(...args) {
+            const inner = original.apply(target, args)
+            if (inner === null || typeof inner !== 'object') return inner
+            if (typeof inner.replace !== 'function' || typeof inner.apply !== 'function') return inner
+            // 增量批次里没有标记节点，区间必须从上一次全量结果里留下来。
+            let spans = []
+            return new Proxy(inner, {
+              get(object, property) {
+                if (property === 'replace') {
+                  return (input) => {
+                    if (input === null || typeof input !== 'object' || !Array.isArray(input.nodes)) return object.replace(input)
+                    spans = rewindSpansOf(input.nodes)
+                    return object.replace({ ...input, nodes: markRewindHidden(input.nodes, spans) })
+                  }
+                }
+                if (property === 'apply') {
+                  return (input) => {
+                    if (input === null || typeof input !== 'object' || !Array.isArray(input.upserts)) return object.apply(input)
+                    const fresh = rewindSpansOf(input.upserts)
+                    if (fresh.length > 0) spans = spans.concat(fresh)
+                    return object.apply({ ...input, upserts: markRewindHidden(input.upserts, spans) })
+                  }
+                }
+                const value = Reflect.get(object, property, object)
+                return typeof value === 'function' ? value.bind(object) : value
+              },
+            })
+          }
+          const patch = () => {
+            let definition
+            try {
+              definition = views.entries().find((item) => item?.target === 'chat' && typeof item.create === 'function')
+            } catch {
+              return
+            }
+            if (definition === undefined || definition.create === wrapped) return
+            target = definition
+            original = definition.create
+            definition.create = wrapped
+          }
+          patch()
+          const unsubscribe = typeof views.subscribe === 'function' ? views.subscribe(patch) : undefined
+          cleanup = () => {
+            if (typeof unsubscribe === 'function') unsubscribe()
+            if (target !== null && target.create === wrapped) target.create = original
+            target = null
+            original = null
+          }
+        })
+      } catch {
+        return null
+      }
+      return () => {
+        cleanup?.()
+        cleanup = null
+        if (typeof scope === 'function') scope()
+      }
+    }
+
+    /** 目录选择器上一次停留的目录：下次打开从那里开始。跟着浏览器走，不写进配置。 */
+    const PICKER_DIRECTORY_KEY = 'yukari-dsh-plugin:picker-directory'
+
+    /** 记忆里的目录；存储被禁用或为空时按宿主默认打开。 */
+    function rememberedDirectory() {
+      try {
+        return window.localStorage.getItem(PICKER_DIRECTORY_KEY)
+      } catch {
+        return null
+      }
+    }
+
+    /** 把一次浏览的目录记下来；写不进去只影响下次的起点，不该打断这次浏览。 */
+    function rememberDirectory(directory) {
+      try {
+        window.localStorage.setItem(PICKER_DIRECTORY_KEY, directory)
+      } catch (error) {
+        console.warn('[yukari] 记忆目录选择器位置失败', error)
+      }
+    }
+
+    /** 前者是后者的祖先目录（含相等）。 */
+    function covers(ancestor, target) {
+      const separator = ancestor.includes('\\') ? '\\' : '/'
+      return target === ancestor || target.startsWith(ancestor.endsWith(separator) ? ancestor : `${ancestor}${separator}`)
+    }
+
+    /**
+     * 让目录选择器从上次停留的目录开始。
+     *
+     * 宿主的 browse 后端在客户端省略路径时列主目录（`homedir()`，即 `HOME`），而三个入口
+     * （侧栏添加工作区、对话首页、工作区选择器）都走同一个 `uiWorkspace.listDirectory`：
+     * 省略路径时换成记忆里的目录，列出某个目录时记下它，宿主的组合与实现都不动。
+     * 宿主打开一次会先列目标、再列它的父级来撑起两栏，父级不覆盖记忆，否则每次都会退回一层。
+     */
+    function mountPickerMemory(ctx) {
+      const workspace = ctx.uiWorkspace
+      if (workspace === undefined || typeof workspace.listDirectory !== 'function') {
+        console.warn('[yukari] uiWorkspace.listDirectory 不可用，目录选择器保持宿主默认起点')
+        return () => {}
+      }
+      const original = workspace.listDirectory
+      workspace.listDirectory = async (path, signal) => {
+        const remembered = rememberedDirectory()
+        if (path === undefined) return await original.call(workspace, remembered ?? undefined, signal)
+        if (remembered === null || !covers(path, remembered)) rememberDirectory(path)
+        return await original.call(workspace, path, signal)
+      }
+      return () => {
+        workspace.listDirectory = original
+      }
+    }
+
+    /** 安装回撤：注入样式、宿主半可用时接管行、跟随 DOM 变化重算隐藏。 */
+    function mountRewind(ctx, t) {
+      const style = document.createElement('style')
+      style.setAttribute('data-yk-rewind', '')
+      style.textContent = REWIND_STYLES
+      document.head.appendChild(style)
+
+      const teardown = installRewindAction(ctx, t)
+      // 宿主愿意让我们改节点可见性时，DOM 隐藏退化成兜底；服务缺失或形状不符
+      // 时 installChatVisibility 返回 null，行为与改动前完全一致。
+      const dropVisibility = installChatVisibility(ctx)
+      let stopped = false
+      probeRewind().then((available) => {
+        if (stopped) return
+        if (!available) teardown()
+        else rewindTeardown = teardown
+      })
+
+      // 流式输出会让 DOM 高频变化：合并到一次调度里，别每条 token 都扫。
+      //
+      // 以前除了结构变化，还靠 300ms 定时器补扫——因为 React 重渲染会把行上的
+      // `display` 改回去，而属性变化不在观察范围内。现在直接观察 `style`：
+      // 没有对话在变时完全不做功，有变化时最多每 150ms 算一次。隐藏写回本身
+      // 会改 `style`，但只在值真的不同的时候写，因此不会自己喂自己。
+      const HIDE_THROTTLE_MS = 150
+      let scheduled = 0
+      let lastRun = 0
+      const schedule = () => {
+        if (scheduled !== 0) return
+        const wait = Math.max(0, HIDE_THROTTLE_MS - (Date.now() - lastRun))
+        scheduled = setTimeout(() => {
+          scheduled = 0
+          lastRun = Date.now()
+          applyRewindHiding()
+        }, wait)
+      }
+      const observer = new MutationObserver((records) => {
+        for (const record of records) {
+          if (record.type === 'childList' || record.attributeName === 'style') {
+            schedule()
+            return
+          }
+        }
+      })
+      observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] })
+      return () => {
+        stopped = true
+        if (scheduled !== 0) clearTimeout(scheduled)
+        observer.disconnect()
+        dropVisibility?.()
+        ;(rewindTeardown ?? teardown)()
+        rewindTeardown = null
+        style.remove()
+      }
+    }
+
+    return {
+      inject: ['slots', 'locale', 'uiWorkspace'],
+      apply(ctx) {
+        ctx.effect(() => ctx.locale.register(NS, 'en', en))
+        ctx.effect(() => ctx.locale.register(NS, 'zh-CN', zh))
+        ctx.effect(() => ctx.locale.register(NS, 'zh', zh))
+        const t = ctx.locale.bind(NS)
+        const ui = {
+          openSession: (id) => {
+            if (ctx.uiWorkspace === undefined || typeof ctx.uiWorkspace.openSession !== 'function') {
+              throw new Error('uiWorkspace is unavailable')
+            }
+            ctx.uiWorkspace.openSession(id)
+          },
+        }
+        ctx.effect(() =>
+          ctx.slots.inject('main', () =>
+            ctx.slots.register({ name: 'main', key: PANEL_ID, locale: NS }, (props) => h(YukariPanel, { ...props, t, ui })),
+          ),
+        )
+        ctx.effect(() =>
+          ctx.slots.inject('sidebar.panellist', () =>
+            ctx.slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: 20, locale: NS, label: () => t('title') }, PanelIcon),
+          ),
+        )
+        // 会话回撤：接管用户消息操作行、按区间隐藏被撤的行。
+        ctx.effect(() => mountRewind(ctx, t), 'yukari-rewind: rows')
+        // 目录选择器：省略路径时从记忆里的目录开始。
+        ctx.effect(() => mountPickerMemory(ctx), 'yukari: picker memory')
+      },
+    }
+  },
+})
