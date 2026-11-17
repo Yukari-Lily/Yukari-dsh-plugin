@@ -20,6 +20,9 @@ globalThis.window = bootstrap.window
 globalThis.document = bootstrap.window.document
 const { mountPanel } = await import('./ui-dom-harness.mjs')
 
+/** 目录选择器记忆在浏览器本地存储里的键。 */
+const PICKER_KEY = 'yukari-dsh-plugin:picker-directory'
+
 const components = Object.fromEntries(
   ['chats', 'sites', 'files', 'rules', 'skills', 'presets', 'proxy', 'github', 'browser', 'purge', 'runtime', 'rewind']
     .map((name) => [name, { at: '2026-11-08T00:00:00.000Z' }]),
@@ -908,51 +911,62 @@ async function caseSkills() {
   await panel.close()
 }
 
-async function casePickerMemory() {
-  const calls = []
-  const workspace = {
+async function pickerStub(calls) {
+  return {
     openSession: () => {},
     async listDirectory(path) {
       calls.push(path)
       return { path, home: '/home/node', crumbs: [], entries: [], truncated: false }
     },
   }
-  const panel = mountPanel(routes, { uiWorkspace: workspace })
-  // 面板替换的是 ctx.uiWorkspace 上的方法，所以从挂载结果里取回来调用。
+}
+
+async function casePickerMemory() {
+  const calls = []
+  const panel = mountPanel(routes, { uiWorkspace: await pickerStub(calls) })
+  // 面板替换的是 ctx.uiWorkspace / ctx.workspaces 上的方法，所以从挂载结果里取回来调用。
   await panel.picker.listDirectory(undefined)
   assert.equal(calls.at(-1), undefined, '还没有记忆时走宿主默认（主目录）')
-  await panel.picker.listDirectory('/workspace/foo')
-  await panel.picker.listDirectory('/workspace')
-  assert.equal(
-    panel.window.localStorage.getItem('yukari-dsh-plugin:picker-directory'),
-    '/workspace/foo',
-    '父级只用来撑两栏，不覆盖记忆',
-  )
+  await panel.workspaces.create({ path: '/workspace/proxy' })
+  assert.equal(panel.window.localStorage.getItem(PICKER_KEY), '/workspace', '记住加入工作区的那个目录的上一级')
   await panel.picker.listDirectory(undefined)
-  assert.equal(calls.at(-1), '/workspace/foo', '再次打开从上次停留的目录开始')
+  assert.equal(calls.at(-1), '/workspace', '下次从上一级打开，新建的目录在同级里可选')
+  await panel.picker.listDirectory('/tmp')
+  assert.equal(calls.at(-1), '/tmp', '显式路径原样透传')
   await panel.close()
-  await panel.picker.listDirectory(undefined)
-  assert.equal(calls.at(-1), undefined, '面板卸载后还原宿主行为')
+  const after = await panel.workspaces.create({ path: '/workspace/other' })
+  assert.equal(after.path, '/workspace/other', '卸载后 create 原样返回')
+  assert.equal(panel.window.localStorage.getItem(PICKER_KEY), '/workspace', '卸载后不再记录位置')
 }
 
 async function casePickerMemorySeeded() {
   const calls = []
+  const panel = mountPanel(routes, {
+    uiWorkspace: await pickerStub(calls),
+    seed: (window) => window.localStorage.setItem(PICKER_KEY, '/workspace'),
+  })
+  await panel.picker.listDirectory(undefined)
+  assert.equal(calls.at(-1), '/workspace', '页面重载后仍从记忆的上一级开始')
+  await panel.close()
+}
+
+async function casePickerMemoryStale() {
   const workspace = {
     openSession: () => {},
     async listDirectory(path) {
-      calls.push(path)
+      if (path === '/workspace/gone') throw new Error('cannot list /workspace/gone: ENOENT')
       return { path, home: '/home/node', crumbs: [], entries: [], truncated: false }
     },
   }
   const panel = mountPanel(routes, {
     uiWorkspace: workspace,
-    seed: (window) => window.localStorage.setItem('yukari-dsh-plugin:picker-directory', '/workspace/bar'),
+    seed: (window) => window.localStorage.setItem(PICKER_KEY, '/workspace/gone'),
   })
+  await assert.rejects(() => panel.picker.listDirectory(undefined), /cannot list/u)
+  assert.equal(panel.window.localStorage.getItem(PICKER_KEY), null, '记下的目录不在了，清掉记忆')
   await panel.picker.listDirectory(undefined)
-  assert.equal(calls.at(-1), '/workspace/bar', '页面重载后仍从记忆的目录开始')
   await panel.close()
 }
-
 async function caseImportPreview() {
   const base = {
     enabled: false,
@@ -1073,7 +1087,7 @@ async function caseImportPreview() {
   await panel.close()
 }
 
-const cases = [['tabs', caseTabs], ['keep-alive', caseKeepAlive], ['confirm-focus', caseConfirmFocus], ['chat-counts', caseChatCounts], ['chat-preview', caseChatPreview], ['chat-preview-below', caseChatPreviewBelow], ['chat-preview-tap', caseChatPreviewTap], ['chat-preview-gone', caseChatPreviewGone], ['files-markdown', caseFilesMarkdown], ['probe-note', caseProbeNote], ['restart-watch', caseRestartWatch], ['update-applies', caseUpdateApplies], ['update-restarts', caseUpdateRestarts], ['update-windows', caseUpdateWindows], ['update-error', caseUpdateError], ['update-manual', caseUpdateManual], ['restart-resume', caseRestartResume], ['restart-already-done', caseRestartAlreadyDone], ['runtime-rollback', caseRuntimeRollback], ['chat-visibility', caseChatVisibility], ['github-signing', caseGithubSigning], ['skills', caseSkills], ['picker-memory', casePickerMemory], ['picker-memory-seeded', casePickerMemorySeeded], ['import-preview', caseImportPreview]]
+const cases = [['tabs', caseTabs], ['keep-alive', caseKeepAlive], ['confirm-focus', caseConfirmFocus], ['chat-counts', caseChatCounts], ['chat-preview', caseChatPreview], ['chat-preview-below', caseChatPreviewBelow], ['chat-preview-tap', caseChatPreviewTap], ['chat-preview-gone', caseChatPreviewGone], ['files-markdown', caseFilesMarkdown], ['probe-note', caseProbeNote], ['restart-watch', caseRestartWatch], ['update-applies', caseUpdateApplies], ['update-restarts', caseUpdateRestarts], ['update-windows', caseUpdateWindows], ['update-error', caseUpdateError], ['update-manual', caseUpdateManual], ['restart-resume', caseRestartResume], ['restart-already-done', caseRestartAlreadyDone], ['runtime-rollback', caseRuntimeRollback], ['chat-visibility', caseChatVisibility], ['github-signing', caseGithubSigning], ['skills', caseSkills], ['picker-memory', casePickerMemory], ['picker-memory-seeded', casePickerMemorySeeded], ['picker-memory-stale', casePickerMemoryStale], ['import-preview', caseImportPreview]]
 for (const [name, run] of cases) {
   await run()
   process.stdout.write(`ok ${name}\n`)

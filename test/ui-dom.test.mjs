@@ -47,6 +47,7 @@ test('the real panel renders and keeps visited tabs alive', { timeout: 120_000 }
   assert.match(stdout, /^ok skills$/m)
   assert.match(stdout, /^ok picker-memory$/m)
   assert.match(stdout, /^ok picker-memory-seeded$/m)
+  assert.match(stdout, /^ok picker-memory-stale$/m)
   assert.match(stdout, /^ok import-preview$/m)
 })
 

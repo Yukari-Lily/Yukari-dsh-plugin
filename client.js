@@ -8196,10 +8196,10 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** 目录选择器上一次停留的目录：下次打开从那里开始。跟着浏览器走，不写进配置。 */
+    /** 目录选择器的起点：上次加入工作区的那个目录的上一级。跟着浏览器走，不写进配置。 */
     const PICKER_DIRECTORY_KEY = 'yukari-dsh-plugin:picker-directory'
 
-    /** 记忆里的目录；存储被禁用或为空时按宿主默认打开。 */
+    /** 记忆里的目录；没有记忆、或浏览器禁用了存储时返回 null。 */
     function rememberedDirectory() {
       try {
         return window.localStorage.getItem(PICKER_DIRECTORY_KEY)
@@ -8208,44 +8208,64 @@ window.__ModuleLoader__.load({
       }
     }
 
-    /** 把一次浏览的目录记下来；写不进去只影响下次的起点，不该打断这次浏览。 */
+    /** 记住下一次的起点；传 null 表示清掉。写不进去只影响下次的起点。 */
     function rememberDirectory(directory) {
       try {
-        window.localStorage.setItem(PICKER_DIRECTORY_KEY, directory)
+        if (directory === null) window.localStorage.removeItem(PICKER_DIRECTORY_KEY)
+        else window.localStorage.setItem(PICKER_DIRECTORY_KEY, directory)
       } catch (error) {
         console.warn('[yukari] 记忆目录选择器位置失败', error)
       }
     }
 
-    /** 前者是后者的祖先目录（含相等）。 */
-    function covers(ancestor, target) {
-      const separator = ancestor.includes('\\') ? '\\' : '/'
-      return target === ancestor || target.startsWith(ancestor.endsWith(separator) ? ancestor : `${ancestor}${separator}`)
+    /** 上一级目录；到根了返回 null。 */
+    function parentOf(directory) {
+      const separator = directory.includes('\\') ? '\\' : '/'
+      const trimmed = directory.endsWith(separator) ? directory.slice(0, -1) : directory
+      const cut = trimmed.lastIndexOf(separator)
+      if (cut === -1) return null
+      if (cut === 0) return separator
+      // Windows 盘根：`C:\a` 的上一级是 `C:\`，不是 `C:`。
+      return trimmed[cut - 1] === ':' ? trimmed.slice(0, cut + 1) : trimmed.slice(0, cut)
     }
 
     /**
-     * 让目录选择器从上次停留的目录开始。
+     * 让目录选择器从上次的位置开始。
      *
-     * 宿主的 browse 后端在客户端省略路径时列主目录（`homedir()`，即 `HOME`），而三个入口
-     * （侧栏添加工作区、对话首页、工作区选择器）都走同一个 `uiWorkspace.listDirectory`：
-     * 省略路径时换成记忆里的目录，列出某个目录时记下它，宿主的组合与实现都不动。
-     * 宿主打开一次会先列目标、再列它的父级来撑起两栏，父级不覆盖记忆，否则每次都会退回一层。
+     * 宿主的 browse 后端在客户端省略路径时列主目录（`homedir()`，即 `HOME`），三个入口
+     * （侧栏添加工作区、对话首页、工作区选择器）都走同一个 `uiWorkspace.listDirectory`。
+     * 记忆的是**加入工作区那个目录的上一级**：新建的目录躺在同级里，下次直接可选；
+     * 记住最深一级会在目录被移走后让选择器打不开。宿主的组合与实现都不动。
      */
     function mountPickerMemory(ctx) {
       const workspace = ctx.uiWorkspace
-      if (workspace === undefined || typeof workspace.listDirectory !== 'function') {
-        console.warn('[yukari] uiWorkspace.listDirectory 不可用，目录选择器保持宿主默认起点')
+      const workspaces = ctx.workspaces
+      if (workspace === undefined || typeof workspace.listDirectory !== 'function'
+        || workspaces === undefined || typeof workspaces.create !== 'function') {
+        console.warn('[yukari] 目录选择器或工作区服务不完整，目录选择器保持宿主默认起点')
         return () => {}
       }
-      const original = workspace.listDirectory
+      const originalList = workspace.listDirectory
+      const originalCreate = workspaces.create
       workspace.listDirectory = async (path, signal) => {
-        const remembered = rememberedDirectory()
-        if (path === undefined) return await original.call(workspace, remembered ?? undefined, signal)
-        if (remembered === null || !covers(path, remembered)) rememberDirectory(path)
-        return await original.call(workspace, path, signal)
+        const start = path === undefined ? rememberedDirectory() ?? undefined : path
+        try {
+          return await originalList.call(workspace, start, signal)
+        } catch (error) {
+          // 记下的目录已经不在了：这一次如实报错，但不该让它一直挡住下一次打开。
+          if (path === undefined) rememberDirectory(null)
+          throw error
+        }
+      }
+      workspaces.create = async (input) => {
+        const created = await originalCreate.call(workspaces, input)
+        const parent = parentOf(String(input?.path ?? ''))
+        if (parent !== null) rememberDirectory(parent)
+        return created
       }
       return () => {
-        workspace.listDirectory = original
+        workspace.listDirectory = originalList
+        workspaces.create = originalCreate
       }
     }
 
@@ -8306,7 +8326,7 @@ window.__ModuleLoader__.load({
     }
 
     return {
-      inject: ['slots', 'locale', 'uiWorkspace'],
+      inject: ['slots', 'locale', 'uiWorkspace', 'workspaces'],
       apply(ctx) {
         ctx.effect(() => ctx.locale.register(NS, 'en', en))
         ctx.effect(() => ctx.locale.register(NS, 'zh-CN', zh))

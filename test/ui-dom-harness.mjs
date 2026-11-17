@@ -137,6 +137,8 @@ export function mountPanel(routes = {}, options = {}) {
       listDirectory: async () => ({ path: '', home: '', crumbs: [], entries: [], truncated: false }),
       ...options.uiWorkspace,
     },
+    // 目录选择器的记忆挂在 create 上：缺了它插件会退回宿主默认起点。
+    workspaces: { create: async (input) => ({ path: input?.path }), ...options.workspaces },
     get: (name) => options.services?.[name],
     inject: (names, callback) => { callback({ get: (name) => options.services?.[name] }); return () => {} },
     effect: (callback) => {
@@ -191,5 +193,5 @@ export function mountPanel(routes = {}, options = {}) {
       delete globalThis[key]
     }
   }
-  return { window, container, renderMain, registrations, tick, waitFor, reportIntersection, close, picker: ctx.uiWorkspace }
+  return { window, container, renderMain, registrations, tick, waitFor, reportIntersection, close, picker: ctx.uiWorkspace, workspaces: ctx.workspaces }
 }
