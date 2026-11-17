@@ -16,9 +16,10 @@
 import { execFile } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { existsSync, readFileSync, realpathSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { hostname } from 'node:os'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { planRestart, scheduleRestart } from './host/runtime/lib/restart.js'
 import { compare, isVersionText } from './host/runtime/lib/versions.js'
@@ -90,13 +91,48 @@ function locateInstall() {
       const manifest = JSON.parse(readFileSync(path.join(profileDir, 'package.json'), 'utf8'))
       const spec = manifest.dependencies?.[PACKAGE_NAME]
       if (typeof spec === 'string' && spec !== '') {
-        return { kind: 'profile', profileDir, spec, repo: parseRepoSpec(spec) ?? DEFAULT_REPO, real }
+        return { kind: 'profile', profileDir, spec, repo: parseRepoSpec(spec), real }
       }
     } catch {
       // not a profile directory
     }
   }
-  return { kind: 'unknown', repo: DEFAULT_REPO, real }
+  return { kind: 'unknown', real }
+}
+
+/**
+ * 安装来源的种类。
+ *
+ * 只有 `github` 的副本能自己去问仓库；npm 包、安装包、本地目录、别家 Git 托管的副本
+ * 都只能由人装新版，更新检查不该拿它们去问一个写死的仓库。
+ *
+ * @param spec - profile 里保存的依赖规格。
+ * @returns 来源种类。
+ */
+export function installSourceKind(spec) {
+  const text = String(spec ?? '').trim()
+  if (text === '') return 'unknown'
+  if (parseRepoSpec(text) !== null) return 'github'
+  const tarball = /\.(?:tgz|tar\.gz)(?:#.*)?$/iu.test(text)
+  if (/^(?:file|link):/iu.test(text) || path.isAbsolute(text)) return tarball ? 'tarball' : 'path'
+  if (tarball) return 'tarball'
+  if (/^(?:github|gitlab|bitbucket|gist):|^git(?:\+[a-z]+)?:\/\//iu.test(text) || /^git@[^:]+:/iu.test(text) || /^https?:\/\//iu.test(text)) {
+    return 'git'
+  }
+  return 'registry'
+}
+
+/**
+ * 这份安装的来源，以及它能否自己更新。
+ * @param install - {@link locateInstall} 的结果。
+ * @returns 来源种类、能否自动更新、GitHub 坐标（不可自动更新时为 null）与原始规格。
+ */
+export function installSource(install) {
+  const kind = install.kind === 'git' ? 'github' : install.kind === 'profile' ? installSourceKind(install.spec) : 'unknown'
+  // 只有本机 checkout 没有规格可读，才用写死的仓库；profile 安装一律以保存的规格为准。
+  const repo = install.kind === 'git' ? (install.repo ?? DEFAULT_REPO) : kind === 'github' ? parseRepoSpec(install.spec) : null
+  const source = install.kind === 'profile' ? String(install.spec ?? '') : repo === null ? '' : `${repo.owner}/${repo.repo}`
+  return { kind, updatable: repo !== null, repo, source }
 }
 
 /** Commit of the installed copy: from the lockfile, else from the pnpm store path. */
@@ -182,25 +218,165 @@ async function remoteVersion(repo, at) {
   return null
 }
 
-/** Compare the running copy with the newest commit of its branch. */
+/** Proxy variables a child process may use to reach the network. */
+const EGRESS_NAMES = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy']
+
+/** Host names that mean "this machine's own proxy" rather than an operator's proxy. */
+const LOOPBACK_NAMES = new Set(['127.0.0.1', 'localhost', '::1'])
+
+/**
+ * The environment a child gets when the update must reach the network on its
+ * own: the process environment without any proxy names.
+ *
+ * @returns a fresh environment object.
+ */
+export function directChildEnv() {
+  const env = { ...process.env }
+  for (const name of EGRESS_NAMES) Reflect.deleteProperty(env, name)
+  Reflect.deleteProperty(env, 'NODE_USE_ENV_PROXY')
+  return env
+}
+
+/**
+ * Clear the Host's own launch-time proxy policy when it points at this
+ * plugin's loopback listener.
+ *
+ * A restart while the route is enabled bakes `HTTP_PROXY=http://127.0.0.1:<port>`
+ * into the Host's launch environment. DSH remembers that as its proxy policy and
+ * re-publishes it into every child it spawns — clearing `process.env` alone does
+ * not reach those children. Installing a direct policy through the same module
+ * instance the Host uses is the only way to release it from inside a plugin.
+ *
+ * The host package is resolved from the running CLI entry, so this works on any
+ * install; a Host that cannot be reached this way simply keeps its policy and the
+ * update's direct-network preflight decides whether proceeding is safe.
+ *
+ * @returns whether a direct policy was installed.
+ */
+export async function releaseHostProxyPolicy() {
+  try {
+    const hostEntry = process.argv[1]
+    if (typeof hostEntry !== 'string' || hostEntry === '') return false
+    const requireFromHost = createRequire(hostEntry)
+    const modulePath = requireFromHost.resolve('@deepseek-ai/dsh-http-proxy')
+    const hostProxy = await import(pathToFileURL(modulePath).href)
+    if (typeof hostProxy.installProxyFromEnvironment !== 'function' || typeof hostProxy.proxyRouteFor !== 'function') return false
+    // Only a policy that routes through this machine's loopback listener is ours
+    // to drop; an operator-set proxy must survive.
+    const route = hostProxy.proxyRouteFor(new URL('https://github.com/'))
+    if (route?.proxied !== true || typeof route.proxy !== 'string') return false
+    const host = new URL(route.proxy).hostname.replace(/^\[|\]$/g, '').toLowerCase()
+    if (!LOOPBACK_NAMES.has(host)) return false
+    // An empty launch environment resolves to the direct policy. The disposer is
+    // deliberately dropped: the route must stay direct through the update.
+    await hostProxy.installProxyFromEnvironment({ get: () => undefined }, () => {})
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Refuse an update whose installer would have no way back to GitHub.
+ *
+ * The old copy is removed before the new one is installed. When the install
+ * cannot reach GitHub directly, that step fails and the network-based rollback
+ * fails with it, leaving an empty profile. This check runs while the old copy is
+ * still installed, with the proxy names stripped, so it measures exactly the
+ * network the installer will have after removal.
+ *
+ * @param repo - owner and repository of the installed copy.
+ * @param run - process runner, replaceable by tests.
+ * @throws when direct access fails.
+ */
+export async function assertDirectGithub(repo, run = execFileAsync) {
+  const url = `https://github.com/${repo.owner}/${repo.repo}.git`
+  try {
+    await run('git', ['ls-remote', '--heads', url], { timeout: 20000, env: directChildEnv() })
+  } catch (error) {
+    const detail = messageOf(error).split('\n')[0]
+    throw new Error(`直连 GitHub 失败，已取消更新以免卸载旧版后装不回来（${detail}）；请检查直连网络后重试`)
+  }
+}
+
+/**
+ * Drop proxy variables that point at this plugin's own loopback listener.
+ *
+ * The host hands its children the environment it booted with. Once an update
+ * removes the proxy component, `git` and `pnpm` behind the installer still dial
+ * the now-closed loopback port and the update fails after the old copy is
+ * already gone. Clearing these variables first lets the installer go direct.
+ * Only loopback values are touched, so an operator-set proxy survives.
+ *
+ * @returns the names that were cleared.
+ */
+export function releaseLocalEgress() {
+  const cleared = []
+  for (const name of EGRESS_NAMES) {
+    const value = process.env[name]
+    if (typeof value !== 'string' || value.length === 0) continue
+    let url
+    try {
+      url = new URL(value)
+    } catch {
+      continue
+    }
+    const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase()
+    if (!LOOPBACK_NAMES.has(host)) continue
+    Reflect.deleteProperty(process.env, name)
+    cleared.push(name)
+  }
+  if (cleared.length === 0) return cleared
+  // Node's built-in fetch reads this to decide whether to honour the variables.
+  Reflect.deleteProperty(process.env, 'NODE_USE_ENV_PROXY')
+  return cleared
+}
+
+/**
+ * Compare the running copy with the newest commit of its branch.
+ *
+ * 只有 GitHub 来源的副本才有仓库可比：npm 包、安装包、本地目录的副本没有远端版本可问，
+ * 拿写死的仓库去问只会得到一个对方装不回来的新版，所以这些来源直接报告"要人装新版"。
+ */
 async function checkUpdate() {
   const install = locateInstall()
+  const source = installSource(install)
+  const onDisk = packageVersion()
+  const base = {
+    current: RUNNING_VERSION,
+    installed: onDisk,
+    installDir: install.kind === 'profile' ? install.profileDir : PLUGIN_DIR,
+    restartSupported: process.platform !== 'win32',
+    sourceKind: source.kind,
+    source: source.source,
+    checkedAt: new Date().toISOString(),
+  }
+  if (!source.updatable) {
+    return {
+      ...base,
+      latest: onDisk,
+      currentCommit: null,
+      latestCommit: null,
+      latestSha: null,
+      installedSha: null,
+      available: false,
+      pendingRestart: onDisk !== RUNNING_VERSION,
+      updatable: false,
+    }
+  }
   const installed = installedCommit(install)
-  const latestCommit = await remoteCommit(install.repo)
-  const latestVersion = await remoteVersion(install.repo, latestCommit ?? undefined)
+  const latestCommit = await remoteCommit(source.repo)
+  const latestVersion = await remoteVersion(source.repo, latestCommit ?? undefined)
   if (latestCommit === null && latestVersion === null) {
     throw new Error('连不上 GitHub，无法检查更新（检查网络或在「代理」里启用节点）')
   }
-  const onDisk = packageVersion()
   const newerVersion = latestVersion !== null && compare(latestVersion, onDisk) > 0
   const newerCommit = latestCommit !== null && installed !== null && latestCommit !== installed
   // Installed on disk but not loaded yet: the copy changed since this process started.
   const pendingRestart =
     onDisk !== RUNNING_VERSION || (installed !== null && RUNNING_COMMIT !== null && installed !== RUNNING_COMMIT)
   return {
-    current: RUNNING_VERSION,
-    installed: onDisk,
-    installDir: install.kind === 'profile' ? install.profileDir : PLUGIN_DIR,
+    ...base,
     latest: latestVersion ?? RUNNING_VERSION,
     currentCommit: (RUNNING_COMMIT ?? installed)?.slice(0, 7) ?? null,
     latestCommit: latestCommit?.slice(0, 7) ?? null,
@@ -208,9 +384,7 @@ async function checkUpdate() {
     installedSha: installed,
     available: (newerVersion || newerCommit) && !(pendingRestart && latestCommit === installed),
     pendingRestart,
-    updatable: install.kind !== 'unknown',
-    source: install.kind === 'profile' ? install.spec : `${install.repo.owner}/${install.repo.repo}`,
-    checkedAt: new Date().toISOString(),
+    updatable: true,
   }
 }
 
@@ -226,7 +400,7 @@ function managerFailed(result) {
 }
 
 /** 同时保留目标失败原因和旧版恢复结果，避免只报一句更新失败。 */
-function managerError(result, restore) {
+function managerError(result, restore, note = '') {
   const diagnostic = result?.error?.diagnostic ?? result?.error?.code ?? `插件管理器在 ${result?.stage ?? 'install'} 阶段失败`
   let suffix = ''
   if (restore !== undefined) {
@@ -234,7 +408,7 @@ function managerError(result, restore) {
       ? '；旧版恢复失败'
       : restore.application === 'restart-required' ? '；旧版已安装，重启后恢复' : '；已恢复旧版'
   }
-  return new Error(`${diagnostic}${suffix}`)
+  return new Error(`${diagnostic}${note === '' ? suffix : note}`)
 }
 
 /** 直接抛异常和返回失败值都必须进入旧版恢复路径。 */
@@ -261,7 +435,7 @@ function managerApplied(result, fallbackVersion) {
  * 与「插件」页共用同一个管理器。旧安装跟踪分支，移动的分支无法可靠恢复；
  * 首次先迁移成固定 commit，之后由 updateBundle 负责兼容检查、替换和回滚。
  */
-export async function updateProfile(ctx, install, before) {
+export async function updateProfile(ctx, install, before, options = {}) {
   if (!isVersionText(before.latest)) throw new Error('没有取得目标版本号，无法通过插件管理器更新')
   const targetSpec = pinnedSpec(install.repo, before.latestSha)
   const manager = ctx.pluginManager
@@ -273,10 +447,17 @@ export async function updateProfile(ctx, install, before) {
   // 重写、版本重新编号——会被它直接拒绝。更新只认 commit，所以这种情况走「按固定 commit 移除再装」。
   const newerVersion = compare(before.latest, before.installed ?? before.current ?? '0.0.0') > 0
   if (current.update === 'git' && newerVersion) {
+    // 原地替换：插件全程留在盘上，本机代理监听器不中断，pnpm 与 git 可以继续走当前路由安装，
+    // 因此这里既不释放代理也不要求直连。只有下面要把旧版拿掉的路径才需要那样的前提。
     const outcome = await manager.updateBundle(PACKAGE_NAME, before.latest, { spec: targetSpec })
     if (managerFailed(outcome.result)) throw managerError(outcome.result, outcome.restore)
+    await verifyInstalled(manager, outcome.result)
     return managerApplied(outcome.result, before.latest)
   }
+
+  // 从这里开始旧版会被移出 profile，代理监听器也随之消失：先释放本机回环路由，
+  // 再证明直连可用，否则卸载之后既装不回新版，也回滚不了旧版。
+  await prepareRemoval(ctx, install, options)
 
   // 固定 commit 会丢掉原分支名；非默认分支不能静默改成跟踪 HEAD。
   if (install.repo.ref !== '') throw new Error('非默认分支请在「插件」页重新安装目标 commit，避免更新时切换分支')
@@ -288,10 +469,12 @@ export async function updateProfile(ctx, install, before) {
       enabled: current.enabled !== false,
       expected: { name: PACKAGE_NAME, version: before.latest },
     }))
-    return managerApplied(result, before.latest)
+    const applied = managerApplied(result, before.latest)
+    await verifyInstalled(manager, result)
+    return applied
   }
 
-  // 卸载之前先确认当前副本可恢复，不能等失败时才发现旧 commit 未知。
+  // 卸载之前先确认旧 commit 可恢复，不能等失败时才发现它未知。
   const previous = pinnedSpec(install.repo, before.installedSha)
   const removal = await manager.removeBundle(PACKAGE_NAME)
   if (managerFailed(removal)) throw managerError(removal)
@@ -306,7 +489,69 @@ export async function updateProfile(ctx, install, before) {
     const restore = await managerSettled(() => manager.installBundle(previous, { enabled }))
     throw managerError(result, restore)
   }
+  await verifyInstalled(manager, result)
   return managerApplied(result, before.latest)
+}
+
+/**
+ * 把旧版移出 profile 之前，先把安装要走的路变成「不依赖本插件」。
+ *
+ * 卸载会把本机代理一起带走，宿主又把子进程的代理变量钉在启动时的值上：不先释放，
+ * pnpm 与 git 会一直拨那个已经关掉的回环端口。释放之后必须确认直连能用，否则
+ * 卸载之后既装不回新版，也回滚不了旧版。
+ *
+ * @param ctx - plugin context, for the log.
+ * @param install - {@link locateInstall} 的结果。
+ * @param options.preflight - 测试用的预检替身；只放在参数上，不读 Cordis 上下文。
+ */
+async function prepareRemoval(ctx, install, options) {
+  const policyReleased = await releaseHostProxyPolicy()
+  const clearedEgress = releaseLocalEgress()
+  if (clearedEgress.length > 0 || policyReleased) {
+    try {
+      ctx.logger?.('yukari-update')?.warn?.(`released the local proxy route before updating (env: ${clearedEgress.join(', ') || 'none'}, host policy: ${policyReleased ? 'released' : 'unchanged'})`)
+    } catch {
+      // A missing logger must not stop the update.
+    }
+  }
+  const preflight = typeof options.preflight === 'function' ? options.preflight : () => assertDirectGithub(install.repo)
+  await preflight()
+}
+
+/**
+ * Check that the installed copy is actually registered and enabled.
+ *
+ * 校验失败只报告真实状态，不在目标包仍占用依赖时再装一份旧包；后者会被
+ * 官方管理器以 already-installed 拒绝，还会掩盖最初的注册问题。
+ *
+ * `installed` 只表示 profile 声明了依赖，`enabled` 只表示保存过的选择：层被跳过时
+ * 两项仍为真，只在 `error` 与 `rows[].entryId` 上体现，所以两者都要看。
+ *
+ * @param manager - the plugin manager.
+ * @param result - the install result that claimed success.
+ * @throws when the bundle is missing, unreadable, not loaded, or disabled.
+ */
+async function verifyInstalled(manager, result) {
+  let listed
+  try {
+    listed = await manager.listBundles()
+  } catch (error) {
+    throw managerError(result, undefined, `；安装后无法读取插件列表，未能确认是否生效（${messageOf(error)}）`)
+  }
+  const after = listed?.find?.((item) => item.name === PACKAGE_NAME)
+  if (after === undefined || after.installed === false) {
+    throw managerError(result, undefined, '；新版本没有注册为已启用的插件，请检查「插件」页')
+  }
+  if (after.availability === 'missing') throw managerError(result, undefined, '；新版本的文件不可读，请检查「插件」页')
+  if (after.error !== undefined && after.error !== null) {
+    const reason = after.error.code ?? after.error.diagnostic ?? '未知原因'
+    throw managerError(result, undefined, `；新版本没有被加载（${reason}），请检查「插件」页`)
+  }
+  if (after.enabled === false) throw managerError(result, undefined, '；新版本没有启用，请检查「插件」页')
+  const rows = Array.isArray(after.rows) ? after.rows : []
+  if (rows.length > 0 && rows.every((row) => row.entryId === undefined)) {
+    throw managerError(result, undefined, '；新版本的插件行没有生效，请检查「插件」页')
+  }
 }
 
 /**
@@ -317,7 +562,9 @@ export async function updateProfile(ctx, install, before) {
 async function applyUpdate(ctx, before) {
   const install = locateInstall()
   if (install.kind === 'git') {
-    const { stdout } = await execFileAsync('git', ['pull', '--ff-only'], { cwd: install.dir, timeout: 60000 })
+    await releaseHostProxyPolicy()
+    releaseLocalEgress()
+    const { stdout } = await execFileAsync('git', ['pull', '--ff-only'], { cwd: install.dir, timeout: 60000, env: directChildEnv() })
     return { updated: true, installed: packageVersion(), application: 'restart-required', restartReason: 'module-comparison', detail: stdout.trim() }
   }
   if (install.kind !== 'profile') throw new Error('找不到安装位置，请在「插件」页重新安装')
@@ -385,7 +632,7 @@ export function apply(ctx) {
           // 文件变化会先重载客户端，所以必须重启时只能由 Host 在响应后安排；
           // 已经热应用的新版不能再重启一次。
           let restarted = false
-          if (body.restart === true && pendingRestart) {
+          if (body.restart === true && pendingRestart && process.platform !== 'win32') {
             scheduleRestart(planRestart({ mode: 'auto' }), { delayMs: 900, reason: 'yukari plugin update' })
             restarted = true
           }
@@ -400,6 +647,7 @@ export function apply(ctx) {
               currentCommit: pendingRestart ? before.currentCommit : before.latestCommit,
               available: false,
               pendingRestart,
+              restartSupported: process.platform !== 'win32',
             },
           }
         } finally {
@@ -410,6 +658,7 @@ export function apply(ctx) {
       return
     }
     if (action === 'restart' && req.method === 'POST') {
+      if (process.platform === 'win32') throw appError('Windows 客户端不支持从面板重启 dsh', 'runtime-restart-unsupported')
       if (restartQueued) throw appError('重启已经在队列里', 'restart-queued')
       // Restarting mid-install would leave a half-written global prefix.
       const busy = busyLabel()

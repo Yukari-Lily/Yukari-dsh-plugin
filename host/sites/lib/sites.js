@@ -17,6 +17,24 @@ const SLUG = /^[a-z0-9][a-z0-9._-]{0,40}$/
 /** Bound recursive copies as well as total bytes. */
 const DEFAULT_MAX_FILES = 10000
 
+/** Directory under the user's home used when the row names no publish root. */
+const DEFAULT_ROOT_NAME = 'publish'
+
+/**
+ * Publish roots that earlier versions of this component shipped as their default.
+ *
+ * 默认根改成 `~/publish` 之后，升级上来的安装会对着一个空目录：站点还在旧目录里，
+ * 面板却列不出来。启动时按这份名单接管旧目录，不搬、不删。这是迁移名单，不是配置项。
+ */
+const LEGACY_DEFAULT_ROOTS = ['/workspace/publish']
+
+/**
+ * Prefix assumed when the row names none.
+ *
+ * 相对路径，由面板拼上当前来源：换个部署、换个端口都不用改配置。
+ */
+const DEFAULT_PUBLIC_BASE = '/p'
+
 /** An asset reference that resolves against the origin root instead of the site. */
 const ROOT_LINK = /(?:src|href)\s*=\s*["']\/[^/"']/i
 
@@ -150,15 +168,25 @@ const NEVER_PUBLISH = /(^|\/)(\.git|\.env[^/]*|node_modules)(\/|$)|(^|\/)[^/]+\.
 
 export class SiteStore {
   /**
-   * @param config - root, stateRoot, publicBase, maxMb, keep.
+   * @param config - root, stateRoot, publicBase, maxMb, keep, legacyRoots.
    */
   constructor(config = {}) {
-    const root = path.resolve(String(config.root ?? path.join(os.homedir(), 'publish')))
+    // 空字符串是「没配」，不是「当前目录」：path.resolve('') 会落到 cwd。
+    const configuredRoot = String(config.root ?? '').trim()
+    /** 用户显式配了目录时一律照用，不猜测旧位置。 */
+    this.explicitRoot = configuredRoot !== ''
+    this.explicitStateRoot = String(config.stateRoot ?? '').trim() !== ''
+    const root = path.resolve(configuredRoot === '' ? path.join(os.homedir(), DEFAULT_ROOT_NAME) : configuredRoot)
     this.root = root
     this.stateRoot = path.resolve(String(config.stateRoot ?? path.join(path.dirname(root), '.publish-state')))
+    /** 接管来的旧发布目录；面板据此说明为什么路径与默认值不同。 */
+    this.adoptedFrom = null
+    this.legacyRoots = Array.isArray(config.legacyRoots) && config.legacyRoots.length > 0
+      ? config.legacyRoots.map((value) => path.resolve(String(value)))
+      : LEGACY_DEFAULT_ROOTS.map((value) => path.resolve(value))
     this.defaultPublicBase = typeof config.publicBase === 'string' && config.publicBase.trim() !== ''
       ? config.publicBase.trim().replace(/\/+$/, '')
-      : 'http://127.0.0.1:3080/p'
+      : DEFAULT_PUBLIC_BASE
     /** Prefix saved from the panel; overrides the row config when set. */
     this.customPublicBase = null
     this.maxMb = positive(config.maxMb, 200)
@@ -194,10 +222,43 @@ export class SiteStore {
     return path.join(this.stateRoot, 'trash')
   }
 
+  /**
+   * Keep using the directory an older default pointed at.
+   *
+   * 只在新目录里一张站点清单都没有、且用户没显式配 root 时接管：文件原地不动，
+   * 旧目录继续对外提供，不需要重新发布。
+   * @returns the adopted root, or null.
+   */
+  async #adoptLegacyRoot() {
+    if (this.explicitRoot) return null
+    if (await this.#hasManifests(this.stateRoot)) return null
+    for (const candidate of this.legacyRoots) {
+      if (candidate === this.root) continue
+      const stateRoot = path.join(path.dirname(candidate), '.publish-state')
+      if (!(await this.#hasManifests(stateRoot))) continue
+      this.root = candidate
+      if (!this.explicitStateRoot) this.stateRoot = stateRoot
+      this.adoptedFrom = candidate
+      return candidate
+    }
+    return null
+  }
+
+  /** Whether one state directory already holds site manifests. */
+  async #hasManifests(stateRoot) {
+    try {
+      const entries = await readdir(path.join(stateRoot, 'sites'))
+      return entries.some((name) => name.endsWith('.json'))
+    } catch {
+      return false
+    }
+  }
+
   /** Create every directory once and load the saved prefix. */
   async init() {
     if (this.ready === null) {
       this.ready = (async () => {
+        await this.#adoptLegacyRoot()
         await mkdir(this.root, { recursive: true })
         await mkdir(this.sitesDir, { recursive: true })
         await mkdir(this.stagingDir, { recursive: true })

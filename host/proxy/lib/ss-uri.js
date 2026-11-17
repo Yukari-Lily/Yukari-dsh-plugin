@@ -212,9 +212,24 @@ function nodesFromLinks(text, methods) {
 function nodesFromSubscription(text, methods) {
   const compact = text.replace(/\s+/g, '')
   if (compact.length < 8 || !/^[A-Za-z0-9+/_-]+={0,2}$/.test(compact)) return null
-  const decoded = decodeBase64(compact)
-  if (!/[a-z][a-z0-9+.-]*:\/\//i.test(decoded)) return null
-  return nodesFromLinks(decoded, methods)
+  const decoded = decodeBase64(compact).trim()
+  // Most providers wrap a link list, but some wrap the whole Clash config; only
+  // text that looks like either is treated as a subscription blob.
+  if (!/[a-z][a-z0-9+.-]*:\/\//i.test(decoded) && !/(^|\n)\s*(proxies\s*:|\{|\[)/.test(decoded)) return null
+  const detectors = [
+    () => (/ss:\/\//i.test(decoded) ? nodesFromLinks(decoded, methods) : null),
+    () => nodesFromJson(decoded, methods),
+    () => nodesFromClash(decoded, methods),
+    () => nodesFromLinks(decoded, methods),
+  ]
+  let best = null
+  for (const detect of detectors) {
+    const result = detect()
+    if (result === null) continue
+    if (result.nodes.length > 0) return result
+    if (best === null || result.skipped > best.skipped) best = result
+  }
+  return best
 }
 
 /** Read JSON: one object, an array, `{ proxies }` / `{ servers }`, or several pasted objects. */
@@ -303,7 +318,11 @@ function splitPair(text) {
   let separator = -1
   scanYaml(text, (character, index, depth) => {
     if (character !== ':' || depth !== 0) return false
-    if (index + 1 < text.length && !/\s/.test(text[index + 1])) return false
+    const next = text[index + 1]
+    // YAML asks for a space after the colon, but providers also emit strict
+    // JSON flow maps: `{"name":"x","port":60002}`. Accept both, and keep a
+    // colon inside a bare value (`password: a:b`) after the first separator.
+    if (next !== undefined && !/[\s"'\[\]{}0-9tfn-]/.test(next)) return false
     separator = index
     return true
   })
@@ -400,6 +419,27 @@ function nodesFromClash(text, methods) {
 }
 
 /**
+ * Remove the indentation every non-empty line shares.
+ *
+ * A provider's snippet usually arrives indented as one block: the first line's
+ * leading spaces must not be trimmed away while the rest keep theirs, or a
+ * block list's items stop lining up and only the first one is read.
+ * @param text - the pasted block.
+ * @returns the block with the common indentation removed.
+ */
+function dedent(text) {
+  const lines = text.split(/\r?\n/)
+  let common = Infinity
+  for (const line of lines) {
+    if (line.trim() === '') continue
+    const indent = line.length - line.trimStart().length
+    if (indent < common) common = indent
+  }
+  if (!Number.isFinite(common) || common === 0) return text
+  return lines.map((line) => (line.trim() === '' ? '' : line.slice(common))).join('\n')
+}
+
+/**
  * Parse pasted input into every usable node.
  *
  * Accepts, in order of detection: text holding `ss://` links (SIP002 or
@@ -414,8 +454,13 @@ function nodesFromClash(text, methods) {
  * @throws when nothing usable was found.
  */
 export function parseNodesInput(input, methods) {
-  const text = String(input ?? '').trim()
-  if (text.length === 0) throw new Error('paste ss:// links, a subscription, Clash YAML, or a Shadowsocks JSON config')
+  const text = dedent(String(input ?? '')).trim()
+  if (text.length === 0) {
+    const error = new Error('paste ss:// links, a subscription, Clash YAML, or a Shadowsocks JSON config')
+    error.parseFailure = true
+    error.skipped = 0
+    throw error
+  }
   const detectors = [
     () => (/ss:\/\//i.test(text) ? nodesFromLinks(text, methods) : null),
     () => nodesFromSubscription(text, methods),
@@ -430,9 +475,19 @@ export function parseNodesInput(input, methods) {
     if (result.nodes.length > 0) return { nodes: result.nodes, skipped: result.skipped }
     if (best === null || result.skipped > best.skipped) best = result
   }
-  if (best === null) throw new Error('expected ss:// links, a base64 subscription, Clash YAML, or a Shadowsocks JSON config')
+  if (best === null) {
+    const error = new Error('expected ss:// links, a base64 subscription, Clash YAML, or a Shadowsocks JSON config')
+    // A caller that offers a selection (rather than failing) needs to tell
+    // "nothing usable here" from a transport error, and how much was skipped.
+    error.parseFailure = true
+    error.skipped = 0
+    throw error
+  }
   const detail = best.reason === '' ? '' : ` (${best.reason})`
-  throw new Error(`no usable Shadowsocks node found; skipped ${best.skipped}${detail}`)
+  const error = new Error(`no usable Shadowsocks node found; skipped ${best.skipped}${detail}`)
+  error.parseFailure = true
+  error.skipped = best.skipped
+  throw error
 }
 
 /**

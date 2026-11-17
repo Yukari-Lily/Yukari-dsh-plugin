@@ -31,6 +31,30 @@ export const API_PATH = '/dshctl/api'
 /** How long a cached "installed on disk" reading stays fresh. */
 const INSTALLED_TTL_MS = 30_000
 
+/**
+ * Whether this deployment can update the Harness with npm.
+ *
+ * The Windows client ships without npm, and every npm call there fails with a
+ * shell error the panel cannot act on. The update controls are hidden there;
+ * the client has its own updater.
+ * @param platform - platform to answer for; tests pass `win32`.
+ */
+export function supportsDshUpdate(platform = process.platform) {
+  return platform !== 'win32'
+}
+
+/**
+ * Whether the panel may restart the Harness.
+ *
+ * The Windows client owns its process lifecycle; a restart issued from the
+ * plugin would either do nothing or close the client, so the control is hidden
+ * and the API refuses.
+ * @param platform - platform to answer for; tests pass `win32`.
+ */
+export function supportsDshRestart(platform = process.platform) {
+  return platform !== 'win32'
+}
+
 /** Services this plugin needs. */
 export const inject = ['tools', 'webServer', 'connection']
 
@@ -103,6 +127,9 @@ export function apply(ctx, config = {}) {
   const restartCommand = String(config.restartCommand ?? '')
   const restartDelayMs = Number.isFinite(Number(config.restartDelayMs)) ? Number(config.restartDelayMs) : 800
   const npm = new NpmRunner({ registry: config.registry, cacheDir: config.cacheDir })
+  /** Windows clients have no npm and own their process lifecycle. */
+  const updateSupported = supportsDshUpdate()
+  const restartSupported = supportsDshRestart()
 
   /** Latest reading of the copy on disk; `null` until something asked for it. */
   let installed = { value: running?.version ?? null, at: 0, error: null }
@@ -143,6 +170,7 @@ const BUSY_LABELS = { check: '检查更新', update: '安装更新' }
 
   /** Read the on-disk version, refreshed at most once per TTL. */
   async function installState(force = false) {
+    if (!updateSupported) return { value: running?.version ?? null, at: Date.now(), error: null }
     if (!force && Date.now() - installed.at < INSTALLED_TTL_MS) return installed
     try {
       const value = await npm.installedVersion()
@@ -179,12 +207,14 @@ const BUSY_LABELS = { check: '检查更新', update: '安装更新' }
         error: disk.error,
       },
       update: {
-        latest,
+        supported: updateSupported,
+        latest: updateSupported ? latest : null,
         checkedAt: update.checkedAt,
         available:
-          latest !== null && current !== null ? compare(latest, current) > 0 : latest !== null && current === null,
+          updateSupported && (latest !== null && current !== null ? compare(latest, current) > 0 : latest !== null && current === null),
       },
       restart: {
+        supported: restartSupported,
         mode: restartMode,
         strategy: plan.strategy,
         delayMs: restartDelayMs,
@@ -197,6 +227,7 @@ const BUSY_LABELS = { check: '检查更新', update: '安装更新' }
 
   /** Query the registry and remember the channel maximum. */
   async function check() {
+    if (!updateSupported) throw appError('Windows 客户端不提供 dsh 自更新，请使用客户端自身的更新入口', 'runtime-update-unsupported')
     return await exclusive('check', async () => {
       const at = new Date().toISOString()
       try {
@@ -231,6 +262,7 @@ const BUSY_LABELS = { check: '检查更新', update: '安装更新' }
    * @param {{ version?: string, restart?: boolean }} request - target version or "newest of the channel".
    */
   async function upgrade(request = {}) {
+    if (!updateSupported) throw appError('Windows 客户端不提供 dsh 自更新，请使用客户端自身的更新入口', 'runtime-update-unsupported')
     return await exclusive('update', async () => {
       const at = new Date().toISOString()
       let target = typeof request.version === 'string' && request.version.trim() !== '' ? request.version.trim() : null
@@ -396,7 +428,7 @@ const BUSY_LABELS = { check: '检查更新', update: '安装更新' }
   ctx.tools.register({
     name: 'dsh_check_update',
     description:
-      'Ask npm for every published @deepseek-ai/dsh version and pick the newest one on the deployment channel. Reports whether it is newer than the running version.',
+      'Ask npm for every published @deepseek-ai/dsh version and pick the newest one on the deployment channel. Reports whether it is newer than the running version. Not available in the Windows client, which has no npm.',
     parameters: { type: 'object', additionalProperties: false, properties: {} },
     output: {
       schema: {
@@ -435,7 +467,7 @@ const BUSY_LABELS = { check: '检查更新', update: '安装更新' }
   ctx.tools.register({
     name: 'dsh_update',
     description:
-      'Install a newer @deepseek-ai/dsh globally with npm (default: the newest version on the deployment channel), then optionally restart the process so the new code is loaded. A restart ends the current session and re-execs the Host in place.',
+      'Install a newer @deepseek-ai/dsh globally with npm (default: the newest version on the deployment channel), then optionally restart the process so the new code is loaded. A restart ends the current session and re-execs the Host in place. Not available in the Windows client, which has no npm.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -477,7 +509,7 @@ const BUSY_LABELS = { check: '检查更新', update: '安装更新' }
   ctx.tools.register({
     name: 'dsh_restart',
     description:
-      'Restart the Harness process. Re-execs it in place when this Node supports it, otherwise exits and lets the container supervisor bring it back. The current session and this tool call stop immediately; the UI reconnects afterwards.',
+      'Restart the Harness process. Re-execs it in place when this Node supports it, otherwise exits and lets the container supervisor bring it back. The current session and this tool call stop immediately; the UI reconnects afterwards. Not available in the Windows client, which owns its own process lifecycle.',
     parameters: { type: 'object', additionalProperties: false, properties: {} },
     output: {
       schema: {
@@ -492,6 +524,7 @@ const BUSY_LABELS = { check: '检查更新', update: '安装更新' }
       render: (_args, value) => [{ type: 'text', text: `restart scheduled (${value.strategy})` }],
     },
     async execute() {
+      if (!restartSupported) throw appError('Windows 客户端不支持从面板重启 dsh', 'runtime-restart-unsupported')
       const result = await restart({ reason: 'agent tool' })
       return { scheduled: result.scheduled === true, strategy: result.strategy }
     },
@@ -530,6 +563,7 @@ const BUSY_LABELS = { check: '检查更新', update: '安装更新' }
             return
           }
           if (action === 'restart') {
+            if (!restartSupported) throw appError('Windows 客户端不支持从面板重启 dsh', 'runtime-restart-unsupported')
             const result = await restart({ dryRun: body.dryRun === true, delayMs: body.delayMs, reason: 'panel' })
             sendJson(res, 202, { ok: true, ...result })
             return

@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Proxy",
-    "description": "Shadowsocks egress proxy with fail-closed routing"
+    "description": "Shadowsocks egress proxy with Clash subscription import and fail-closed routing"
   }
 }

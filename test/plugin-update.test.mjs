@@ -1,15 +1,19 @@
 /**
- * 插件自更新与官方 Plugin Manager 的衔接：固定 commit、热应用结果和旧版恢复。
+ * 插件自更新与官方 Plugin Manager 的衔接：安装来源、固定 commit、热应用结果和旧版恢复。
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parseRepoSpec, updateProfile } from '../index.js'
+import { installSource, installSourceKind, parseRepoSpec, updateProfile } from '../index.js'
+
+/** Unit cases never reach the network; the preflight path is covered elsewhere. */
+const runUpdate = (ctx, install, before) => updateProfile(ctx, install, before, { preflight: async () => {} })
 
 const OLD_SHA = '1111111111111111111111111111111111111111'
 const NEW_SHA = '2222222222222222222222222222222222222222'
 const install = {
   kind: 'profile',
   profileDir: '/tmp/profile',
+  real: '/tmp/profile/node_modules/yukari-dsh-plugin',
   repo: { owner: 'owner', repo: 'repo', ref: '' },
 }
 const before = { latest: '1.5.1', installed: '1.5.0', latestSha: NEW_SHA, installedSha: OLD_SHA }
@@ -21,12 +25,57 @@ function context(bundle, manager) {
       ...manager,
     },
     get: (name) => name === 'hmr' ? {} : undefined,
+    // 单元用例不联网；直连预检由 update-guard 用例单独覆盖。
+    preflight: async () => {},
   }
 }
 
 test('pinned git source: the commit pins installation but does not replace the update branch', () => {
   const repo = parseRepoSpec(`github:owner/repo#${OLD_SHA}`)
   assert.equal(repo.ref, '', '固定安装之后仍跟踪仓库 HEAD，才能发现下一次更新')
+})
+
+test('install source: a GitHub spec is the only copy that can update itself', () => {
+  const profile = (spec) => installSource({ kind: 'profile', profileDir: '/tmp/profile', spec, real: '/tmp/profile/node_modules/yukari-dsh-plugin' })
+  assert.deepEqual(profile(`github:owner/repo#${OLD_SHA}`), {
+    kind: 'github',
+    updatable: true,
+    repo: { owner: 'owner', repo: 'repo', ref: '' },
+    source: `github:owner/repo#${OLD_SHA}`,
+  })
+  assert.equal(profile('owner/repo').kind, 'github')
+})
+
+test('install source: registry, package file and directory copies must not fall back to a written-in repo', () => {
+  // 旧行为在这里会变成写死的 Yukari-Lily/Yukari-dsh-plugin，于是 npm 或安装包装的副本
+  // 会去问一个自己装不回来的仓库，甚至被迁移成 Git 安装。
+  const profile = (spec) => installSource({ kind: 'profile', profileDir: '/tmp/profile', spec, real: '/tmp/profile/node_modules/yukari-dsh-plugin' })
+  for (const [spec, kind] of [
+    ['yukari-dsh-plugin', 'registry'],
+    ['yukari-dsh-plugin@0.7.1', 'registry'],
+    ['https://example.com/yukari-dsh-plugin-0.7.1.tgz', 'tarball'],
+    ['/tmp/pkg/yukari-dsh-plugin-0.7.1.tgz', 'tarball'],
+    ['file:/tmp/pkg/yukari-dsh-plugin-0.7.1.tgz', 'tarball'],
+    ['file:/tmp/pkg', 'path'],
+    ['/tmp/pkg', 'path'],
+    ['git+https://git.example.com/owner/repo.git', 'git'],
+  ]) {
+    const source = profile(spec)
+    assert.equal(source.kind, kind, spec)
+    assert.equal(source.updatable, false, spec)
+    assert.equal(source.repo, null, spec)
+    assert.equal(source.source, spec, spec)
+  }
+})
+
+test('install source: a checkout of this repository keeps updating from GitHub', () => {
+  const source = installSource({ kind: 'git', dir: '/workspace/plugin', repo: { owner: 'owner', repo: 'repo', ref: '' } })
+  assert.deepEqual(source, { kind: 'github', updatable: true, repo: { owner: 'owner', repo: 'repo', ref: '' }, source: 'owner/repo' })
+})
+
+test('install source: an unreadable install cannot update and names no repository', () => {
+  assert.equal(installSourceKind(''), 'unknown')
+  assert.deepEqual(installSource({ kind: 'unknown', real: '/tmp/elsewhere' }), { kind: 'unknown', updatable: false, repo: null, source: '' })
 })
 
 test('pinned git install: the official updater owns replacement and reports applied', async () => {
@@ -37,7 +86,7 @@ test('pinned git install: the official updater owns replacement and reports appl
       return { result: { changed: true, application: 'applied', version: '1.5.1' } }
     },
   })
-  const result = await updateProfile(ctx, install, before)
+  const result = await runUpdate(ctx, install, before)
   assert.deepEqual(calls, [[
     'yukari-dsh-plugin',
     '1.5.1',
@@ -62,7 +111,7 @@ test('rewritten history: a lower version still updates through the pinned commit
       return { changed: true, application: 'applied', version: '1.5.0' }
     },
   })
-  const result = await updateProfile(ctx, install, { latest: '1.5.0', installed: '1.5.10', latestSha: NEW_SHA, installedSha: OLD_SHA })
+  const result = await runUpdate(ctx, install, { latest: '1.5.0', installed: '1.5.10', latestSha: NEW_SHA, installedSha: OLD_SHA })
   assert.equal(result.application, 'applied')
   assert.deepEqual(calls, [
     ['remove', 'yukari-dsh-plugin'],
@@ -85,7 +134,7 @@ test('branch install: the one-time migration installs a pinned target through th
       return { changed: true, application: 'applied', version: '1.5.1' }
     },
   })
-  const result = await updateProfile(ctx, install, before)
+  const result = await runUpdate(ctx, install, before)
   assert.equal(result.application, 'applied')
   assert.deepEqual(calls, [
     ['remove', 'yukari-dsh-plugin'],
@@ -105,7 +154,7 @@ test('branch install without HMR: the official manager installs over it and vali
     },
   })
   ctx.get = () => undefined
-  const result = await updateProfile(ctx, install, before)
+  const result = await runUpdate(ctx, install, before)
   assert.equal(result.application, 'restart-required')
   assert.equal(result.restartReason, 'no-hmr')
   assert.deepEqual(calls, [[
@@ -127,7 +176,7 @@ test('non-default branch: migration refuses before silently switching update tra
       return { application: 'applied' }
     },
   })
-  await assert.rejects(updateProfile(ctx, { ...install, repo: { ...install.repo, ref: 'dev' } }, before), /非默认分支/u)
+  await assert.rejects(runUpdate(ctx, { ...install, repo: { ...install.repo, ref: 'dev' } }, before), /非默认分支/u)
   assert.equal(called, false)
 })
 
@@ -143,7 +192,7 @@ test('branch migration failure: restore the exact old commit, not the moving bra
       return { changed: true, application: 'applied', version: '1.5.0' }
     },
   })
-  await assert.rejects(updateProfile(ctx, install, before), /target failed；已恢复旧版/u)
+  await assert.rejects(runUpdate(ctx, install, before), /target failed；已恢复旧版/u)
   assert.deepEqual(installed, [`github:owner/repo#${NEW_SHA}`, `github:owner/repo#${OLD_SHA}`])
 })
 
@@ -160,7 +209,7 @@ test('branch migration activation failure: remove the target before restoring th
       return { changed: true, application: 'applied', version: '1.5.0' }
     },
   })
-  await assert.rejects(updateProfile(ctx, install, before), /start failed；已恢复旧版/u)
+  await assert.rejects(runUpdate(ctx, install, before), /start failed；已恢复旧版/u)
   assert.deepEqual(calls, [
     ['remove', 'yukari-dsh-plugin'],
     ['install', `github:owner/repo#${NEW_SHA}`],
@@ -177,7 +226,7 @@ test('branch migration: an unknown old commit refuses before removing the instal
       return { application: 'applied' }
     },
   })
-  await assert.rejects(updateProfile(ctx, install, { ...before, installedSha: null }), /没有取得目标 commit/u)
+  await assert.rejects(runUpdate(ctx, install, { ...before, installedSha: null }), /没有取得目标 commit/u)
   assert.equal(removed, false)
 })
 
@@ -191,7 +240,7 @@ test('branch migration exception: a thrown install failure still restores the ol
       return { changed: true, application: 'applied', version: '1.5.0' }
     },
   })
-  await assert.rejects(updateProfile(ctx, install, before), /install exploded；已恢复旧版/u)
+  await assert.rejects(runUpdate(ctx, install, before), /install exploded；已恢复旧版/u)
   assert.deepEqual(installed, [`github:owner/repo#${NEW_SHA}`, `github:owner/repo#${OLD_SHA}`])
 })
 
@@ -202,7 +251,7 @@ test('restore requiring restart: the failure does not claim the old version is a
       restore: { application: 'restart-required', restartReason: 'package-moved' },
     }),
   })
-  await assert.rejects(updateProfile(ctx, install, before), /旧版已安装，重启后恢复/u)
+  await assert.rejects(runUpdate(ctx, install, before), /旧版已安装，重启后恢复/u)
 })
 
 test('official update failure: include whether the manager restored the old version', async () => {
@@ -212,5 +261,87 @@ test('official update failure: include whether the manager restored the old vers
       restore: { application: 'failed', stage: 'install' },
     }),
   })
-  await assert.rejects(updateProfile(ctx, install, before), /target failed；旧版恢复失败/u)
+  await assert.rejects(runUpdate(ctx, install, before), /target failed；旧版恢复失败/u)
+})
+
+test('a failed install reports the official restore result without a file fallback', async () => {
+  const calls = []
+  const ctx = context({ source: 'github:owner/repo' }, {
+    removeBundle: async () => ({ application: 'applied' }),
+    installBundle: async (spec) => {
+      calls.push(spec)
+      return { application: 'failed', stage: 'spec-host', error: { diagnostic: 'network down' } }
+    },
+  })
+  await assert.rejects(runUpdate(ctx, install, before), /network down；旧版恢复失败/u)
+  assert.deepEqual(calls, [`github:owner/repo#${NEW_SHA}`, `github:owner/repo#${OLD_SHA}`])
+})
+
+test('after an install, a bundle that failed to load is reported instead of accepted', async () => {
+  const ctx = context({ update: 'git' }, {
+    updateBundle: async () => ({ result: { changed: true, application: 'applied', version: '1.5.1' } }),
+  })
+  let first = true
+  const healthy = ctx.pluginManager.listBundles
+  ctx.pluginManager.listBundles = async () => {
+    if (first) {
+      first = false
+      return healthy()
+    }
+    return [{ name: 'yukari-dsh-plugin', enabled: true, installed: true, error: { code: 'load-failed' }, rows: [] }]
+  }
+  await assert.rejects(runUpdate(ctx, install, before), /没有被加载（load-failed）/u)
+})
+
+test('after an install, bundle rows that never became live entries are reported', async () => {
+  const ctx = context({ update: 'git' }, {
+    updateBundle: async () => ({ result: { changed: true, application: 'applied', version: '1.5.1' } }),
+  })
+  let first = true
+  const healthy = ctx.pluginManager.listBundles
+  ctx.pluginManager.listBundles = async () => {
+    if (first) {
+      first = false
+      return healthy()
+    }
+    return [{ name: 'yukari-dsh-plugin', enabled: true, installed: true, rows: [{ rowId: 'yukari' }] }]
+  }
+  await assert.rejects(runUpdate(ctx, install, before), /插件行没有生效/u)
+})
+
+test('after an install, an unreadable bundle list is its own failure', async () => {
+  const ctx = context({ update: 'git' }, {
+    updateBundle: async () => ({ result: { changed: true, application: 'applied', version: '1.5.1' } }),
+  })
+  let first = true
+  const healthy = ctx.pluginManager.listBundles
+  ctx.pluginManager.listBundles = async () => {
+    if (first) {
+      first = false
+      return healthy()
+    }
+    throw new Error('profile locked')
+  }
+  await assert.rejects(runUpdate(ctx, install, before), /无法读取插件列表.*profile locked/u)
+})
+
+test('without HMR a missing bundle row is an error instead of a restart', async () => {
+  let installs = 0
+  const ctx = context({ source: 'github:owner/repo' }, {
+    installBundle: async () => {
+      installs += 1
+      return { changed: true, application: 'restart-required', version: '1.5.1' }
+    },
+  })
+  let first = true
+  ctx.pluginManager.listBundles = async () => {
+    if (first) {
+      first = false
+      return [{ name: 'yukari-dsh-plugin', source: 'github:owner/repo', enabled: true }]
+    }
+    return []
+  }
+  ctx.get = () => undefined
+  await assert.rejects(runUpdate(ctx, install, before), /没有注册为已启用/u)
+  assert.equal(installs, 1)
 })

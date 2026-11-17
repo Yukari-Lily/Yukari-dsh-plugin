@@ -15,7 +15,9 @@ import { fileURLToPath } from 'node:url'
 const execFileAsync = promisify(execFile)
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
-test('the real panel renders and keeps visited tabs alive', async () => {
+// 真实 DOM 用例要真等重启轮询与 5 秒探测预算，整套跑完超过 CI 的 20 秒单测上限，
+// 这里单独放宽；CLI 的 --test-timeout 只在用例没有自己的超时时生效。
+test('the real panel renders and keeps visited tabs alive', { timeout: 120_000 }, async () => {
   const { stdout } = await execFileAsync(process.execPath, [path.join(root, 'test', 'ui-dom-run.mjs')], {
     cwd: root,
     timeout: 30_000,
@@ -34,6 +36,9 @@ test('the real panel renders and keeps visited tabs alive', async () => {
   assert.match(stdout, /^ok restart-watch$/m)
   assert.match(stdout, /^ok update-applies$/m)
   assert.match(stdout, /^ok update-restarts$/m)
+  assert.match(stdout, /^ok update-windows$/m)
+  assert.match(stdout, /^ok update-error$/m)
+  assert.match(stdout, /^ok update-manual$/m)
   assert.match(stdout, /^ok restart-resume$/m)
   assert.match(stdout, /^ok restart-already-done$/m)
   assert.match(stdout, /^ok runtime-rollback$/m)
@@ -42,6 +47,7 @@ test('the real panel renders and keeps visited tabs alive', async () => {
   assert.match(stdout, /^ok skills$/m)
   assert.match(stdout, /^ok picker-memory$/m)
   assert.match(stdout, /^ok picker-memory-seeded$/m)
+  assert.match(stdout, /^ok import-preview$/m)
 })
 
 test('DOM assertions compare text, never the node itself', () => {

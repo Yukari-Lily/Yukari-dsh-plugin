@@ -10,7 +10,15 @@
  * 展开整棵组件树，几百行的列表就足以把内存吃光，测试会变成拖垮机器而不是报错。
  */
 import assert from 'node:assert/strict'
-import { mountPanel } from './ui-dom-harness.mjs'
+import { JSDOM } from 'jsdom'
+
+// React 在模块加载时判断运行环境是否支持 `input` 事件；本文件顶部的
+// `mountPanel` 是静态导入，会先于任何 JSDOM 创建。先放一个空文档再动态载入
+// 面板，React 才会走真实的 onChange 路径，而不是 IE 的 propertychange 兜底。
+const bootstrap = new JSDOM('<!doctype html><html><body></body></html>')
+globalThis.window = bootstrap.window
+globalThis.document = bootstrap.window.document
+const { mountPanel } = await import('./ui-dom-harness.mjs')
 
 const components = Object.fromEntries(
   ['chats', 'sites', 'files', 'rules', 'skills', 'presets', 'proxy', 'github', 'browser', 'purge', 'runtime', 'rewind']
@@ -442,7 +450,20 @@ async function caseRestartWatch() {
   // 更新后第一次探测仍可能由旧进程回答。只有启动标识变化才能刷新，否则页面
   // 会在真正的重启之前退回旧界面，看起来就像「重启按钮没反应」。
   let bootId = 'boot-old'
-  const overview = () => ({ ok: true, overview: { version: '1.0.0', pid: 1, bootId, components } })
+  let hangNext = false
+  let aborted = 0
+  const overview = async (_url, init) => {
+    if (hangNext) {
+      hangNext = false
+      await new Promise((_, reject) => {
+        init.signal.addEventListener('abort', () => {
+          aborted += 1
+          reject(new Error('aborted'))
+        }, { once: true })
+      })
+    }
+    return { ok: true, overview: { version: '1.0.0', pid: 1, bootId, components } }
+  }
   const panel = mountPanel({
     ...routes,
     '/yukari/api/overview': overview,
@@ -460,13 +481,14 @@ async function caseRestartWatch() {
   const button = (text) => [...panel.window.document.querySelectorAll('button')].find((node) => node.textContent === text)
   await click(button('upCheck'))
   await click(button('upNow'))
+  hangNext = true
   await click(button('upRestart'))
   assert.equal(panel.window.document.querySelector('.yk-overlayTitle')?.textContent, 'rRestarting')
   await new Promise((resolve) => setTimeout(resolve, 3200))
   assert.equal(panel.window.document.querySelector('.yk-overlayTitle')?.textContent, 'rRestarting', 'the old boot answering 200 is not a completed restart')
   bootId = 'boot-new'
-  await new Promise((resolve) => setTimeout(resolve, 1100))
-  assert.equal(panel.window.document.querySelector('.yk-overlayTitle')?.textContent, 'rBack', 'a different boot completes the wait')
+  assert.equal(await panel.waitFor(() => panel.window.document.querySelector('.yk-overlayTitle')?.textContent === 'rBack', { timeout: 8000 }), true, 'a hung probe is aborted and the next boot is still observed')
+  assert.equal(aborted, 1, 'the pending overview request has a five-second budget')
   await panel.close()
 }
 
@@ -654,6 +676,83 @@ async function caseUpdateRestarts() {
   const saved = JSON.parse(panel.window.localStorage.getItem('yukari-dsh-plugin:restarting') ?? 'null')
   assert.equal(saved?.bootId, 'boot-old', 'the intent is stored so a reload can resume it')
   await panel.close()
+}
+
+async function caseUpdateWindows() {
+  const panel = mountPanel({
+    ...routes,
+    '/yukari/api/update': (_url, init) => init?.method === 'POST'
+      ? { ok: true, updated: true, installed: '1.0.1', restarted: false, update: { installed: '1.0.1', pendingRestart: true, restartSupported: false } }
+      : { ok: true, update: { latest: '1.0.1', available: true, updatable: true, pendingRestart: false } },
+  })
+  await panel.renderMain()
+  const click = async (node) => {
+    node.dispatchEvent(new panel.window.MouseEvent('click', { bubbles: true }))
+    await panel.tick()
+    await panel.tick()
+  }
+  const button = (text) => [...panel.window.document.querySelectorAll('button')].find((node) => node.textContent === text)
+  await click(button('upCheck'))
+  await click(button('upNow'))
+  assert.equal(panel.window.document.querySelector('.yk-updateText')?.textContent, 'upPendingManual', 'Windows asks for the client-owned restart')
+  assert.equal(button('upRestart'), undefined, 'Windows never offers the process-exit restart action')
+  assert.equal(panel.window.localStorage.getItem('yukari-dsh-plugin:restarting'), null)
+  await panel.close()
+}
+
+async function caseUpdateError() {
+  // 顶栏胶囊只能一行，失败原因会被省略号截断；完整原因必须在页面里另起一行显示，
+  // 且与胶囊用的是同一个字符串（测试里 t() 返回键名，因此这里比较两者是否一致）。
+  const panel = mountPanel({
+    ...routes,
+    '/yukari/api/update': (_url, init) => init?.method === 'POST'
+      ? { ok: false, error: 'fatal: unable to access https://github.com/owner/repo.git' }
+      : { ok: true, update: { latest: '1.0.1', available: true, updatable: true, pendingRestart: false } },
+  })
+  await panel.renderMain()
+  const click = async (node) => {
+    node.dispatchEvent(new panel.window.MouseEvent('click', { bubbles: true }))
+    await panel.tick()
+    await panel.tick()
+  }
+  const button = (text) => [...panel.window.document.querySelectorAll('button')].find((node) => node.textContent === text)
+  await click(button('upCheck'))
+  await click(button('upNow'))
+  assert.equal(await panel.waitFor(() => panel.window.document.querySelector('.yk-headNote') !== null), true, 'the full reason appears under the header')
+  const note = panel.window.document.querySelector('.yk-headNote')
+  const pill = panel.window.document.querySelector('.yk-updateText')
+  assert.ok(pill !== null, 'the pill still reports the failure')
+  assert.equal(note.textContent.trim(), pill.getAttribute('title'), 'the banner shows the same untruncated text the pill can only ellipsize')
+  assert.equal(note.textContent.trim() === '', false, 'the banner is not empty')
+  const dismiss = [...note.querySelectorAll('button')].find((node) => node.getAttribute('aria-label') === 'close')
+  assert.ok(dismiss !== undefined, 'the banner can be dismissed')
+  await click(dismiss)
+  assert.equal(await panel.waitFor(() => panel.window.document.querySelector('.yk-headNote') === null), true, 'a dismissed banner stays gone')
+  await panel.close()
+}
+
+async function caseUpdateManual() {
+  // 非 GitHub 来源的副本没有远端版本可比：按来源说清楚去哪儿装新版，且不给出更新按钮。
+  const mount = async (sourceKind) => {
+    const panel = mountPanel({
+      ...routes,
+      '/yukari/api/update': () => ({ ok: true, update: { latest: '1.0.0', available: false, updatable: false, pendingRestart: false, sourceKind } }),
+    })
+    await panel.renderMain()
+    const pill = panel.window.document.querySelector('.yk-updatePill')
+    pill.dispatchEvent(new panel.window.MouseEvent('click', { bubbles: true }))
+    await panel.tick()
+    await panel.tick()
+    const result = {
+      text: panel.window.document.querySelector('.yk-updateText')?.textContent ?? null,
+      offersUpdate: [...panel.window.document.querySelectorAll('button')].some((node) => node.textContent === 'upNow'),
+    }
+    await panel.close()
+    return result
+  }
+  assert.deepEqual(await mount('registry'), { text: 'upManualNpm', offersUpdate: false }, 'npm 副本到「插件」页更新')
+  assert.deepEqual(await mount('tarball'), { text: 'upManualPackage', offersUpdate: false }, '安装包副本重新安装新版本')
+  assert.deepEqual(await mount('path'), { text: 'upManual', offersUpdate: false }, '其它来源沿用原来的一句')
 }
 
 async function caseRestartAlreadyDone() {
@@ -854,7 +953,127 @@ async function casePickerMemorySeeded() {
   await panel.close()
 }
 
-const cases = [['tabs', caseTabs], ['keep-alive', caseKeepAlive], ['confirm-focus', caseConfirmFocus], ['chat-counts', caseChatCounts], ['chat-preview', caseChatPreview], ['chat-preview-below', caseChatPreviewBelow], ['chat-preview-tap', caseChatPreviewTap], ['chat-preview-gone', caseChatPreviewGone], ['files-markdown', caseFilesMarkdown], ['probe-note', caseProbeNote], ['restart-watch', caseRestartWatch], ['update-applies', caseUpdateApplies], ['update-restarts', caseUpdateRestarts], ['restart-resume', caseRestartResume], ['restart-already-done', caseRestartAlreadyDone], ['runtime-rollback', caseRuntimeRollback], ['chat-visibility', caseChatVisibility], ['github-signing', caseGithubSigning], ['skills', caseSkills], ['picker-memory', casePickerMemory], ['picker-memory-seeded', casePickerMemorySeeded]]
+async function caseImportPreview() {
+  const base = {
+    enabled: false,
+    running: false,
+    direct: true,
+    listenerError: null,
+    localPort: 17890,
+    node: { server: '', port: 8388, method: 'aes-256-gcm', hasPassword: false },
+    passwordStored: false,
+    activeId: null,
+    nodes: [],
+    bypass: 'localhost,127.0.0.1,::1',
+    methods: ['aes-128-gcm', 'aes-256-gcm', 'chacha20-ietf-poly1305'],
+    stats: { active: 0, total: 0, bytesUp: 0, bytesDown: 0, failures: 0 },
+    egress: null,
+    lastError: null,
+    lastTest: null,
+    startedAt: null,
+    stateFile: '/home/node/.dsh/ss-proxy.json',
+  }
+  const candidates = [
+    { id: 'c1', name: 'HK 01', server: '1.2.3.4', port: 8388, method: 'aes-256-gcm', imported: false },
+    { id: 'c2', name: 'JP 02', server: '5.6.7.8', port: 8388, method: 'aes-128-gcm', imported: false },
+  ]
+  const single = [{ id: 'c3', name: 'SG 03', server: '6.6.6.6', port: 9000, method: 'chacha20-ietf-poly1305', imported: false }]
+  const calls = []
+  let pauseImport = false
+  let importPending = false
+  let releaseImport = () => {}
+  const panel = mountPanel({
+    ...routes,
+    '/ssproxy/api/state': { ok: true, state: base },
+    '/ssproxy/api/import/preview': async (_url, init) => {
+      const text = JSON.parse(init.body).text
+      calls.push({ route: 'preview', text })
+      if (text.startsWith('https://')) return { ok: true, source: 'subscription', candidates: single, skipped: 0, truncated: 0 }
+      return { ok: true, source: 'text', candidates, skipped: 1, truncated: 0 }
+    },
+    '/ssproxy/api/import/select': async (_url, init) => {
+      if (pauseImport) {
+        pauseImport = false
+        importPending = true
+        await new Promise((resolve) => { releaseImport = resolve })
+        importPending = false
+      }
+      const ids = JSON.parse(init.body).ids
+      calls.push({ route: 'select', ids })
+      const nodes = candidates
+        .filter((candidate) => ids.includes(candidate.id))
+        .map((candidate) => ({ ...candidate, hasPassword: true, active: false, lastTest: null }))
+      const node = nodes[0]
+      return {
+        ok: true,
+        added: nodes.length,
+        updated: 0,
+        state: {
+          ...base,
+          nodes,
+          activeId: node?.id ?? null,
+          node: node === undefined ? base.node : { server: node.server, port: node.port, method: node.method, hasPassword: true },
+        },
+      }
+    },
+  })
+  await panel.renderMain()
+  const click = async (node) => {
+    node.dispatchEvent(new panel.window.MouseEvent('click', { bubbles: true }))
+    await panel.tick()
+    await panel.tick()
+  }
+  await click(tabOf(panel.window, 'proxy'))
+  const tab = panelOf(panel.window, 'proxy')
+  assert.equal(await panel.waitFor(() => tab.querySelector('textarea') !== null), true, 'the import box rendered')
+  const textarea = tab.querySelector('textarea')
+  // React tracks the value on the DOM node; write through the native setter so
+  // the following input event is seen as a change.
+  const setValue = Object.getOwnPropertyDescriptor(panel.window.HTMLTextAreaElement.prototype, 'value').set
+  setValue.call(textarea, 'ss://one\nss://two')
+  textarea.dispatchEvent(new panel.window.Event('input', { bubbles: true }))
+  const buttonWith = (text) => [...tab.querySelectorAll('button')].find((node) => node.textContent.includes(text))
+  await panel.tick()
+  assert.equal(await panel.waitFor(() => buttonWith('pImport')?.disabled === false), true, 'the import button is enabled by the typed text')
+  assert.ok(buttonWith('pImportSelected') === undefined, 'no selection list before an import')
+  await click(buttonWith('pImport'))
+  assert.equal(await panel.waitFor(() => calls.length === 1), true, 'the pasted text was previewed')
+  assert.equal(calls[0].route, 'preview')
+  assert.equal(calls[0].text, 'ss://one\nss://two')
+  assert.equal(await panel.waitFor(() => tab.textContent.includes('HK 01')), true, 'the candidates rendered for choosing')
+  assert.equal(tab.textContent.includes('pSkippedUnsupported'), true, 'the skipped count is shown')
+  assert.equal(tab.textContent.includes('pImported'), false, 'nothing was imported yet')
+
+  const boxes = () => [...tab.querySelectorAll('[role="checkbox"]')]
+  assert.equal(boxes().length, 2)
+  assert.deepEqual(boxes().map((node) => node.getAttribute('aria-checked')), ['false', 'false'], 'nothing is selected by default')
+  await click(buttonWith('pSelectAll'))
+  assert.equal(await panel.waitFor(() => boxes().every((node) => node.getAttribute('aria-checked') === 'true')), true, 'select all checks every candidate')
+  pauseImport = true
+  await click(buttonWith('pImportSelected'))
+  assert.equal(boxes().every((node) => node.disabled), true, 'a pending import locks every checkbox against unreported changes')
+  assert.equal(await panel.waitFor(() => importPending), true)
+  releaseImport()
+  assert.equal(await panel.waitFor(() => calls.some((call) => call.route === 'select')), true, 'the selection was posted')
+  assert.deepEqual(calls.find((call) => call.route === 'select').ids, ['c1', 'c2'])
+  assert.equal(await panel.waitFor(() => tab.textContent.includes('pImportedNode')), true, 'imported candidates are marked')
+  assert.equal(boxes().every((node) => node.disabled), true, 'imported candidates cannot be selected again')
+  assert.equal(tab.querySelector('textarea').value, '', 'the box clears after a successful import')
+
+  // A subscription link is always offered as a choice, even when it holds one node.
+  setValue.call(tab.querySelector('textarea'), 'https://sub.example.com/only')
+  tab.querySelector('textarea').dispatchEvent(new panel.window.Event('input', { bubbles: true }))
+  await panel.tick()
+  await click(buttonWith('pImport'))
+  assert.equal(await panel.waitFor(() => calls.filter((call) => call.route === 'preview').length === 2), true, 'the link was previewed')
+  assert.equal(await panel.waitFor(() => boxes().length === 1), true, 'a one-node link still shows its contents')
+  assert.equal(calls.filter((call) => call.route === 'select').length, 1, 'a subscription link is never imported without a choice')
+  await click(buttonWith('cancel'))
+  assert.equal(await panel.waitFor(() => boxes().length === 0), true, 'cancel closes the choice list')
+  await panel.close()
+}
+
+const cases = [['tabs', caseTabs], ['keep-alive', caseKeepAlive], ['confirm-focus', caseConfirmFocus], ['chat-counts', caseChatCounts], ['chat-preview', caseChatPreview], ['chat-preview-below', caseChatPreviewBelow], ['chat-preview-tap', caseChatPreviewTap], ['chat-preview-gone', caseChatPreviewGone], ['files-markdown', caseFilesMarkdown], ['probe-note', caseProbeNote], ['restart-watch', caseRestartWatch], ['update-applies', caseUpdateApplies], ['update-restarts', caseUpdateRestarts], ['update-windows', caseUpdateWindows], ['update-error', caseUpdateError], ['update-manual', caseUpdateManual], ['restart-resume', caseRestartResume], ['restart-already-done', caseRestartAlreadyDone], ['runtime-rollback', caseRuntimeRollback], ['chat-visibility', caseChatVisibility], ['github-signing', caseGithubSigning], ['skills', caseSkills], ['picker-memory', casePickerMemory], ['picker-memory-seeded', casePickerMemorySeeded], ['import-preview', caseImportPreview]]
 for (const [name, run] of cases) {
   await run()
   process.stdout.write(`ok ${name}\n`)

@@ -91,6 +91,16 @@ test('guard: every other action is refused when the connection is not authorised
   assert.equal(res.body().length, 0)
 })
 
+test('restart: the main-row fallback refuses to exit a Windows client', async (t) => {
+  const descriptor = Object.getOwnPropertyDescriptor(process, 'platform')
+  Object.defineProperty(process, 'platform', { value: 'win32' })
+  t.after(() => Object.defineProperty(process, 'platform', descriptor))
+  const { call } = mount()
+  const res = await call('/yukari/api/restart', { method: 'POST' })
+  assert.equal(res.statusCode, 400)
+  assert.equal(res.json().code, 'runtime-restart-unsupported')
+})
+
 test('unknown: an unrecognised action answers 404 with the action name', async () => {
   const { call } = mount()
   const res = await call('/yukari/api/nope')

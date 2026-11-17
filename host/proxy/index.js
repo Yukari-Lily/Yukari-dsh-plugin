@@ -20,6 +20,14 @@ export const API_PATH = '/ssproxy/api'
 /** Services this plugin needs. */
 export const inject = ['tools', 'webServer', 'connection']
 
+/**
+ * 粘贴导入的请求体上限。
+ *
+ * 一个上千条的 Clash 配置（base64 包装后还要乘约 1.33）远超默认的 64 KB，
+ * 而候选上限本身是 2000 条；1 MB 足够覆盖，同时仍然是一个有限值。
+ */
+const IMPORT_BODY_LIMIT = 1024 * 1024
+
 /** Turn any thrown value into a message. */
 /**
  * Resolve a tool's `id` / `name` argument to a node id: an exact id, else a
@@ -70,7 +78,7 @@ export function apply(ctx, config = {}) {
       ctx.tools.register({
         name: 'ss_proxy',
         description:
-          'Control the Shadowsocks egress proxy, which holds a list of nodes with one active. `enable` verifies the active node with a real request, then routes this process outbound HTTP (web fetch/search, MCP, LLM) and child-process HTTP through it; newly launched browser sessions use it too. Any invalid configuration, enable/select failure, active-node probe failure, or live upstream tunnel failure automatically disables the route and restores direct access. `disable` restores direct access manually. `list` shows the nodes (no passwords), `import` adds every node in `uri` (ss:// links, a base64 subscription, Clash YAML, or JSON), `select` switches the active node and `remove` deletes one (both by `id` or `name`), `configure` edits a node (`id`/`name`, default the active one) or the global local port/bypass, `test` probes a node (default the active one), `test_all` probes every node, `status` reports the route and automatic-disable reason; `reset` forgets all nodes and passwords. Passwords stay in the local state file (mode 0600). Nodes remain saved after an automatic disable; fix or select a working node before enabling again.',
+          'Control the Shadowsocks egress proxy, which holds a list of nodes with one active. `enable` verifies the active node with a real request, then routes this process outbound HTTP (web fetch/search, MCP, LLM) and child-process HTTP through it; newly launched browser sessions use it too. Any invalid configuration, enable/select failure, active-node probe failure, or live upstream tunnel failure automatically disables the route and restores direct access. `disable` restores direct access manually. `list` shows the nodes (no passwords), `import` adds every node in `uri` (ss:// links, a base64 subscription, Clash YAML, or JSON) — an `http(s)://` subscription URL there is fetched and every supported node it returns is added — `select` switches the active node and `remove` deletes one (both by `id` or `name`), `configure` edits a node (`id`/`name`, default the active one) or the global local port/bypass, `test` probes a node (default the active one), `test_all` probes every node, `status` reports the route and automatic-disable reason; `reset` forgets all nodes and passwords. Passwords stay in the local state file (mode 0600). Nodes remain saved after an automatic disable; fix or select a working node before enabling again.',
         parameters: {
           type: 'object',
           additionalProperties: false,
@@ -94,7 +102,7 @@ export function apply(ctx, config = {}) {
             bypass: { type: 'string', description: 'Comma-separated host suffixes kept direct, for `configure`.' },
             uri: {
               type: 'string',
-              description: 'Nodes to add, for `import`: ss:// links (one per line), a base64 subscription, a Clash YAML `proxies:` list, or Shadowsocks JSON.',
+              description: 'Nodes to add, for `import`: ss:// links (one per line), a base64 subscription, a Clash YAML `proxies:` list, or Shadowsocks JSON. An http(s):// subscription URL imports every supported node it returns.',
             },
             target: { type: 'string', description: 'host:port probe target for `test` / `test_all` (default www.gstatic.com:80).' },
           },
@@ -168,7 +176,9 @@ export function apply(ctx, config = {}) {
             sendJson(res, 405, { ok: false, error: 'use POST' })
             return
           }
-          const body = await readJsonBody(req)
+          // 只有导入会带整份配置，其余动作仍是默认上限。
+          const importing = action === 'import' || action === 'import/preview'
+          const body = await readJsonBody(req, importing ? IMPORT_BODY_LIMIT : undefined)
           if (action === 'enable') {
             sendJson(res, 200, { ok: true, state: await controller.enable() })
             return
@@ -193,6 +203,16 @@ export function apply(ctx, config = {}) {
           if (action === 'import') {
             const result = await controller.importNodes(String(body.text ?? body.uri ?? ''))
             sendJson(res, 200, { ok: true, ...result })
+            return
+          }
+          if (action === 'import/preview') {
+            // Parse (or fetch) the pasted input and offer what it contains; the
+            // panel imports the selected ids from the same response.
+            sendJson(res, 200, { ok: true, ...(await controller.previewImport(String(body.text ?? ''))) })
+            return
+          }
+          if (action === 'import/select') {
+            sendJson(res, 200, { ok: true, ...(await controller.importCandidates(body.ids)) })
             return
           }
           if (action === 'select') {

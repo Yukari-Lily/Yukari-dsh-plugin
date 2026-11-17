@@ -124,9 +124,17 @@ function testIo({ deny = new Set() } = {}) {
   }
 }
 
+/** 每个用例一份；文件跑完统一删，断言挂了也不留目录。 */
+const fixtures = []
+
+test.after(async () => {
+  await Promise.all(fixtures.map((dir) => fs.rm(dir, { recursive: true, force: true })))
+})
+
 /** 临时目录里的快照仓库：快照与工作区分开，和真实布局一致。 */
 async function storeFixture() {
   const base = await fs.mkdtemp(path.join(os.tmpdir(), 'yk-rewind-'))
+  fixtures.push(base)
   const root = path.join(base, 'store')
   const work = path.join(base, 'work')
   await fs.mkdir(work, { recursive: true })

@@ -8,6 +8,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { candidatesOf, compare, isVersionText, matchChannel, pickLatest, satisfiesRange } from '../host/runtime/lib/versions.js'
+import { supportsDshRestart, supportsDshUpdate } from '../host/runtime/index.js'
 
 test('compare: release outranks its prerelease, numbers decide first', () => {
   assert.ok(compare('0.2.2', '0.2.2-rc.1') > 0)
@@ -74,4 +75,16 @@ test('candidatesOf: newest first, channel filtered', () => {
   assert.deepEqual(candidatesOf(versions, 'rc'), ['0.2.2-rc.10', '0.2.2-rc.2', '0.2.2-rc.1', '0.2.1'])
   assert.deepEqual(candidatesOf(versions, 'alpha'), ['0.3.0-alpha.1', '0.2.2-rc.10', '0.2.2-rc.2', '0.2.2-rc.1', '0.2.1'])
   assert.deepEqual(candidatesOf([], 'rc'), [])
+})
+
+test('update support: the Windows client has no npm, so the update UI is off', () => {
+  assert.equal(supportsDshUpdate('win32'), false)
+  assert.equal(supportsDshUpdate('linux'), true)
+  assert.equal(supportsDshUpdate('darwin'), true)
+})
+
+test('restart support: the Windows client owns its process lifecycle', () => {
+  assert.equal(supportsDshRestart('win32'), false)
+  assert.equal(supportsDshRestart('linux'), true)
+  assert.equal(supportsDshRestart('darwin'), true)
 })

@@ -73,8 +73,10 @@ test('list: the route answers with sites, root and the active prefix', async (t)
   const result = await call('/publish/api/list')
   assert.equal(result.status, 200)
   assert.deepEqual(result.json.sites, [])
-  assert.equal(typeof result.json.publicBase, 'string')
+  assert.equal(result.json.publicBase, '/p', 'the row config names no prefix')
+  assert.equal(result.json.defaultPublicBase, '/p')
   assert.equal(result.json.customPublicBase, false)
+  assert.equal(result.json.adoptedFrom, null, 'an explicit root is never overridden by the legacy scan')
 })
 
 test('settings: a prefix on the panel origin is refused with a reason', async (t) => {

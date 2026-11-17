@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, readdir, readFile, symlink, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { SiteStore } from '../host/sites/lib/sites.js'
@@ -20,6 +20,48 @@ async function fixture(t) {
 async function emptyStaging(store) {
   assert.deepEqual(await readdir(store.stagingDir), [])
 }
+
+test('defaults: an empty row config publishes under the home directory with a relative prefix', () => {
+  const store = new SiteStore({ root: '', publicBase: '' })
+  assert.equal(store.root, path.join(os.homedir(), 'publish'), 'an empty root is not the process cwd')
+  assert.equal(store.stateRoot, path.join(os.homedir(), '.publish-state'))
+  assert.equal(store.publicBase, '/p', 'the default prefix is relative to this deployment')
+  assert.equal(store.urlOf('demo'), '/p/demo/')
+  const absolute = new SiteStore({ publicBase: 'https://pages.example.com/' })
+  assert.equal(absolute.publicBase, 'https://pages.example.com')
+})
+
+test('defaults: an upgrade keeps publishing into the directory the old default used', async (t) => {
+  // 默认根从 /workspace/publish 改成 ~/publish 之后，升级上来的安装会对着一个空目录：
+  // 站点还在旧目录里，面板却列不出来。接管旧目录，文件原地不动。
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'yk-sites-legacy-'))
+  const previousHome = process.env.HOME
+  // 旧目录与新默认根必须分处两个父目录，否则它们共用同一个 .publish-state。
+  process.env.HOME = path.join(temporary, 'home')
+  t.after(async () => {
+    if (previousHome === undefined) delete process.env.HOME
+    else process.env.HOME = previousHome
+    await rm(temporary, { recursive: true, force: true })
+  })
+  const legacy = path.join(temporary, 'legacy', 'publish')
+  const source = path.join(temporary, 'source')
+  await mkdir(source, { recursive: true })
+  await writeFile(path.join(source, 'index.html'), '<title>Old</title>')
+  const old = new SiteStore({ root: legacy, legacyRoots: [legacy] })
+  await old.publish({ source, slug: 'old-site' })
+
+  const upgraded = new SiteStore({ root: '', legacyRoots: [legacy] })
+  const listed = await upgraded.list()
+  assert.equal(upgraded.root, legacy, 'the existing publish root wins over the new default')
+  assert.equal(upgraded.adoptedFrom, legacy)
+  assert.deepEqual(listed.map((site) => site.slug), ['old-site'])
+  assert.equal(upgraded.publicBase, '/p')
+
+  // 显式配过目录就不猜：新目录自己说了算。
+  const explicit = new SiteStore({ root: path.join(temporary, 'fresh'), legacyRoots: [legacy] })
+  assert.deepEqual(await explicit.list(), [])
+  assert.equal(explicit.adoptedFrom, null)
+})
 
 test('publish rejects symlinks before creating a stage', async (t) => {
   const { temporary, store, source } = await fixture(t)

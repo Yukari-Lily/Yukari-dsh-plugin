@@ -14,6 +14,7 @@ import { LocalProxy } from './local-proxy.js'
 import { installEgress } from './egress.js'
 import { METHOD_NAMES, cipherFor, openTunnel } from './shadowsocks.js'
 import { parseNodeInput, parseNodesInput } from './ss-uri.js'
+import { fetchSubscription, isSubscriptionUrl, subscriptionUrl } from './subscriptions.js'
 import { appError } from '../../shared/http.js'
 
 /** Default node fields. */
@@ -27,6 +28,9 @@ const DEFAULT_TEST_TARGET = 'www.gstatic.com:80'
 
 /** Nodes probed at once by `testAll`. */
 const TEST_CONCURRENCY = 4
+
+/** Candidates one preview keeps for the checkbox list. */
+const MAX_CANDIDATES = 2000
 
 /** How often an enabled route re-checks the active node on its own. */
 const WATCHDOG_INTERVAL_MS = 60000
@@ -88,6 +92,8 @@ export class ProxyController {
   #egress = null
   #lastTest = null
   #nodeTests = new Map()
+  /** Candidates the last preview offered; ids are only valid until the next preview. */
+  #candidates = new Map()
   #lastError = null
   #startedAt = null
   #shutdown = null
@@ -111,6 +117,9 @@ export class ProxyController {
   #stateWriteBlocked = null
   #restoreRetryMs = RESTORE_RETRY_MS
   #watchdogInterval = WATCHDOG_INTERVAL_MS
+  /** Replaces `undici.fetch` for subscription loads; tests use it to stay offline. */
+  #fetch = null
+  #subscriptionTimeoutMs = 0
 
   /**
    * @param options.config - the plugin row config, used only as first-run defaults.
@@ -118,11 +127,16 @@ export class ProxyController {
    * @param options.probeThrough - optional test override for the real tunnel probe.
    * @param options.watchdogIntervalMs - optional health-check interval override.
    * @param options.restoreRetryMs - optional startup reconnect schedule override.
+   * @param options.fetch - optional `fetch` replacement for subscription loads.
+   * @param options.subscriptionTimeoutMs - optional per-subscription budget.
    */
-  constructor({ config = {}, log = () => {}, probeThrough, watchdogIntervalMs, restoreRetryMs } = {}) {
+  constructor({ config = {}, log = () => {}, probeThrough, watchdogIntervalMs, restoreRetryMs, fetch, subscriptionTimeoutMs } = {}) {
     this.#log = log
     if (Array.isArray(restoreRetryMs) && restoreRetryMs.length > 0) this.#restoreRetryMs = restoreRetryMs.map(Number)
     this.#probeThroughOverride = typeof probeThrough === 'function' ? probeThrough : null
+    if (typeof fetch === 'function') this.#fetch = fetch
+    const subscriptionTimeout = Number(subscriptionTimeoutMs)
+    if (Number.isFinite(subscriptionTimeout) && subscriptionTimeout > 0) this.#subscriptionTimeoutMs = subscriptionTimeout
     const interval = Number(watchdogIntervalMs)
     if (Number.isFinite(interval) && interval > 0) this.#watchdogInterval = interval
     const home = process.env.DSH_HOME ?? path.join(os.homedir(), '.dsh')
@@ -159,7 +173,8 @@ export class ProxyController {
   async init() {
     let migrated = false
     // A restart keeps the environment: clear a dead route before reading anything.
-    this.#clearInheritedEgress()
+    // 清掉的变量同时也是「有子进程被钉在这个端口上」的证据，下面决定要不要起直连监听。
+    let pinned = this.#clearInheritedEgress().length > 0
     try {
       const raw = await readFile(this.#stateFile, 'utf8')
       const saved = JSON.parse(raw)
@@ -189,18 +204,19 @@ export class ProxyController {
     }
     this.#ensureActive()
     // The saved port may differ from the configured one; clear that spelling too.
-    this.#clearInheritedEgress()
+    pinned = this.#clearInheritedEgress().length > 0 || pinned
     if (migrated) {
       // A failed save must not abort the load: the state in memory is usable.
       await this.#persist().catch((error) => this.#log(messageOf(error)))
     }
     if (!this.#state.enabled && this.#state.autoStart) this.#state.enabled = true
     if (!this.#state.enabled) {
-      // The route is off, but a host may still pin child processes to this port
-      // (its proxy environment was captured at boot). Listening in direct mode
-      // turns those into plain requests instead of connection failures.
+      // The route is off. A host may still pin child processes to this port (its
+      // proxy environment was captured at boot): only then is a direct listener
+      // needed, and only then may the port be taken. A fresh install inherited
+      // nothing, so it binds nothing.
       this.#direct = true
-      await this.#ensureListener().catch((error) => this.#log(`direct listener unavailable: ${messageOf(error)}`))
+      if (pinned) await this.#ensureListener().catch((error) => this.#log(`direct listener unavailable: ${messageOf(error)}`))
       return
     }
     if (!this.#nodeReady()) {
@@ -255,6 +271,10 @@ export class ProxyController {
       }
     }
     this.#lastError = `启动时重连失败，已保留启用状态（${messageOf(lastError)}）；可在面板重试`
+    // 重连失败不等于可以关掉端口：宿主把子进程的代理变量钉在启动时的值上，端口一没，
+    // 那些子进程就完全断网（连"重新装一次插件"都做不到）。留一个直连监听兜底。
+    await this.#goDirect()
+    await this.#ensureListener().catch((error) => this.#log(`direct listener unavailable: ${messageOf(error)}`))
     await this.#persist().catch((error) => this.#log(messageOf(error)))
     return false
   }
@@ -282,6 +302,9 @@ export class ProxyController {
   /** Stop the proxy and restore the previous egress route. */
   async dispose() {
     this.#closed = true
+    // Before the first await: a child spawned while this teardown is still
+    // closing sockets must not inherit a pointer to the closing port.
+    this.#clearInheritedEgress()
     for (const wake of [...this.#abortWaiters]) wake()
     // An enable can be mid-flight for as long as its probe takes. Tearing down
     // first would leave the egress and watchdog it installs behind, still
@@ -289,6 +312,8 @@ export class ProxyController {
     await this.#restoring?.catch(() => undefined)
     await this.#queue
     await this.#teardown()
+    // Loaded candidates hold plaintext passwords; an unloaded component keeps none.
+    this.#candidates.clear()
   }
 
   /**
@@ -586,7 +611,9 @@ export class ProxyController {
   }
 
   /**
-   * Add every node found in pasted text (links, subscription, Clash YAML, JSON).
+   * Add every node found in pasted text (links, a base64 subscription, Clash
+   * YAML, JSON). Text that is one http(s) URL is fetched as a subscription and
+   * every supported node it returns is added.
    * A node already stored with the same server, port, method and password only
    * has its name refreshed.
    * @returns `{ added, updated, skipped, state }`.
@@ -597,11 +624,113 @@ export class ProxyController {
 
   /** @see importNodes */
   async #importNodes(text) {
-    const parsed = parseNodesInput(text, METHOD_NAMES)
+    const input = String(text ?? '')
+    const parsed = await this.#parseInput(input)
+    const { added, updated } = this.#insertNodes(parsed.nodes)
+    this.#lastError = null
+    await this.#persist()
+    // The tool's caller pasted a link and gets it back; the panel never stores it.
+    const source = isSubscriptionUrl(input) ? { url: subscriptionUrl(input) } : {}
+    return { added, updated, skipped: parsed.skipped, ...source, state: this.state() }
+  }
+
+  /**
+   * Parse import input, fetching it first when it is one subscription URL.
+   * @returns `{ nodes, skipped }`.
+   */
+  async #parseInput(input) {
+    if (!isSubscriptionUrl(input)) return parseNodesInput(input, METHOD_NAMES)
+    this.#assertOpen()
+    let url
+    try {
+      url = subscriptionUrl(input)
+    } catch (error) {
+      throw appError(messageOf(error), 'proxy-subscription-url')
+    }
+    const text = await this.#fetchSubscription(url)
+    return parseNodesInput(text, METHOD_NAMES)
+  }
+
+  /**
+   * Parse import input and offer what it contains, without touching the nodes.
+   *
+   * The panel shows these candidates and imports the selected ones, so one
+   * Clash subscription with a hundred nodes does not flood the node list.
+   * Passwords stay in this controller: the returned candidates carry only what
+   * the panel displays, and the cache behind their ids is what an import
+   * refers to. Nothing here is persisted — the input is pasted, not saved.
+   *
+   * @returns `{ candidates, skipped, truncated }`; an input with nothing usable
+   *   yields an empty list rather than a transport failure.
+   */
+  async previewImport(text) {
+    this.#assertOpen()
+    const input = String(text ?? '')
+    // A subscription link is always offered as a choice, even when it holds one
+    // node: the operator asked to see what the link contains before importing.
+    const source = isSubscriptionUrl(input) ? 'subscription' : 'text'
+    let parsed
+    try {
+      parsed = await this.#parseInput(input)
+    } catch (error) {
+      // "Nothing usable here" is a selection result, not a failed request: the
+      // panel can say so and keep the pasted text in the box.
+      if (error?.parseFailure !== true) throw error
+      this.#candidates = new Map()
+      return { candidates: [], skipped: error.skipped ?? 0, truncated: 0, source }
+    }
+    this.#assertOpen()
+
+    const offered = []
+    const byIdentity = new Map()
+    let truncated = 0
+    for (const node of parsed.nodes) {
+      const server = node.server.trim()
+      const method = node.method.toLowerCase()
+      const identity = [server, node.port, method, node.password].join('\u0000')
+      if (byIdentity.has(identity)) continue
+      if (offered.length >= MAX_CANDIDATES) {
+        truncated += 1
+        continue
+      }
+      const candidate = {
+        server,
+        port: node.port,
+        method,
+        password: node.password,
+        name: typeof node.name === 'string' ? node.name.trim() : '',
+      }
+      offered.push(candidate)
+      byIdentity.set(identity, candidate)
+    }
+
+    // The previous preview's ids die here: their cache is what kept the passwords.
+    this.#candidates = new Map()
+    const candidates = offered.map((candidate) => {
+      let id = crypto.randomUUID().slice(0, 8)
+      while (this.#candidates.has(id)) id = crypto.randomUUID().slice(0, 8)
+      this.#candidates.set(id, candidate)
+      return {
+        id,
+        name: candidate.name || `${candidate.server}:${candidate.port}`,
+        server: candidate.server,
+        port: candidate.port,
+        method: candidate.method,
+        imported: this.#state.nodes.some((node) => sameNode(node, candidate)),
+      }
+    })
+    return { candidates, skipped: parsed.skipped, truncated, source }
+  }
+
+  /**
+   * Insert parsed nodes, refreshing the name of one already stored with the
+   * same connection, and pick the first inserted node as active when none is.
+   */
+  #insertNodes(entries) {
     let added = 0
     let updated = 0
     let first = null
-    for (const entry of parsed.nodes) {
+    for (const entry of entries) {
       const candidate = {
         server: entry.server.trim(),
         port: entry.port,
@@ -621,9 +750,40 @@ export class ProxyController {
       first ??= node
     }
     if (this.#active() === null && first !== null) this.#state.activeId = first.id
+    return { added, updated }
+  }
+
+  /** Fetch one subscription body through the injected or the real `fetch`. */
+  #fetchSubscription(url) {
+    const options = { timeoutMs: this.#subscriptionTimeoutMs }
+    if (this.#fetch !== null) options.fetch = this.#fetch
+    return fetchSubscription(url, options)
+  }
+
+  /**
+   * Import the candidates a preview offered, by the ids it returned.
+   * @returns `{ added, updated, state }`.
+   */
+  async importCandidates(ids) {
+    return this.#serialized(() => this.#importCandidates(ids))
+  }
+
+  /** @see importCandidates */
+  async #importCandidates(ids) {
+    const wanted = Array.isArray(ids) ? [...new Set(ids.map((id) => String(id)))] : []
+    if (wanted.length === 0) throw appError('select the nodes to import first', 'proxy-no-selection')
+    const picked = []
+    for (const id of wanted) {
+      const candidate = this.#candidates.get(id)
+      if (candidate === undefined) {
+        throw appError('the import list is out of date; paste the nodes again', 'proxy-candidates-stale')
+      }
+      picked.push(candidate)
+    }
+    const { added, updated } = this.#insertNodes(picked)
     this.#lastError = null
     await this.#persist()
-    return { added, updated, skipped: parsed.skipped, state: this.state() }
+    return { added, updated, skipped: 0, state: this.state() }
   }
 
   /**
@@ -707,6 +867,7 @@ export class ProxyController {
     this.#lastError = null
     this.#lastTest = null
     this.#nodeTests.clear()
+    this.#candidates.clear()
     await this.#persist()
     return this.state()
   }

@@ -1,0 +1,44 @@
+# 打版本 tag 时发布到 npm。
+#
+# 不存任何 token：npm 的 Trusted Publishing 用这个工作流换来的 OIDC 令牌取发布权限，
+# 前提是在 npmjs.com 的包设置页把本仓库的 `.github/workflows/publish.yml` 配成
+# trusted publisher（包已存在才能配）。
+#
+# 发布前本地先跑 `node --test test/*.test.mjs`；同一次 push 的 test 工作流也会跑。
+name: publish
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # npm 不接受重复版本，tag 与清单不一致时宁可不发，也不要发出一个错版本。
+      - name: Check the tag matches the manifest version
+        run: |
+          node -e '
+            const { version } = require("./package.json")
+            const tag = process.env.GITHUB_REF_NAME.replace(/^v/, "")
+            if (tag !== version) {
+              console.error(`tag ${tag} does not match package.json ${version}`)
+              process.exit(1)
+            }
+          '
+
+      # Trusted Publishing 需要 npm 11.5 以上：Node 24 自带的就够，别退回 Node 22。
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Show the toolchain that will publish
+        run: node --version && npm --version
+
+      - run: npm publish --provenance --access public

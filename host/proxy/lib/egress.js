@@ -97,8 +97,16 @@ export async function installEgress({ port, bypass }) {
     async dispose() {
       if (disposed) return
       disposed = true
-      setGlobalDispatcher(previousDispatcher)
+      // 更新可能先由 Host 换成直连 dispatcher。此时旧 disposer 已不再拥有
+      // 全局槽位，不能把刚安装的 dispatcher 覆盖回已关闭的本地端口。
+      if (getGlobalDispatcher() === agent) setGlobalDispatcher(previousDispatcher)
       for (const [name, value] of previousEnv) {
+        const owned = PROXY_NAMES.includes(name)
+          ? process.env[name] === proxyUrl
+          : name === 'NODE_USE_ENV_PROXY'
+            ? process.env[name] === '1'
+            : process.env[name] === merged
+        if (!owned) continue
         if (value === undefined) Reflect.deleteProperty(process.env, name)
         else process.env[name] = value
       }

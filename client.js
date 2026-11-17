@@ -64,6 +64,7 @@ window.__ModuleLoader__.load({
       upUpdating: '正在更新…',
       upDone: '已更新到 {version}，已生效',
       upPending: '已安装 {version}，重启后生效',
+      upPendingManual: '已安装 {version}，请通过客户端自身控制重启',
       upRestart: '立即重启',
       upFailed: '检查更新失败：{error}',
       upUpdateFailed: '更新失败：{error}',
@@ -164,6 +165,8 @@ window.__ModuleLoader__.load({
       pEmptyComposition: '该组合为空：会话仅保留对话，不加载任何工具。',
       pSelectAll: '全选',
       upManual: '当前安装不支持自动更新，请在「插件」页重新安装',
+      upManualNpm: '当前安装来自 npm，请在「插件」页更新',
+      upManualPackage: '当前安装来自安装包，请重新安装新版本',
       refresh: '刷新',
       failureSubject: '「{name}」加载失败：{reason}',
       failureNetwork: '网络请求失败，宿主可能未在运行。',
@@ -252,10 +255,11 @@ window.__ModuleLoader__.load({
       sSearch: '搜索站点名称或路径',
       sPrefix: '访问前缀',
       sSettings: '高级设置',
-      sPrefixUnsetTag: '未设置访问前缀',
+      sAdopted: '沿用升级前的发布目录：{path}（未搬动任何文件）。',
+      sPrefixUnsetTag: '默认前缀',
       sPrefixHint: '站点链接 = 前缀 + /站点名/。填写自有对外地址，例如 https://pages.example.com 或 https://dsh.example.com/p',
       sPrefixDefault: '恢复默认',
-      sPrefixUnset: '当前仍使用默认前缀（dsh 本身不提供 /p 页面）。发布目录需由自有静态服务对外提供，在此填写该地址后链接方可打开。',
+      sPrefixUnset: '未填写对外前缀：站点链接按当前部署的 /p 解析。发布目录若由其它静态服务提供，请填写该对外地址，链接方可打开。',
       sCount: '共 {n} 个站点',
       sCountOne: '共 1 个站点',
       sEmpty: '暂无已发布站点',
@@ -314,10 +318,19 @@ window.__ModuleLoader__.load({
       confirmRemoveNodeHint: '从列表移除，同时删除节点密码，可重新导入。',
       pImport: '导入',
       pImportTitle: '导入节点',
-      pImportPlaceholder: '粘贴一个或多个 ss:// 链接、Base64 订阅内容或 Clash 配置（proxies 列表）',
+      pImportPlaceholder: '粘贴一个或多个 ss:// 链接、Base64 订阅内容、Clash 配置或订阅链接',
       pImported: '导入 {added} 个节点',
       pImportedUpdated: '，更新 {updated} 个',
       pImportedSkipped: '，跳过 {skipped} 个不支持的节点',
+      pSelectNone: '取消选择',
+      pImportChoice: '选择节点',
+      pImportChoiceHint: '勾选要导入的节点；已导入的节点不会重复添加。',
+      pImportSelected: '导入选中（{n}）',
+      pImportedNode: '已导入',
+      pNoImportable: '没有找到可导入的 Shadowsocks 节点。',
+      pNoImportableSkipped: '没有找到可导入的 Shadowsocks 节点，已跳过 {n} 个不支持的条目。',
+      pSkippedUnsupported: '已跳过 {n} 个不支持的节点；仅支持 Shadowsocks AEAD 加密方式：{methods}。',
+      pTruncated: '节点数量超过上限，仅保留前 {n} 个。',
       pSettings: '高级设置',
       pLocalPort: '本地端口',
       pBypass: '直连名单',
@@ -504,6 +517,7 @@ window.__ModuleLoader__.load({
       rUpToDate: '已是 {channel} 通道最新版本',
       rUpdateReady: '可更新到 {version}',
       rNotChecked: '尚未检查',
+      rDshUnsupported: 'Windows 客户端不提供 dsh 自更新与重启，请使用客户端自身的管理入口。',
       rNeedsRestart: '新版本已安装，重启后生效',
       rUpdated: '已安装 {version}',
       rUpdatedSame: '当前已是 {version}',
@@ -541,6 +555,9 @@ window.__ModuleLoader__.load({
       'host_proxy-node-unknown': '找不到该节点。',
       'host_proxy-port-busy': '本地代理端口 {port} 已被占用。',
       'host_proxy-port-invalid': '本地端口需在 1024 到 65535 之间。',
+      'host_proxy-subscription-url': '订阅链接无效，请填写完整的 http 或 https 地址。',
+      'host_proxy-candidates-stale': '已加载的节点列表已过期，请重新粘贴后再选。',
+      'host_proxy-no-selection': '请先选择要导入的节点。',
       'host_github-token-empty': '请填写 GitHub 令牌。',
       'host_github-token-invalid': '令牌格式不正确：不能有空白字符，长度也不能超过上限。',
       'host_github-token-missing': '尚未配置 GitHub 令牌。',
@@ -568,6 +585,8 @@ window.__ModuleLoader__.load({
       'host_rules-scope-invalid': '作用域必须是 global 或 workspace。',
       'host_rules-workspace-missing': '工作区目录不存在。',
       'host_restart-queued': '重启已经在队列里。',
+      'host_runtime-update-unsupported': '当前平台不提供 dsh 自更新，请使用客户端自身的更新入口。',
+      'host_runtime-restart-unsupported': '当前平台不支持从面板重启 dsh，请使用客户端自身控制。',
       'host_browser-retry-failed': '浏览器准备失败，可稍后重试。',
       bLaunchOk: '启动正常',
       bLibraries: '已自动补齐 {n} 个运行库包（解压至 DSH_HOME，无需 root）',
@@ -657,6 +676,7 @@ window.__ModuleLoader__.load({
       upUpdating: 'Updating…',
       upDone: '{version} is installed and running',
       upPending: '{version} installed — restart to load it',
+      upPendingManual: '{version} installed — use the client’s own controls to restart',
       upRestart: 'Restart now',
       upFailed: 'Update check failed: {error}',
       upUpdateFailed: 'Update failed: {error}',
@@ -757,6 +777,8 @@ window.__ModuleLoader__.load({
       pEmptyComposition: 'This composition is empty: the chat keeps its conversation and loads no tools.',
       pSelectAll: 'Select all',
       upManual: 'This install cannot update itself; reinstall it from the Plugins page',
+      upManualNpm: 'This install came from npm; update it on the Plugins page',
+      upManualPackage: 'This install came from a package file; reinstall the new version',
 
       refresh: 'Refresh',
       failureSubject: 'Could not load {name}: {reason}',
@@ -846,10 +868,11 @@ window.__ModuleLoader__.load({
       sSearch: 'Search sites',
       sPrefix: 'URL prefix',
       sSettings: 'Advanced',
-      sPrefixUnsetTag: 'prefix not set',
+      sAdopted: 'Publishing into the directory from before the upgrade: {path} (nothing was moved).',
+      sPrefixUnsetTag: 'default prefix',
       sPrefixHint: 'Site link = prefix + /name/. Enter the public address, e.g. https://pages.example.com or https://dsh.example.com/p',
       sPrefixDefault: 'Restore default',
-      sPrefixUnset: 'The default prefix is still in use (dsh itself does not serve /p). Serve the publish root from an external static host and enter its address here so links work.',
+      sPrefixUnset: 'No public prefix set: site links resolve against /p on this deployment. If another static server serves the publish root, enter its address here so links open.',
       sCount: '{n} sites',
       sCountOne: '1 site',
       sEmpty: 'No sites published yet',
@@ -908,10 +931,19 @@ window.__ModuleLoader__.load({
       confirmRemoveNodeHint: 'Removes it from the list and deletes its password; it can be imported again.',
       pImport: 'Import',
       pImportTitle: 'Import nodes',
-      pImportPlaceholder: 'Paste one or more ss:// links, a base64 subscription, or a Clash config (proxies list)',
+      pImportPlaceholder: 'Paste one or more ss:// links, a base64 subscription, a Clash config, or a subscription link',
       pImported: 'Imported {added} nodes',
       pImportedUpdated: ', updated {updated}',
       pImportedSkipped: ', skipped {skipped} unsupported',
+      pSelectNone: 'Clear selection',
+      pImportChoice: 'Choose nodes',
+      pImportChoiceHint: 'Select the nodes to import; nodes already stored are not added twice.',
+      pImportSelected: 'Import selected ({n})',
+      pImportedNode: 'Imported',
+      pNoImportable: 'No importable Shadowsocks node found.',
+      pNoImportableSkipped: 'No importable Shadowsocks node found; skipped {n} unsupported entries.',
+      pSkippedUnsupported: 'Skipped {n} unsupported nodes; only these Shadowsocks AEAD methods are supported: {methods}.',
+      pTruncated: 'Too many nodes; only the first {n} are kept.',
       pSettings: 'Advanced',
       pLocalPort: 'Local port',
       pBypass: 'Direct list',
@@ -1099,6 +1131,7 @@ window.__ModuleLoader__.load({
       rUpToDate: 'Newest on {channel}',
       rUpdateReady: '{version} available',
       rNotChecked: 'Not checked yet',
+      rDshUnsupported: 'This Windows client does not update or restart dsh; use the client’s own controls.',
       rNeedsRestart: 'Installed — restart to load it',
       rUpdated: 'Installed {version}',
       rUpdatedSame: 'Already on {version}',
@@ -1136,6 +1169,9 @@ window.__ModuleLoader__.load({
       'host_proxy-node-unknown': 'No such node.',
       'host_proxy-port-busy': 'Local proxy port {port} is already in use.',
       'host_proxy-port-invalid': 'The local port must be between 1024 and 65535.',
+      'host_proxy-subscription-url': 'The subscription URL must be a full http or https address.',
+      'host_proxy-candidates-stale': 'The loaded node list is out of date; paste the nodes again.',
+      'host_proxy-no-selection': 'Select the nodes to import first.',
       'host_github-token-empty': 'Enter a GitHub token.',
       'host_github-token-invalid': 'That token is malformed: no whitespace, and a bounded length.',
       'host_github-token-missing': 'No GitHub token is configured yet.',
@@ -1163,6 +1199,8 @@ window.__ModuleLoader__.load({
       'host_rules-scope-invalid': 'The scope must be global or workspace.',
       'host_rules-workspace-missing': 'That workspace folder does not exist.',
       'host_restart-queued': 'A restart is already queued.',
+      'host_runtime-update-unsupported': 'This platform does not update dsh itself; use the client’s own update entry.',
+      'host_runtime-restart-unsupported': 'This platform does not restart dsh from the panel; use the client’s own controls.',
       'host_browser-retry-failed': 'Preparing the browser failed; try again later.',
 
       bLaunchOk: 'Launching normally',
@@ -1249,6 +1287,7 @@ window.__ModuleLoader__.load({
 .yk-page > * { width: 100%; max-width: 980px; flex: none; }
 .yk-page > style { display: none; }
 .yk-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 24px 0 2px; }
+.yk-headNote { margin-top: 10px; }
 .yk-headBrand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .yk-headLogo { width: 32px; height: 32px; flex: none; display: grid; place-items: center; }
 .yk-title { margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
@@ -2312,41 +2351,66 @@ window.__ModuleLoader__.load({
     function RestartWatch({ t, bootId, onDone }) {
       const [phase, setPhase] = React.useState('waiting')
       React.useEffect(() => {
+        const startedAt = Date.now()
         let count = 0
         let stopped = false
         let reloadTimer = 0
-        // Give the old process time to go away before the first probe.
-        const timer = setInterval(async () => {
+        let timer = 0
+        let requestTimer = 0
+        let requestController = null
+        const schedule = (ms) => {
+          timer = setTimeout(tick, ms)
+        }
+        const tick = async () => {
+          if (stopped) return
           count += 1
-          if (count > 60) {
-            clearInterval(timer)
-            setPhase('slow')
-            // 一分钟还没有新进程：这次重启多半没发生，别让下次打开面板仍卡在这里。
-            onDone?.()
+          // Give the old process time to go away before the first probe.
+          if (count <= 2) {
+            schedule(1000)
             return
           }
-          if (count < 3) return
+          // A slow boot is still a boot: after the first minute, keep probing at a
+          // relaxed pace instead of giving up. Giving up left the page on the old
+          // module graph, where the updated plugin's sidebar entry had already been
+          // torn down and could not come back without a manual reload.
+          if (Date.now() - startedAt >= 60000) setPhase('slow')
+          requestController = new AbortController()
+          requestTimer = setTimeout(() => requestController.abort(), 5000)
           try {
-            const response = await fetch(API.overview, { headers: { accept: 'application/json' }, cache: 'no-store' })
-            if (!response.ok) return
-            const payload = await response.json().catch(() => null)
-            const nextBoot = payload?.overview?.bootId
-            // HTTP 200 只证明有进程在回答，不证明重启已经发生。更新文件会触发 HMR，
-            // 旧进程也可能先回应一次；execve 又保持 PID，所以必须比较启动标识。
-            if (typeof nextBoot !== 'string' || nextBoot === '' || nextBoot === bootId) return
-            if (!stopped) {
-              clearInterval(timer)
-              setPhase('back')
-              onDone?.()
-              reloadTimer = setTimeout(() => window.location.reload(), 800)
+            const response = await fetch(API.overview, {
+              headers: { accept: 'application/json' },
+              cache: 'no-store',
+              signal: requestController.signal,
+            })
+            if (stopped) return
+            if (response.ok) {
+              const payload = await response.json().catch(() => null)
+              if (stopped) return
+              const nextBoot = payload?.overview?.bootId
+              // HTTP 200 只证明有进程在回答，不证明重启已经发生。更新文件会触发 HMR，
+              // 旧进程也可能先回应一次；execve 又保持 PID，所以必须比较启动标识。
+              if (typeof nextBoot === 'string' && nextBoot !== '' && nextBoot !== bootId) {
+                clearTimeout(timer)
+                setPhase('back')
+                onDone?.()
+                reloadTimer = setTimeout(() => window.location.reload(), 800)
+                return
+              }
             }
           } catch {
-            /* still down */
+            /* still down, or this probe exceeded its five-second budget */
+          } finally {
+            clearTimeout(requestTimer)
+            requestController = null
           }
-        }, 1000)
+          if (!stopped) schedule(Date.now() - startedAt < 60000 ? 1000 : 5000)
+        }
+        schedule(1000)
         return () => {
           stopped = true
-          clearInterval(timer)
+          clearTimeout(timer)
+          clearTimeout(requestTimer)
+          requestController?.abort()
           clearTimeout(reloadTimer)
         }
       }, [])
@@ -3446,6 +3510,9 @@ window.__ModuleLoader__.load({
           h(RefreshButton, { t, onClick: load, spinning: busy === 'load' }),
         ),
         h(Failure, { t, name: 'sites', error: failure, onRetry: load }),
+        payload?.adoptedFrom
+          ? h('div', { className: 'yk-cardHint' }, fill(t('sAdopted'), { path: payload.adoptedFrom }))
+          : null,
 
         sites === null
           ? busy === 'load'
@@ -3522,7 +3589,7 @@ window.__ModuleLoader__.load({
         payload !== null
           ? h(
               Disclosure,
-              { title: t('sSettings'), badge: payload.customPublicBase ? null : h(Chip, { kind: 'warn' }, t('sPrefixUnsetTag')) },
+              { title: t('sSettings'), badge: payload.customPublicBase ? null : h(Chip, null, t('sPrefixUnsetTag')) },
               h(
                 'div',
                 { className: 'yk-settingRow' },
@@ -3549,7 +3616,7 @@ window.__ModuleLoader__.load({
               payload.customPublicBase
                 ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', disabled: busy !== '', onClick: () => savePrefix('') }, t('sPrefixDefault'))
                 : null,
-              h('div', { className: 'yk-settingHint' }, payload.customPublicBase ? t('sPrefixHint') : h('span', { className: 'yk-settingWarn' }, t('sPrefixUnset'))),
+              h('div', { className: 'yk-settingHint' }, payload.customPublicBase ? t('sPrefixHint') : t('sPrefixUnset')),
             ),
             )
           : null,
@@ -4081,6 +4148,9 @@ window.__ModuleLoader__.load({
       const [flash, show] = useFlash()
       const [busy, setBusy] = React.useState('')
       const [importText, setImportText] = React.useState('')
+      const [candidates, setCandidates] = React.useState([])
+      const [selected, setSelected] = React.useState([])
+      const [preview, setPreview] = React.useState(null)
       const [removing, setRemoving] = React.useState('')
       const [confirmReset, setConfirmReset] = React.useState(false)
       const [showSettings, setShowSettings] = React.useState(false)
@@ -4132,6 +4202,7 @@ window.__ModuleLoader__.load({
 
       const nodes = state?.nodes ?? []
       const nameOf = (id) => nodes.find((node) => node.id === id)?.name ?? id
+      const importableCandidates = candidates.filter((candidate) => !candidate.imported)
 
       const toggle = () =>
         run('toggle', async () => {
@@ -4140,15 +4211,41 @@ window.__ModuleLoader__.load({
           adopt(payload.state)
         })
 
+      /** Adopt an import result and report what it did. */
+      const finishImport = (payload) => {
+        adopt(payload.state)
+        setImportText('')
+        let text = fill(t('pImported'), { added: payload.added ?? 0 })
+        if (payload.updated > 0) text += fill(t('pImportedUpdated'), { updated: payload.updated })
+        if (payload.skipped > 0) text += fill(t('pImportedSkipped'), { skipped: payload.skipped })
+        show('import', text)
+      }
+
+      /**
+       * One input for every shape of node data.
+       *
+       * A single node is imported at once; several nodes or a subscription
+       * link are offered as checkboxes, so a hundred-node config does not
+       * flood the list with nodes the operator did not pick.
+       */
       const importNodes = () =>
         run('import', async () => {
-          const payload = await postJson(`${API.proxy}/import`, { text: importText })
-          adopt(payload.state)
-          setImportText('')
-          let text = fill(t('pImported'), { added: payload.added ?? 0 })
-          if (payload.updated > 0) text += fill(t('pImportedUpdated'), { updated: payload.updated })
-          if (payload.skipped > 0) text += fill(t('pImportedSkipped'), { skipped: payload.skipped })
-          show('import', text)
+          const offered = await postJson(`${API.proxy}/import/preview`, { text: importText })
+          const list = offered.candidates ?? []
+          setSelected([])
+          setPreview({ skipped: offered.skipped ?? 0, truncated: offered.truncated ?? 0, empty: list.length === 0 })
+          if (list.length === 0) {
+            setCandidates([])
+            return
+          }
+          if (list.length === 1 && offered.source !== 'subscription') {
+            // A single pasted node needs no choice; a subscription link always
+            // shows its contents first.
+            setCandidates([])
+            finishImport(await postJson(`${API.proxy}/import/select`, { ids: [list[0].id] }))
+            return
+          }
+          setCandidates(list)
         })
 
       const select = (id) =>
@@ -4182,6 +4279,30 @@ window.__ModuleLoader__.load({
       const reset = () =>
         run('reset', async () => {
           adopt((await postJson(`${API.proxy}/reset`, {})).state)
+          setCandidates([])
+          setSelected([])
+          setPreview(null)
+        })
+
+      const toggleCandidate = (id) =>
+        setSelected((current) => (current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id]))
+
+      const selectAllCandidates = () =>
+        setSelected(candidates.filter((candidate) => !candidate.imported).map((candidate) => candidate.id))
+
+      const cancelPreview = () => {
+        setCandidates([])
+        setSelected([])
+        setPreview(null)
+      }
+
+      const importSelected = () =>
+        run('import-select', async () => {
+          const ids = [...selected]
+          const payload = await postJson(`${API.proxy}/import/select`, { ids })
+          setCandidates((current) => current.map((candidate) => (ids.includes(candidate.id) ? { ...candidate, imported: true } : candidate)))
+          setSelected([])
+          finishImport(payload)
         })
 
       const saveSettings = () => {
@@ -4361,6 +4482,91 @@ window.__ModuleLoader__.load({
                   t('pImport'),
                 ),
               ),
+              preview?.empty
+                ? h(Banner, {
+                    kind: 'warn',
+                    text: preview.skipped > 0 ? fill(t('pNoImportableSkipped'), { n: preview.skipped }) : t('pNoImportable'),
+                  })
+                : null,
+              candidates.length === 0
+                ? null
+                : h(
+                    'div',
+                    { className: 'yk-stack' },
+                    h(
+                      'div',
+                      { className: 'yk-toolbar' },
+                      h(
+                        'div',
+                        { className: 'yk-listHead' },
+                        h('div', { className: 'yk-listTitle' }, t('pImportChoice')),
+                        h('div', { className: 'yk-cardHint' }, t('pImportChoiceHint')),
+                      ),
+                      h('span', { className: 'yk-grow' }),
+                      h(
+                        'button',
+                        { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: selectAllCandidates, disabled: busy !== '' || importableCandidates.length === 0 },
+                        t('pSelectAll'),
+                      ),
+                      h(
+                        'button',
+                        { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: () => setSelected([]), disabled: busy !== '' || selected.length === 0 },
+                        t('pSelectNone'),
+                      ),
+                      h('button', { type: 'button', className: 'yk-btn yk-btn-ghost yk-btn-sm', onClick: cancelPreview, disabled: busy !== '' }, t('cancel')),
+                      h(
+                        'button',
+                        { type: 'button', className: 'yk-btn yk-btn-solid', onClick: importSelected, disabled: busy !== '' || selected.length === 0 },
+                        busy === 'import-select' ? h(Spinner) : h(DownloadIcon),
+                        fill(t('pImportSelected'), { n: selected.length }),
+                      ),
+                    ),
+                    preview !== null && preview.skipped > 0
+                      ? h('div', { className: 'yk-cardHint' }, fill(t('pSkippedUnsupported'), { n: preview.skipped, methods: (state?.methods ?? []).join(' / ') }))
+                      : null,
+                    preview !== null && preview.truncated > 0 ? h('div', { className: 'yk-cardHint' }, fill(t('pTruncated'), { n: candidates.length })) : null,
+                    h(
+                      'div',
+                      { className: 'yk-nodeList', role: 'group', 'aria-label': t('pImportChoice') },
+                      candidates.map((candidate) => {
+                        const isSelected = selected.includes(candidate.id)
+                        return h(
+                          'div',
+                          { key: candidate.id, className: isSelected ? 'yk-item yk-item-selected' : 'yk-item' },
+                          h(
+                            'button',
+                            {
+                              type: 'button',
+                              className: candidate.imported ? 'yk-check yk-check-locked' : 'yk-check',
+                              role: 'checkbox',
+                              'aria-checked': candidate.imported || isSelected ? 'true' : 'false',
+                              'aria-label': candidate.name,
+                              title: candidate.imported ? t('pImportedNode') : undefined,
+                              disabled: busy !== '' || candidate.imported,
+                              onClick: () => toggleCandidate(candidate.id),
+                            },
+                            candidate.imported || isSelected ? h(CheckIcon, { width: 11, height: 11 }) : null,
+                          ),
+                          h(
+                            'div',
+                            { className: 'yk-itemMain' },
+                            h(
+                              'div',
+                              { className: 'yk-itemTitleRow' },
+                              h('span', { className: 'yk-nodeName', title: candidate.name }, candidate.name),
+                              candidate.imported ? h(Chip, { kind: 'ok' }, t('pImportedNode')) : null,
+                            ),
+                            h(
+                              'div',
+                              { className: 'yk-itemMeta' },
+                              h('span', { className: 'yk-mono' }, `${candidate.server}:${candidate.port}`),
+                              h('span', { className: 'yk-mono' }, candidate.method),
+                            ),
+                          ),
+                        )
+                      }),
+                    ),
+                  ),
               h(FlashNote, { flash, keys: ['import'] }),
             )
           : null,
@@ -5631,6 +5837,10 @@ window.__ModuleLoader__.load({
       const runtime = snap?.runtime
       const disk = snap?.disk
       const feed = snap?.update
+      // Windows clients have no npm and own their process lifecycle; the host
+      // hides both APIs there too.
+      const updateSupported = feed?.supported !== false
+      const restartSupported = snap?.restart?.supported !== false
       const previous = snap?.lastUpdate ?? null
       // 磁盘上已经不是这次更新的目标版本：这次更新被回退或被旧版接管了。
       const missed = previous !== null && previous.applied === false && previous.to !== (disk?.version ?? null)
@@ -5652,41 +5862,47 @@ window.__ModuleLoader__.load({
                 h(
                   'div',
                   { className: 'yk-heroSub' },
-                  missed
-                    ? fill(t('rUpgradeMissed'), { version: previous.to, current: runtime?.version ?? '?' })
-                    : disk?.stale
-                      ? t('rNeedsRestart')
-                      : feed?.available
-                        ? fill(t('rUpdateReady'), { version: feed.latest })
-                        : feed?.checkedAt
-                          ? fill(t('rUpToDate'), { channel: runtime?.channel ?? '' })
-                          : t('rNotChecked'),
+                  !updateSupported || !restartSupported
+                    ? t('rDshUnsupported')
+                    : missed
+                      ? fill(t('rUpgradeMissed'), { version: previous.to, current: runtime?.version ?? '?' })
+                      : disk?.stale
+                        ? t('rNeedsRestart')
+                        : feed?.available
+                          ? fill(t('rUpdateReady'), { version: feed.latest })
+                          : feed?.checkedAt
+                            ? fill(t('rUpToDate'), { channel: runtime?.channel ?? '' })
+                            : t('rNotChecked'),
                 ),
               ),
               h(
                 'div',
                 { className: 'yk-heroActions' },
                 h(FlashNote, { flash, keys: ['update'] }),
-                feed?.available
-                  ? h('button', { type: 'button', className: 'yk-btn yk-btn-solid', onClick: () => update(undefined), disabled }, busy === 'update' ? h(Spinner) : h(DownloadIcon), busy === 'update' ? t('rUpdating') : fill(t('rUpdateTo'), { version: feed.latest }))
-                  : h('button', { type: 'button', className: 'yk-btn', onClick: check, disabled }, busy === 'check' ? h(Spinner) : flash?.key === 'check' ? null : h(RefreshIcon), busy === 'check' ? t('rChecking') : flashed(flash, 'check', t('rCheck'))),
-                h(
-                  'button',
-                  {
-                    type: 'button',
-                    className: disk?.stale || confirmRestart ? 'yk-btn yk-btn-solid' : 'yk-btn yk-btn-ghost',
-                    'aria-expanded': confirmRestart ? 'true' : 'false',
-                    onClick: () => setConfirmRestart((value) => !value),
-                    disabled,
-                  },
-                  h(PowerIcon),
-                  t('rRestart'),
-                ),
+                updateSupported
+                  ? feed?.available
+                    ? h('button', { type: 'button', className: 'yk-btn yk-btn-solid', onClick: () => update(undefined), disabled }, busy === 'update' ? h(Spinner) : h(DownloadIcon), busy === 'update' ? t('rUpdating') : fill(t('rUpdateTo'), { version: feed.latest }))
+                    : h('button', { type: 'button', className: 'yk-btn', onClick: check, disabled }, busy === 'check' ? h(Spinner) : flash?.key === 'check' ? null : h(RefreshIcon), busy === 'check' ? t('rChecking') : flashed(flash, 'check', t('rCheck')))
+                  : null,
+                restartSupported
+                  ? h(
+                      'button',
+                      {
+                        type: 'button',
+                        className: disk?.stale || confirmRestart ? 'yk-btn yk-btn-solid' : 'yk-btn yk-btn-ghost',
+                        'aria-expanded': confirmRestart ? 'true' : 'false',
+                        onClick: () => setConfirmRestart((value) => !value),
+                        disabled,
+                      },
+                      h(PowerIcon),
+                      t('rRestart'),
+                    )
+                  : null,
               ),
             )
           : null,
 
-        snap !== null && confirmRestart
+        snap !== null && confirmRestart && restartSupported
           ? h(ConfirmStrip, {
               t,
               title: t('confirmRestart'),
@@ -5702,12 +5918,18 @@ window.__ModuleLoader__.load({
         snap === null && failure === null ? h(Loading, { text: t('loading') }) : null,
 
         snap !== null ? h('div', { className: 'yk-grid' },
-          h(Card, { title: t('rCardVersion'), icon: h(DownloadIcon, { width: 16, height: 16 }), action: h('button', { type: 'button', className: 'yk-cardAction', 'aria-expanded': picking ? 'true' : 'false', onClick: () => setPicking((value) => !value) }, picking ? t('rPickVersionClose') : t('rPickVersion')) },
+          h(Card, {
+            title: t('rCardVersion'),
+            icon: h(DownloadIcon, { width: 16, height: 16 }),
+            action: updateSupported
+              ? h('button', { type: 'button', className: 'yk-cardAction', 'aria-expanded': picking ? 'true' : 'false', onClick: () => setPicking((value) => !value) }, picking ? t('rPickVersionClose') : t('rPickVersion'))
+              : null,
+          },
             h('div', { className: 'yk-rows' },
               disk?.stale ? h(Row, { label: t('rOnDisk'), value: disk?.version ?? '—', mono: true }) : null,
               h(Row, { label: t('rChannel'), value: runtime?.channel ?? '—', mono: true }),
               feed?.latest ? h(Row, { label: t('rLatest'), value: feed.latest, mono: true }) : null,
-              previous?.from
+              previous?.from && updateSupported
                 ? h(Row, {
                   label: t('rPrevious'),
                   value: previous.from,
@@ -5723,7 +5945,7 @@ window.__ModuleLoader__.load({
                 : null,
               disk?.error ? h(Row, { label: t('rDiskError'), value: disk.error, mono: true, clamp: true }) : null,
             ),
-            picking ? h('div', { className: 'yk-toolbar' },
+            picking && updateSupported ? h('div', { className: 'yk-toolbar' },
               h('input', { className: 'yk-input yk-mono yk-fill', value: version, placeholder: t('rVersionInput'), onChange: (event) => setVersion(event.target.value) }),
               h('button', { type: 'button', className: 'yk-btn', onClick: () => update(version.trim()), disabled: disabled || version.trim() === '' }, t('rInstall')),
             ) : null,
@@ -5732,12 +5954,12 @@ window.__ModuleLoader__.load({
             h('div', { className: 'yk-rows' },
               h(Row, { label: t('rNode'), value: runtime?.node ?? '—', mono: true }),
               h(Row, { label: t('rUptime'), value: runtime?.uptime ?? '—' }),
-              h(Row, { label: t('rStrategy'), value: strategy }),
+              restartSupported ? h(Row, { label: t('rStrategy'), value: strategy }) : null,
             ),
           ),
           snap.lastAction?.output ? h(Card, { title: t('rCardActivity'), span: true }, h('pre', { className: 'yk-out' }, snap.lastAction.output)) : null,
         ) : null,
-        h('div', { className: 'yk-foot' }, t('rHint')),
+        restartSupported ? h('div', { className: 'yk-foot' }, t('rHint')) : null,
       )
     }
 
@@ -6918,7 +7140,7 @@ window.__ModuleLoader__.load({
     }
 
     /** Header update control: check first, then offer the update, then the restart. */
-    function UpdateControl({ t, components, onRestart }) {
+    function UpdateControl({ t, components, onRestart, onFailure }) {
       const [phase, setPhase] = React.useState('idle')
       const [info, setInfo] = React.useState(null)
       const [message, setMessage] = React.useState('')
@@ -6929,20 +7151,29 @@ window.__ModuleLoader__.load({
         return () => clearTimeout(timer)
       }, [phase])
 
+      const fail = (text) => {
+        setMessage(text)
+        setPhase('error')
+        // 顶栏胶囊会省略号截断，完整原因交给面板另起一行显示。
+        onFailure?.(text)
+      }
+
       const check = async () => {
         setPhase('checking')
+        onFailure?.(null)
         try {
           const payload = await getJson(API.update)
           setInfo(payload.update)
-          setPhase(payload.update.pendingRestart ? 'pending' : payload.update.available ? (payload.update.updatable ? 'available' : 'manual') : 'latest')
+          // 非 GitHub 来源的副本没有远端版本可比，`available` 恒为 false，只能按来源提示重装。
+          setPhase(payload.update.pendingRestart ? 'pending' : payload.update.updatable === false ? 'manual' : payload.update.available ? 'available' : 'latest')
         } catch (error) {
-          setMessage(fill(t('upFailed'), { error: messageOf(error) }))
-          setPhase('error')
+          fail(fill(t('upFailed'), { error: messageOf(error) }))
         }
       }
 
       const update = async () => {
         setPhase('updating')
+        onFailure?.(null)
         try {
           // 同一次请求允许 Host 在必须重启时直接安排；HMR 已应用的新版不再重启。
           // 若确需重启，Host 会在写回响应之后执行，客户端重载不会丢掉这一步。
@@ -6954,8 +7185,7 @@ window.__ModuleLoader__.load({
           }
           setPhase(payload.updated ? (payload.update?.pendingRestart ? 'pending' : 'done') : 'latest')
         } catch (error) {
-          setMessage(fill(t('upUpdateFailed'), { error: messageOf(error) }))
-          setPhase('error')
+          fail(fill(t('upUpdateFailed'), { error: messageOf(error) }))
         }
       }
 
@@ -6964,19 +7194,27 @@ window.__ModuleLoader__.load({
           await requestRestart(components)
           onRestart()
         } catch (error) {
-          setMessage(fill(t('upUpdateFailed'), { error: messageOf(error) }))
-          setPhase('error')
+          fail(fill(t('upUpdateFailed'), { error: messageOf(error) }))
         }
       }
+
+      // 手动更新的提示按来源分开：npm 副本去「插件」页选版本，安装包副本只能重装新版本。
+      const manualText = info?.sourceKind === 'registry' ? 'upManualNpm' : info?.sourceKind === 'tarball' ? 'upManualPackage' : 'upManual'
 
       const status =
         phase === 'checking' ? { kind: 'busy', text: t('upChecking') }
           : phase === 'updating' ? { kind: 'busy', text: t('upUpdating') }
             : phase === 'latest' ? { kind: 'ok', text: t('upLatest') }
               : phase === 'available' ? { kind: 'warn', text: fill(t('upAvailable'), { version: `v${info?.latest ?? ''}${info?.latestCommit ? ` (${info.latestCommit})` : ''}` }), action: h('button', { type: 'button', className: 'yk-btn yk-btn-solid yk-btn-sm', onClick: update }, t('upNow')) }
-                : phase === 'manual' ? { kind: 'warn', text: t('upManual') }
+                : phase === 'manual' ? { kind: 'warn', text: t(manualText) }
                   : phase === 'done' ? { kind: 'ok', text: fill(t('upDone'), { version: `v${info?.installed ?? info?.latest ?? ''}` }) }
-                  : phase === 'pending' ? { kind: 'warn', text: fill(t('upPending'), { version: `v${info?.installed ?? info?.latest ?? ''}` }), action: h('button', { type: 'button', className: 'yk-btn yk-btn-solid yk-btn-sm', onClick: restart }, h(PowerIcon, { width: 13, height: 13 }), t('upRestart')) }
+                  : phase === 'pending' ? {
+                    kind: 'warn',
+                    text: fill(t(info?.restartSupported === false ? 'upPendingManual' : 'upPending'), { version: `v${info?.installed ?? info?.latest ?? ''}` }),
+                    action: info?.restartSupported === false
+                      ? null
+                      : h('button', { type: 'button', className: 'yk-btn yk-btn-solid yk-btn-sm', onClick: restart }, h(PowerIcon, { width: 13, height: 13 }), t('upRestart')),
+                  }
                     : phase === 'error' ? { kind: 'error', text: message }
                       : null
 
@@ -7017,6 +7255,8 @@ window.__ModuleLoader__.load({
       // 重载客户端模块，整页刷新也可能发生在重启完成之后，那两处留下的意图都属于
       // 一个已经不存在的进程，再显示一次「正在重启」并刷新一次就是白等。
       const [restartSettled, setRestartSettled] = React.useState(() => restarting === null)
+      // 顶栏胶囊只能显示一行；失败原因常常很长，另起一行完整显示。
+      const [updateError, setUpdateError] = React.useState(null)
       const tabsRef = React.useRef(null)
       // 访问过的标签页保持挂载：切走再回来时草稿、滚动位置与已加载列表都还在。
       // 没访问过的页面不提前挂载，避免一次打开面板就打 11 个请求。
@@ -7234,8 +7474,29 @@ window.__ModuleLoader__.load({
             h('h1', { className: 'yk-title' }, t('title')),
             overview !== null ? h(Chip, { kind: 'accent' }, `v${overview.version}`) : null,
           ),
-          h(UpdateControl, { t, components, onRestart }),
+          h(UpdateControl, { t, components, onRestart, onFailure: setUpdateError }),
         ),
+        updateError === null
+          ? null
+          : h(
+              'div',
+              { className: 'yk-headNote' },
+              h(Banner, {
+                kind: 'error',
+                text: updateError,
+                action: h(
+                  'button',
+                  {
+                    type: 'button',
+                    className: 'yk-btn yk-btn-ghost yk-iconBtn yk-btn-sm',
+                    title: t('close'),
+                    'aria-label': t('close'),
+                    onClick: () => setUpdateError(null),
+                  },
+                  h(ClearIcon, { width: 12, height: 12 }),
+                ),
+              }),
+            ),
         h(
           'div',
           { className: 'yk-navBar', role: 'tablist', 'aria-label': t('title'), ref: tabsRef, onKeyDown: onTabKeyDown },

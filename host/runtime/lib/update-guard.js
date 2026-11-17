@@ -3,11 +3,12 @@
  *
  * 更新本身交给官方 Plugin Manager，回滚也由它负责；这个模块只剩一件事：
  * 同一台机器可能有多个 Host 进程（不同端口/不同 profile 指向同一目录），
- * 进程内的锁管不到它们，这里再加一个 `$DSH_HOME` 下的文件锁；持有者进程
- * 已经不存在时按陈旧锁接管。
+ * 进程内的锁管不到它们，这里再加一个 `$DSH_HOME` 下的文件锁；陈旧或损坏的锁
+ * 保留并明确报错，不冒险自动接管。
  * @module yukari-dsh-plugin/runtime/update-guard
  */
-import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { linkSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 
 /** 进程是否还活着。 */
@@ -34,9 +35,9 @@ function holderOf(file) {
 /**
  * 取一个跨进程的更新锁。
  *
- * 同一个目录被两个 Host 进程同时更新时，后一个会看到前一个的锁文件；只有
- * 持有者进程确实不在了才接管，否则直接 409 让调用方等。JSON 解析失败或
- * pid 缺失的锁按无效处理——那可能是上次崩溃留下的半截文件。
+ * 同一个目录被两个 Host 进程同时更新时，后一个会看到前一个的锁文件并直接
+ * 409。陈旧或损坏的锁也保留并报告位置：自动删除无法与新锁发布形成原子操作，
+ * 两个进程可能互相删除对方的新锁，因此这里选择失败关闭而不是自动接管。
  * @param home - `$DSH_HOME`。
  * @param options - `pid`、`now`，测试用。
  * @returns 释放函数。
@@ -47,28 +48,23 @@ export function acquireUpdateLock(home, options = {}) {
   const directory = path.join(home, '.update-lock')
   const file = path.join(directory, 'owner.json')
   mkdirSync(directory, { recursive: true, mode: 0o700 })
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    try {
-      const handle = openSync(file, 'wx', 0o600)
-      try {
-        writeSync(handle, JSON.stringify({ pid, at: now() }))
-      } finally {
-        closeSync(handle)
-      }
-      return () => rmSync(file, { force: true })
-    } catch (error) {
-      if (error?.code !== 'EEXIST') throw error
-      const holder = holderOf(file)
-      if (holder !== null && alive(holder.pid)) {
-        const busy = new Error(`另一个 Harness 进程（pid ${holder.pid}）正在更新插件，请等它完成`)
-        busy.status = 409
-        throw busy
-      }
-      // 陈旧锁：持有者已退出，或文件本身就是半截 JSON。
-      rmSync(file, { force: true })
-    }
+  // 先在临时文件写完整内容，再用硬链接原子发布。直接创建 owner.json 会让
+  // 另一个进程在写入窗口读到空文件，并把仍在运行的持锁者误判为陈旧锁。
+  const temporary = path.join(directory, `.${process.pid}-${randomUUID()}.tmp`)
+  try {
+    writeFileSync(temporary, JSON.stringify({ pid, at: now() }), { flag: 'wx', mode: 0o600 })
+    linkSync(temporary, file)
+    return () => rmSync(file, { force: true })
+  } catch (error) {
+    if (error?.code !== 'EEXIST') throw error
+    const holder = holderOf(file)
+    const detail = holder !== null && alive(holder.pid)
+      ? `另一个 Harness 进程（pid ${holder.pid}）正在更新插件，请等它完成`
+      : `更新锁已陈旧或损坏（${file}）。为避免并发更新，未自动删除；确认没有更新正在执行后，删除该文件再试`
+    const busy = new Error(detail)
+    busy.status = 409
+    throw busy
+  } finally {
+    rmSync(temporary, { force: true })
   }
-  const failed = new Error('无法取得更新锁，请检查 $DSH_HOME 的写权限')
-  failed.status = 409
-  throw failed
 }

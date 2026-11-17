@@ -15,7 +15,7 @@ import { METHOD_NAMES } from '../host/proxy/lib/shadowsocks.js'
 try {
   import.meta.resolve('undici')
 } catch {
-  const stub = 'export class Agent {} export class Pool {} export class ProxyAgent {} export const getGlobalDispatcher = () => null; export const setGlobalDispatcher = () => {}'
+  const stub = 'export class Agent {} export class Pool {} export class ProxyAgent {} let dispatcher = null; export const getGlobalDispatcher = () => dispatcher; export const setGlobalDispatcher = (value) => { dispatcher = value }'
   const hooks = `export async function resolve(specifier, context, next) {
     if (specifier === 'undici') return { url: ${JSON.stringify(`data:text/javascript,${encodeURIComponent(stub)}`)}, shortCircuit: true }
     return next(specifier, context)
@@ -64,6 +64,12 @@ test('parseNodesInput: base64 subscription with mixed schemes', () => {
   assert.equal(nodes[1].server, 'host.example')
   // base64url without padding is accepted too.
   assert.equal(parseNodesInput(b64url(SIP002), METHOD_NAMES).nodes[0].password, 'pass/one+')
+})
+
+test('parseNodesInput: base64 JSON accepts legal surrounding whitespace', () => {
+  const json = JSON.stringify([{ name: 'HK', server: 'example.com', port: 8388, cipher: 'aes-256-gcm', password: 'secret' }])
+  const { nodes } = parseNodesInput(b64(`\n  ${json}\n`), METHOD_NAMES)
+  assert.deepEqual(nodes.map((node) => node.name), ['HK'])
 })
 
 test('parseNodesInput: Clash YAML flow-map entries', () => {
@@ -123,6 +129,30 @@ test('parseNodesInput: Clash YAML block-style entries', () => {
     { server: 'late.example', port: 3, method: 'aes-128-gcm', password: '12345', name: 'Late' },
   ])
   assert.equal(skipped, 2)
+})
+
+test('parseNodesInput: JSON-style flow maps without spaces after the colon', () => {
+  // A provider may emit strict JSON objects inside a YAML block list. The
+  // common indentation must survive the trim, or only the first item is read.
+  const indented = [
+    '  - {"name":"HK 01","type":"ss","server":"1.2.3.4","port":8388,"cipher":"aes-128-gcm","password":"one","udp":true}',
+    '  - {"name":"HK 02","type":"ss","server":"5.6.7.8","port":13101,"cipher":"aes-256-gcm","password":"two","udp":true}',
+  ].join('\n')
+  const { nodes, skipped } = parseNodesInput(indented, METHOD_NAMES)
+  assert.equal(skipped, 0)
+  assert.deepEqual(nodes.map((node) => node.name), ['HK 01', 'HK 02'])
+  assert.deepEqual(nodes.map((node) => node.port), [8388, 13101])
+
+  const withHeader = parseNodesInput(`proxies:\n${indented}`, METHOD_NAMES)
+  assert.deepEqual(withHeader.nodes.map((node) => node.name), ['HK 01', 'HK 02'])
+
+  // A Shadowsocks 2022 cipher is a different protocol: skip it, keep the rest.
+  const mixed = parseNodesInput(
+    `${indented}\n  - {"name":"SS2022","type":"ss","server":"9.9.9.9","port":60002,"cipher":"2022-blake3-aes-128-gcm","password":"three"}`,
+    METHOD_NAMES,
+  )
+  assert.deepEqual(mixed.nodes.map((node) => node.name), ['HK 01', 'HK 02'])
+  assert.equal(mixed.skipped, 1)
 })
 
 test('parseNodesInput: JSON { proxies: [...] } and pasted objects', () => {
@@ -347,6 +377,11 @@ test('controller: a failed reconnect at startup keeps the saved intent', async (
   assert.equal(controller.state().egress, null)
   assert.match(controller.state().lastError, /已保留启用状态/)
   assert.equal(JSON.parse(await readFile(stateFile, 'utf8')).enabled, true)
+
+  // 端口必须留着：宿主把子进程钉在这个端口上，关掉它们就彻底断网。
+  const target = await loopbackServer(t)
+  assert.equal(controller.state().direct, true, 'a direct listener survives the failed reconnect')
+  assert.match(await through(localPort, target), /seen \/hello/)
 })
 
 test('controller: the startup reconnect recovers on a later attempt', async (t) => {
@@ -529,6 +564,28 @@ test('egress: dispose restores direct access instead of a self-referential proxy
   assert.equal(process.env.http_proxy, undefined)
 })
 
+test('egress: dispose never overwrites a dispatcher installed by a newer owner', async (t) => {
+  const { installEgress } = await import('../host/proxy/lib/egress.js')
+  const { Agent, getGlobalDispatcher, setGlobalDispatcher } = await import('undici')
+  const original = getGlobalDispatcher()
+  const replacement = new Agent()
+  const names = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'NO_PROXY', 'no_proxy', 'NODE_USE_ENV_PROXY']
+  const saved = new Map(names.map((name) => [name, process.env[name]]))
+  t.after(async () => {
+    setGlobalDispatcher(original)
+    await replacement.close?.()
+    for (const [name, value] of saved) {
+      if (value === undefined) Reflect.deleteProperty(process.env, name)
+      else process.env[name] = value
+    }
+  })
+  const port = await unusedPort()
+  const egress = await installEgress({ port, bypass: 'localhost' })
+  setGlobalDispatcher(replacement)
+  await egress.dispose()
+  assert.equal(getGlobalDispatcher(), replacement, 'the update-time direct dispatcher stays installed')
+})
+
 test('controller: turning the route off clears proxy variables for our own port', async (t) => {
   const stateFile = await tempStateFile(t)
   const controller = new ProxyController({ config: { stateFile } })
@@ -585,13 +642,45 @@ test('local proxy: direct mode forwards without a node', async (t) => {
   assert.match(reply, /seen \/hello/)
 })
 
-test('controller: a route that is off still answers on its port, directly', async (t) => {
-  // A host pins its children to HTTP_PROXY at boot. With nothing listening the
-  // child loses its network; a direct listener keeps it working.
+/** Resolve with the connection error instead of failing the test on it. */
+function refused(port) {
+  return new Promise((resolve, reject) => {
+    const socket = net.connect({ host: '127.0.0.1', port })
+    socket.on('connect', () => {
+      socket.destroy()
+      reject(new Error('expected the port to stay closed'))
+    })
+    socket.on('error', resolve)
+  })
+}
+
+test('controller: a route that is off takes no port when nothing was pinned to it', async (t) => {
+  // 新装：没有状态、没有继承的代理变量，就不该占端口。
+  const stateFile = await tempStateFile(t)
+  const localPort = await unusedPort()
+  await writeFile(stateFile, JSON.stringify({ enabled: false, localPort, nodes: [], activeId: null }))
+  const controller = new ProxyController({ config: { stateFile } })
+  await controller.init()
+  t.after(() => controller.dispose())
+  assert.equal(controller.state().enabled, false)
+  assert.equal(controller.state().direct, false, 'no listener is started')
+  const error = await refused(localPort)
+  assert.equal(error.code, 'ECONNREFUSED')
+})
+
+test('controller: a route that is off answers directly when a child was pinned to its port', async (t) => {
+  // A host captures its proxy environment at boot. With nothing listening the
+  // child loses its network; an inherited pointer keeps a direct listener alive.
   const target = await loopbackServer(t)
   const stateFile = await tempStateFile(t)
   const localPort = await unusedPort()
   await writeFile(stateFile, JSON.stringify({ enabled: false, localPort, nodes: [], activeId: null }))
+  const saved = process.env.HTTP_PROXY
+  process.env.HTTP_PROXY = `http://127.0.0.1:${localPort}`
+  t.after(() => {
+    if (saved === undefined) delete process.env.HTTP_PROXY
+    else process.env.HTTP_PROXY = saved
+  })
   const controller = new ProxyController({ config: { stateFile } })
   await controller.init()
   t.after(() => controller.dispose())

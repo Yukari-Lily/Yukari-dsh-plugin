@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "代理",
-    "description": "Shadowsocks 出站代理，故障自动关闭"
+    "description": "Shadowsocks 出站代理，支持 Clash 订阅导入与故障自动关闭"
   }
 }

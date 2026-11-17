@@ -178,6 +178,25 @@ test('browser runtime is awaited when a tool starts without a system browser', a
   assert.match(await message(manager.open('https://example.com')), /provisioning failed/u)
 })
 
+/**
+ * A fake runtime that keeps its state in a private field, like the real
+ * BrowserRuntime: a wrapper that copies the runtime's shape instead of calling
+ * the instance fails here with "Cannot read private member #state".
+ */
+class FakeRuntime {
+  #state
+  constructor(state) { this.#state = { ...state } }
+  state() { return this.#state }
+  async environment() { return {} }
+  async ensureReady() {
+    return this.#state.executablePath
+  }
+  async retry() {
+    this.#state = { ...this.#state, status: 'ready' }
+    return this.ensureReady()
+  }
+}
+
 function pluginFixture(runtimeState = { status: 'ready', executablePath: '/tmp/chrome' }) {
   const tools = new Map()
   const routes = []
@@ -189,12 +208,7 @@ function pluginFixture(runtimeState = { status: 'ready', executablePath: '/tmp/c
     effect: (callback) => { const cleanup = callback(); if (cleanup) cleanups.push(cleanup) },
     logger: () => ({ warn: () => {} }),
   }
-  const runtime = {
-    current: { ...runtimeState }, ensureCalls: 0,
-    state() { return this.current },
-    ensureReady() { this.ensureCalls++; return Promise.resolve(this.current.executablePath) },
-    retry() { this.current = { ...this.current, status: 'ready' }; return this.ensureReady() },
-  }
+  const runtime = new FakeRuntime(runtimeState)
   apply(ctx, { executablePath: runtimeState.executablePath }, { runtime })
   const state = async () => {
     const res = responseRecorder()
