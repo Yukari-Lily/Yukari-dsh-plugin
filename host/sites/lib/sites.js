@@ -101,6 +101,8 @@ function stamp() {
 export function normalizePublicBase(value) {
   let text = String(value ?? '').trim()
   if (text === '') throw new Error('访问前缀不能为空')
+  // 只写路径的值（例如面板里显示的默认 `/p`）会在这里被当成主机名，解析成 `https://p`。
+  if (text.startsWith('/')) throw new Error('访问前缀需要完整地址（http:// 或 https://）；使用默认前缀请清空此项')
   if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) text = `https://${text}`
   let url
   try {
@@ -147,6 +149,7 @@ function forbiddenHostReason(hostname) {
 export function publicBaseRejection(value, panelHost = '') {
   const text = String(value ?? '').trim()
   if (text === '') return null
+  if (text.startsWith('/')) return '相对路径不是对外地址'
   let url
   try {
     url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `https://${text}`)
@@ -259,6 +262,12 @@ export class SiteStore {
     if (this.ready === null) {
       this.ready = (async () => {
         await this.#adoptLegacyRoot()
+        // 发布根现在由宿主直接对外提供：状态目录落在里面，清单和 settings.json
+        // 就成了公开文件。默认名 `.publish-state` 能靠隐藏规则挡住，自定义的名字不能。
+        const inside = path.relative(this.root, this.stateRoot)
+        if (inside === '' || (!inside.startsWith('..') && !path.isAbsolute(inside))) {
+          throw new Error(`状态目录不能位于发布目录内：${this.stateRoot}`)
+        }
         await mkdir(this.root, { recursive: true })
         await mkdir(this.sitesDir, { recursive: true })
         await mkdir(this.stagingDir, { recursive: true })

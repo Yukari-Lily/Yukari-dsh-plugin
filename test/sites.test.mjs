@@ -156,6 +156,25 @@ test('setPublicBase refuses the panel origin and non-public hosts', async (t) =>
   assert.equal(await store.setPublicBase(''), store.defaultPublicBase)
 })
 
+test('setPublicBase refuses a path-only value instead of turning /p into the host p', async (t) => {
+  // 面板把默认前缀 `/p` 显示在输入框里，保存时必须拒绝：normalizePublicBase
+  // 会把它当成主机名解析成 `https://p`，之后每条链接都指到不存在的域。
+  const { store } = await fixture(t)
+  await assert.rejects(store.setPublicBase('/p'), /相对路径不是对外地址/)
+  assert.equal(store.publicBase, '/p', 'the default prefix is untouched')
+})
+
+test('init refuses a state directory inside the publish root', async (t) => {
+  // 发布根现在由宿主直接对外提供，状态目录落在里面就成了公开文件。
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'yk-sites-state-'))
+  t.after(() => rm(temporary, { recursive: true, force: true }))
+  const store = new SiteStore({
+    root: path.join(temporary, 'publish'),
+    stateRoot: path.join(temporary, 'publish', 'state'),
+  })
+  await assert.rejects(store.init(), /状态目录不能位于发布目录内/)
+})
+
 test('two publishes of one slug are serialized instead of merging', async (t) => {
   const { store, source } = await fixture(t)
   await writeFile(path.join(source, 'a.txt'), 'a')

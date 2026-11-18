@@ -3429,6 +3429,23 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /**
+     * 站点链接的绝对地址前缀。
+     *
+     * 只有页面本身跑在 http(s) 上时，`location.origin` 才是能导航的地址；Windows
+     * 客户端用 `dsh-app://app` 加载页面，那个来源点开没有反应，只能换成宿主回报的
+     * 监听地址。两者都没有时返回空串，调用方不渲染链接。
+     * @param location - 页面自身的位置对象。
+     * @param localBase - 宿主回报的监听来源，例如 `http://127.0.0.1:3080`。
+     * @returns 不带尾斜杠的来源，或空串。
+     */
+    function resolveLinkBase(location, localBase) {
+      const protocol = typeof location?.protocol === 'string' ? location.protocol : ''
+      const origin = typeof location?.origin === 'string' ? location.origin : ''
+      if ((protocol === 'http:' || protocol === 'https:') && origin !== '' && origin !== 'null') return origin
+      return typeof localBase === 'string' ? localBase : ''
+    }
+
     /* ---------------------------------------------------------------- sites */
 
     function SitesTab({ t }) {
@@ -3444,7 +3461,8 @@ window.__ModuleLoader__.load({
 
       const adopt = (next) => {
         setPayload(next)
-        setPrefix(next.publicBase ?? '')
+        // 默认前缀是相对路径，显示成已保存的值会让人以为要保存它；留空加占位符更诚实。
+        setPrefix(next.customPublicBase ? next.publicBase ?? '' : '')
         setPrefixTouched(false)
       }
 
@@ -3498,7 +3516,11 @@ window.__ModuleLoader__.load({
       const visible = (sites ?? []).filter(
         (site) => needle === '' || String(site.title).toLowerCase().includes(needle) || String(site.slug).toLowerCase().includes(needle),
       )
-      const linkOf = (site) => (/^https?:\/\//i.test(site.url) ? site.url : `${window.location.origin}${site.url}`)
+      const linkBase = resolveLinkBase(window.location, payload?.localBase)
+      const linkOf = (site) => {
+        if (/^https?:\/\//i.test(site.url)) return site.url
+        return linkBase === '' ? '' : `${linkBase}${site.url}`
+      }
 
       return h(
         'div',
@@ -3527,6 +3549,8 @@ window.__ModuleLoader__.load({
                   { className: 'yk-list' },
                   visible.map((site) => {
                     const href = linkOf(site)
+                    // 没有可用的绝对来源时不渲染锚点：点一个 app 协议路径不会有任何反应。
+                    const label = href === '' ? site.url : href
                     const asking = confirming === site.slug
                     return h(
                       'div',
@@ -3541,13 +3565,15 @@ window.__ModuleLoader__.load({
                           h(
                             'div',
                             { className: 'yk-itemTitleRow' },
-                            h('a', { className: 'yk-itemTitle', href, target: '_blank', rel: 'noreferrer noopener', title: href }, site.title),
+                            href === ''
+                              ? h('span', { className: 'yk-itemTitle' }, site.title)
+                              : h('a', { className: 'yk-itemTitle', href, target: '_blank', rel: 'noreferrer noopener', title: href }, site.title),
                             h(Chip, null, fill(t('sVersion'), { version: site.version })),
                           ),
                           h(
                             'div',
                             { className: 'yk-itemMeta' },
-                            h('span', { className: 'yk-mono yk-link' }, href),
+                            h('span', { className: 'yk-mono yk-link' }, label),
                             h('span', null, fill(t('sPublished'), { time: relativeTime(site.publishedAt, t) })),
                             h('span', null, `${fill(t('sFiles'), { n: site.files })} · ${formatBytes(site.bytes)}`),
                           ),
@@ -3567,8 +3593,10 @@ window.__ModuleLoader__.load({
                             : h(
                                 React.Fragment,
                                 null,
-                                h(CopyButton, { text: href, label: t('copy'), t }),
-                                h('a', { className: 'yk-btn yk-btn-ghost yk-iconBtn', href, target: '_blank', rel: 'noreferrer noopener', title: t('open'), 'aria-label': t('open') }, h(OpenIcon)),
+                                h(CopyButton, { text: label, label: t('copy'), t }),
+                                href === ''
+                                  ? null
+                                  : h('a', { className: 'yk-btn yk-btn-ghost yk-iconBtn', href, target: '_blank', rel: 'noreferrer noopener', title: t('open'), 'aria-label': t('open') }, h(OpenIcon)),
                                 h(
                                   'button',
                                   {
@@ -8327,6 +8355,8 @@ window.__ModuleLoader__.load({
 
     return {
       inject: ['slots', 'locale', 'uiWorkspace', 'workspaces'],
+      // 地址解析单独暴露，方便真实 DOM 用例直接断言；宿主只读 inject 与 apply。
+      resolveLinkBase,
       apply(ctx) {
         ctx.effect(() => ctx.locale.register(NS, 'en', en))
         ctx.effect(() => ctx.locale.register(NS, 'zh-CN', zh))

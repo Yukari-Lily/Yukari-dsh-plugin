@@ -1087,7 +1087,71 @@ async function caseImportPreview() {
   await panel.close()
 }
 
-const cases = [['tabs', caseTabs], ['keep-alive', caseKeepAlive], ['confirm-focus', caseConfirmFocus], ['chat-counts', caseChatCounts], ['chat-preview', caseChatPreview], ['chat-preview-below', caseChatPreviewBelow], ['chat-preview-tap', caseChatPreviewTap], ['chat-preview-gone', caseChatPreviewGone], ['files-markdown', caseFilesMarkdown], ['probe-note', caseProbeNote], ['restart-watch', caseRestartWatch], ['update-applies', caseUpdateApplies], ['update-restarts', caseUpdateRestarts], ['update-windows', caseUpdateWindows], ['update-error', caseUpdateError], ['update-manual', caseUpdateManual], ['restart-resume', caseRestartResume], ['restart-already-done', caseRestartAlreadyDone], ['runtime-rollback', caseRuntimeRollback], ['chat-visibility', caseChatVisibility], ['github-signing', caseGithubSigning], ['skills', caseSkills], ['picker-memory', casePickerMemory], ['picker-memory-seeded', casePickerMemorySeeded], ['picker-memory-stale', casePickerMemoryStale], ['import-preview', caseImportPreview]]
+
+async function caseSitesLinks() {
+  // Windows 客户端的页面用 dsh-app://app 加载，location.origin 点开没有反应；
+  // 链接必须改由宿主回报的监听地址拼出来。默认的 /p 前缀也不能当已保存值回填。
+  const panel = mountPanel({
+    ...routes,
+    '/publish/api/list': {
+      ok: true,
+      sites: [{
+        slug: 'demo',
+        title: 'Demo',
+        url: '/p/demo/',
+        files: 1,
+        bytes: 12,
+        version: 1,
+        publishedAt: '2026-11-18T00:00:00.000Z',
+      }],
+      root: '/tmp/publish',
+      localBase: 'http://127.0.0.1:3080',
+      adoptedFrom: null,
+      publicBase: '/p',
+      defaultPublicBase: '/p',
+      customPublicBase: false,
+    },
+  })
+  await panel.renderMain()
+  assert.equal(
+    panel.exports.resolveLinkBase({ protocol: 'dsh-app:', origin: 'dsh-app://app' }, 'http://127.0.0.1:3080'),
+    'http://127.0.0.1:3080',
+    'an app-protocol page links through the host address',
+  )
+  assert.equal(
+    panel.exports.resolveLinkBase({ protocol: 'file:', origin: 'null' }, 'http://127.0.0.1:3080'),
+    'http://127.0.0.1:3080',
+    'a file page links through the host address',
+  )
+  assert.equal(
+    panel.exports.resolveLinkBase({ protocol: 'http:', origin: 'http://127.0.0.1:3080' }, null),
+    'http://127.0.0.1:3080',
+    'a browser page keeps its own origin',
+  )
+  assert.equal(
+    panel.exports.resolveLinkBase({ protocol: 'dsh-app:', origin: 'dsh-app://app' }, null),
+    '',
+    'without a host address no link is offered',
+  )
+
+  tabOf(panel.window, 'sites').dispatchEvent(new panel.window.MouseEvent('click', { bubbles: true }))
+  await panel.tick()
+  await panel.tick()
+  const tab = panelOf(panel.window, 'sites')
+  assert.equal(await panel.waitFor(() => tab.querySelector('.yk-itemTitle') !== null), true, 'the site row rendered')
+  const link = tab.querySelector('.yk-itemTitle')
+  assert.equal(link.getAttribute('href'), 'http://127.0.0.1/p/demo/', 'the link uses the page origin')
+  // 前缀输入框在折叠区里：展开之后才能读到值。
+  tab.querySelector('.yk-disclosureBtn').dispatchEvent(new panel.window.MouseEvent('click', { bubbles: true }))
+  await panel.tick()
+  await panel.tick()
+  const input = tab.querySelector('.yk-input')
+  assert.equal(input.value, '', 'the default relative prefix is not pre-filled as a saved value')
+  assert.equal(input.getAttribute('placeholder'), '/p')
+  await panel.close()
+}
+
+const cases = [['tabs', caseTabs], ['keep-alive', caseKeepAlive], ['confirm-focus', caseConfirmFocus], ['chat-counts', caseChatCounts], ['chat-preview', caseChatPreview], ['chat-preview-below', caseChatPreviewBelow], ['chat-preview-tap', caseChatPreviewTap], ['chat-preview-gone', caseChatPreviewGone], ['files-markdown', caseFilesMarkdown], ['probe-note', caseProbeNote], ['restart-watch', caseRestartWatch], ['update-applies', caseUpdateApplies], ['update-restarts', caseUpdateRestarts], ['update-windows', caseUpdateWindows], ['update-error', caseUpdateError], ['update-manual', caseUpdateManual], ['restart-resume', caseRestartResume], ['restart-already-done', caseRestartAlreadyDone], ['runtime-rollback', caseRuntimeRollback], ['chat-visibility', caseChatVisibility], ['github-signing', caseGithubSigning], ['skills', caseSkills], ['picker-memory', casePickerMemory], ['picker-memory-seeded', casePickerMemorySeeded], ['picker-memory-stale', casePickerMemoryStale], ['import-preview', caseImportPreview], ['sites-links', caseSitesLinks]]
 for (const [name, run] of cases) {
   await run()
   process.stdout.write(`ok ${name}\n`)

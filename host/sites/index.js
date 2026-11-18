@@ -7,10 +7,14 @@
  */
 import { markMounted } from '../shared/mounted.js'
 import { SiteStore } from './lib/sites.js'
+import { siteHandler } from './lib/serve.js'
 import { guardRoute, readJsonBody, sendJson } from '../shared/http.js'
 
 /** JSON API prefix the Web panel calls. */
 export const API_PATH = '/publish/api'
+
+/** Path the Host serves published sites from when no absolute prefix is set. */
+export const SITE_PATH = '/p'
 
 /** Services this plugin needs. */
 export const inject = ['tools', 'webServer', 'connection']
@@ -54,6 +58,27 @@ export function apply(ctx, config = {}) {
   markMounted(ctx, 'sites')
   const store = new SiteStore(config)
 
+  /**
+   * Origin a local browser reaches this Host at.
+   *
+   * 面板页面自己不一定有 http(s) 来源：Windows 客户端用 `dsh-app://app` 加载，
+   * 再用 IPC 桥接请求。那种情况下站点链接只能靠宿主回报的监听地址，端口读的是
+   * 实际绑定值（`port: 0` 时由系统分配）。
+   * @returns the origin, e.g. `http://127.0.0.1:3080`, or null when unbound.
+   */
+  const localBase = () => {
+    try {
+      if (typeof ctx.webServer.getOrigin === 'function') return ctx.webServer.getOrigin()
+    } catch {
+      // 监听器尚未绑定：面板退回相对路径。
+    }
+    const host = String(ctx.webServer.host ?? '')
+    const port = Number(ctx.webServer.port)
+    if (host === '' || !Number.isInteger(port)) return null
+    const authority = host.includes(':') ? `[${host}]` : host
+    return `${ctx.webServer.protocol ?? 'http:'}//${authority}:${port}`
+  }
+
   ctx.effect(async () => {
     await store.init()
     return () => {}
@@ -62,7 +87,7 @@ export function apply(ctx, config = {}) {
   ctx.tools.register({
     name: 'publish_site',
     description:
-      'Publish one built static site: copy the directory into the publish root, swap it in atomically, and return the public URL. The root is served by whatever static server the deployment points at /p; without one the URL does not answer. The source must have index.html at its top level and reference its assets with relative paths (./assets/...); absolute root paths such as /assets/x.js are rejected. Secrets and build junk (.env*, .git, node_modules, key files) are skipped.',
+      'Publish one built static site: copy the directory into the publish root, swap it in atomically, and return its URL. The Host answers the publish root at /p itself, so the returned path opens on this deployment (the panel resolves it against the address it is reached at). The source must have index.html at its top level and reference its assets with relative paths (./assets/...); absolute root paths such as /assets/x.js are rejected. Secrets and build junk (.env*, .git, node_modules, key files) are skipped.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -219,6 +244,7 @@ export function apply(ctx, config = {}) {
               ok: true,
               sites: await store.list(),
               root: store.root,
+              localBase: localBase(),
               adoptedFrom: store.adoptedFrom,
               publicBase: store.publicBase,
               defaultPublicBase: store.defaultPublicBase,
@@ -237,6 +263,7 @@ export function apply(ctx, config = {}) {
               ok: true,
               sites: await store.list(),
               root: store.root,
+              localBase: localBase(),
               adoptedFrom: store.adoptedFrom,
               publicBase: store.publicBase,
               defaultPublicBase: store.defaultPublicBase,
@@ -254,5 +281,12 @@ export function apply(ctx, config = {}) {
         }),
       }),
     `publish-sites: ${API_PATH}/*`,
+  )
+
+  // 发布根由宿主自己应答：默认本地部署没有别的静态服务器，少了这条，/p/… 就是 404。
+  // 站点是公开产物，所以这条路由不经过 connection 的浏览器鉴权。
+  ctx.effect(
+    () => ctx.webServer.register({ kind: 'prefix', path: SITE_PATH, handler: siteHandler(store) }),
+    `publish-sites: ${SITE_PATH}/*`,
   )
 }

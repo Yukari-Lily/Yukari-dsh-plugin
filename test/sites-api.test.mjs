@@ -9,7 +9,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { Writable } from 'node:stream'
 import os from 'node:os'
 import path from 'node:path'
-import { apply } from '../host/sites/index.js'
+import { apply, API_PATH, SITE_PATH } from '../host/sites/index.js'
 
 /** A response that records status, headers and body. */
 function response() {
@@ -48,24 +48,31 @@ async function mount(t, options = {}) {
   // 组件的目录是 init() 里懒创建的：挂载后立刻断言再清理，rm 会撞上进行中的
   // mkdir（ENOTEMPTY）。重试几次比让用例随机变红诚实。
   t.after(() => rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 20 }))
-  let route = null
+  const routes = new Map()
   const tools = []
   const ctx = {
     tools: { register: (tool) => tools.push(tool) },
-    webServer: { register: (value) => { route = value; return () => {} } },
+    webServer: {
+      register: (value) => { routes.set(value.path, value); return () => {} },
+      ...(options.noOrigin
+        ? {}
+        : { host: '127.0.0.1', port: 3080, protocol: 'http:', getOrigin: () => 'http://127.0.0.1:3080' }),
+    },
     connection: { requestRejection: options.reject ? () => 403 : () => undefined },
     effect: (callback) => { const cleanup = callback(); return () => cleanup?.() },
     logger: { warn: () => {}, info: () => {} },
     get: () => undefined,
   }
   apply(ctx, { root: path.join(root, 'publish'), stateRoot: path.join(root, 'state'), maxMb: 8, maxFiles: 100 })
-  assert.ok(route !== null, 'the component registered a route')
+  const api = routes.get(API_PATH)
+  assert.ok(api?.handler !== undefined, 'the component registered the API route')
+  assert.equal(typeof routes.get(SITE_PATH)?.handler, 'function', 'the publish root is served by the host')
   const call = async (url, init) => {
     const res = response()
-    await route.handler(request(url, init), res)
+    await api.handler(request(url, init), res)
     return { status: res.statusCode, json: res.json(), headers: res.headers }
   }
-  return { call, tools, root }
+  return { call, tools, root, routes }
 }
 
 test('list: the route answers with sites, root and the active prefix', async (t) => {
@@ -76,7 +83,15 @@ test('list: the route answers with sites, root and the active prefix', async (t)
   assert.equal(result.json.publicBase, '/p', 'the row config names no prefix')
   assert.equal(result.json.defaultPublicBase, '/p')
   assert.equal(result.json.customPublicBase, false)
+  assert.equal(result.json.localBase, 'http://127.0.0.1:3080', 'the panel can open links on the address it is reached at')
   assert.equal(result.json.adoptedFrom, null, 'an explicit root is never overridden by the legacy scan')
+})
+
+test('list: an unbound listener leaves no absolute base behind', async (t) => {
+  const { call } = await mount(t, { noOrigin: true })
+  const result = await call('/publish/api/list')
+  assert.equal(result.status, 200)
+  assert.equal(result.json.localBase, null, 'without an origin the panel keeps the relative path')
 })
 
 test('settings: a prefix on the panel origin is refused with a reason', async (t) => {

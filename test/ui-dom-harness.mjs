@@ -193,5 +193,5 @@ export function mountPanel(routes = {}, options = {}) {
       delete globalThis[key]
     }
   }
-  return { window, container, renderMain, registrations, tick, waitFor, reportIntersection, close, picker: ctx.uiWorkspace, workspaces: ctx.workspaces }
+  return { window, container, renderMain, registrations, exports: module, tick, waitFor, reportIntersection, close, picker: ctx.uiWorkspace, workspaces: ctx.workspaces }
 }
