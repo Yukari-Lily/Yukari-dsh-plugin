@@ -145,13 +145,14 @@ test('publish removes real source maps but keeps unrelated .map files', async (t
   assert.deepEqual((await readdir(path.join(root, 'maps'))).sort(), ['app.js', 'district.map', 'index.html'])
 })
 
-test('setPublicBase refuses the panel origin and non-public hosts', async (t) => {
+test('setPublicBase accepts the panel origin and refuses non-public hosts', async (t) => {
   const { store } = await fixture(t)
-  await assert.rejects(store.setPublicBase('https://dsh.example.com/p', { panelHost: 'dsh.example.com' }), /与面板同源/)
+  // 与面板同源是本项目最常见的用法：反代把 /p 和面板放在同一个域名下。
+  assert.equal(await store.setPublicBase('https://dsh.example.com/p'), 'https://dsh.example.com/p')
   await assert.rejects(store.setPublicBase('http://127.0.0.1:3080/p'), /回环/)
   await assert.rejects(store.setPublicBase('http://169.254.169.254/p'), /链路本地/)
   await assert.rejects(store.setPublicBase('ftp://pages.example.com'), /http 与 https/)
-  const base = await store.setPublicBase('https://pages.example.com', { panelHost: 'dsh.example.com:3080' })
+  const base = await store.setPublicBase('https://pages.example.com')
   assert.equal(base, 'https://pages.example.com')
   assert.equal(await store.setPublicBase(''), store.defaultPublicBase)
 })

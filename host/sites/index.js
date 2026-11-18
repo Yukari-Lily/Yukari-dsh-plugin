@@ -258,7 +258,7 @@ export function apply(ctx, config = {}) {
           }
           const body = await readJsonBody(req)
           if (action === 'settings') {
-            await store.setPublicBase(body.publicBase, { panelHost: req.headers.host })
+            await store.setPublicBase(body.publicBase)
             sendJson(res, 200, {
               ok: true,
               sites: await store.list(),

@@ -142,11 +142,12 @@ function forbiddenHostReason(hostname) {
 
 /**
  * Why a prefix cannot be used, or null when it can.
+ *
+ * 与面板同源是允许的：发布页挂在同一个域名下是最常见的用法，页面脚本能带着
+ * 面板登录态访问接口这件事由使用者自己权衡。
  * @param value - prefix text from the panel or the row config.
- * @param panelHost - `Host` header of the panel request; a prefix on it would
- *   share the panel's origin and therefore its session.
  */
-export function publicBaseRejection(value, panelHost = '') {
+export function publicBaseRejection(value) {
   const text = String(value ?? '').trim()
   if (text === '') return null
   if (text.startsWith('/')) return '相对路径不是对外地址'
@@ -159,10 +160,6 @@ export function publicBaseRejection(value, panelHost = '') {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') return '只支持 http 与 https'
   const forbidden = forbiddenHostReason(url.hostname)
   if (forbidden !== null) return forbidden
-  const panel = String(panelHost ?? '').trim().toLowerCase()
-  if (panel !== '' && url.host.toLowerCase() === panel) {
-    return '与面板同源，页面里的脚本会带着面板的登录态访问接口'
-  }
   return null
 }
 
@@ -295,10 +292,10 @@ export class SiteStore {
    * @param value - e.g. `https://pages.example.com` or `https://dsh.example.com/p`.
    * @returns the prefix now in effect.
    */
-  async setPublicBase(value, options = {}) {
+  async setPublicBase(value) {
     await this.init()
     const text = String(value ?? '').trim()
-    const rejection = publicBaseRejection(text, options.panelHost)
+    const rejection = publicBaseRejection(text)
     if (rejection !== null) {
       const error = new Error(`该前缀不能使用：${rejection}。请填写站点实际的对外地址。`)
       error.appCode = 'base-forbidden'

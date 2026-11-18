@@ -94,15 +94,26 @@ test('list: an unbound listener leaves no absolute base behind', async (t) => {
   assert.equal(result.json.localBase, null, 'without an origin the panel keeps the relative path')
 })
 
-test('settings: a prefix on the panel origin is refused with a reason', async (t) => {
+test('settings: a prefix on the panel origin is accepted', async (t) => {
   const { call } = await mount(t)
   const result = await call('/publish/api/settings', {
     method: 'POST',
     headers: { host: 'dsh.example.com' },
     body: { publicBase: 'https://dsh.example.com/p' },
   })
+  assert.equal(result.status, 200)
+  assert.equal(result.json.publicBase, 'https://dsh.example.com/p')
+  assert.equal(result.json.customPublicBase, true)
+})
+
+test('settings: a non-public prefix is refused with a reason', async (t) => {
+  const { call } = await mount(t)
+  const result = await call('/publish/api/settings', {
+    method: 'POST',
+    body: { publicBase: 'http://127.0.0.1:3080/p' },
+  })
   assert.equal(result.status, 400)
-  assert.match(result.json.error, /同源/u)
+  assert.match(result.json.error, /回环/u)
   assert.equal(result.json.code, 'base-forbidden', 'the panel can localize this failure')
 })
 
