@@ -1151,7 +1151,64 @@ async function caseSitesLinks() {
   await panel.close()
 }
 
-const cases = [['tabs', caseTabs], ['keep-alive', caseKeepAlive], ['confirm-focus', caseConfirmFocus], ['chat-counts', caseChatCounts], ['chat-preview', caseChatPreview], ['chat-preview-below', caseChatPreviewBelow], ['chat-preview-tap', caseChatPreviewTap], ['chat-preview-gone', caseChatPreviewGone], ['files-markdown', caseFilesMarkdown], ['probe-note', caseProbeNote], ['restart-watch', caseRestartWatch], ['update-applies', caseUpdateApplies], ['update-restarts', caseUpdateRestarts], ['update-windows', caseUpdateWindows], ['update-error', caseUpdateError], ['update-manual', caseUpdateManual], ['restart-resume', caseRestartResume], ['restart-already-done', caseRestartAlreadyDone], ['runtime-rollback', caseRuntimeRollback], ['chat-visibility', caseChatVisibility], ['github-signing', caseGithubSigning], ['skills', caseSkills], ['picker-memory', casePickerMemory], ['picker-memory-seeded', casePickerMemorySeeded], ['picker-memory-stale', casePickerMemoryStale], ['import-preview', caseImportPreview], ['sites-links', caseSitesLinks]]
+async function caseFailureRetry() {
+  // 4xx 是请求本身不成立（前缀格式错这类），重试同一请求只会得到同一句话：
+  // 横幅不给重试按钮，并且失败对象必须带着 code 走到面板，才能翻成自己的措辞。
+  const panel = mountPanel({
+    ...routes,
+    '/publish/api/list': { __status: 400, ok: false, error: '访问前缀不可用：相对路径不是对外地址', code: 'base-relative' },
+  })
+  await panel.renderMain()
+  tabOf(panel.window, 'sites').dispatchEvent(new panel.window.MouseEvent('click', { bubbles: true }))
+  await panel.tick()
+  await panel.tick()
+  const tab = panelOf(panel.window, 'sites')
+  assert.equal(await panel.waitFor(() => tab.querySelector('.yk-bannerError') !== null), true, 'the failure banner rendered')
+  assert.equal(tab.querySelector('.yk-bannerError button') === null, true, 'a rejected request offers no retry')
+
+  const thrown = Object.assign(new Error('raw'), { code: 'base-relative', params: { n: 1 }, status: 400 })
+  const kept = panel.exports.failureOf(thrown, 'save')
+  assert.equal(kept.code, 'base-relative', 'the banner keeps the stable code')
+  assert.equal(kept.status, 400, 'the banner keeps the status')
+  assert.equal(kept.action, 'save', 'the banner keeps which action failed')
+  assert.deepEqual(kept.params, { n: 1 })
+  const translate = (key) => (key === 'host_base-relative' ? '访问前缀需为完整地址' : key)
+  assert.equal(panel.exports.hostText(translate, kept), '访问前缀需为完整地址', 'the code reaches the translation table')
+
+  assert.equal(panel.exports.retryable({ status: 400 }), false, '4xx is not retryable')
+  assert.equal(panel.exports.retryable({ status: 422 }), false)
+  assert.equal(panel.exports.retryable({ status: 500 }), true, '5xx is retryable')
+  assert.equal(panel.exports.retryable({ status: 429 }), true)
+  assert.equal(panel.exports.retryable({ message: 'Failed to fetch' }), true, 'a network failure is retryable')
+  assert.equal(panel.exports.retryable({}), true)
+
+  assert.equal(panel.exports.actionKeyOf('load'), 'actLoad')
+  assert.equal(panel.exports.actionKeyOf('save-workspace'), 'actSave')
+  assert.equal(panel.exports.actionKeyOf('delete'), 'actDelete')
+  assert.equal(panel.exports.actionKeyOf('verify'), 'actVerify')
+  assert.equal(panel.exports.actionKeyOf(undefined), 'actOperate', 'an unknown action reads as 操作')
+  await panel.close()
+}
+
+async function caseFailureNetwork() {
+  // 网络失败与 5xx 才是重试有意义的情况：横幅上要有重试按钮。
+  const panel = mountPanel({
+    ...routes,
+    '/publish/api/list': () => { throw new TypeError('Failed to fetch') },
+  })
+  await panel.renderMain()
+  tabOf(panel.window, 'sites').dispatchEvent(new panel.window.MouseEvent('click', { bubbles: true }))
+  await panel.tick()
+  await panel.tick()
+  const tab = panelOf(panel.window, 'sites')
+  assert.equal(await panel.waitFor(() => tab.querySelector('.yk-bannerError') !== null), true, 'the failure banner rendered')
+  const action = tab.querySelector('.yk-bannerError button')
+  assert.equal(action !== null, true, 'a network failure offers retry')
+  assert.equal(action.textContent, 'retry')
+  await panel.close()
+}
+
+const cases = [['failure-retry', caseFailureRetry], ['failure-network', caseFailureNetwork], ['tabs', caseTabs], ['keep-alive', caseKeepAlive], ['confirm-focus', caseConfirmFocus], ['chat-counts', caseChatCounts], ['chat-preview', caseChatPreview], ['chat-preview-below', caseChatPreviewBelow], ['chat-preview-tap', caseChatPreviewTap], ['chat-preview-gone', caseChatPreviewGone], ['files-markdown', caseFilesMarkdown], ['probe-note', caseProbeNote], ['restart-watch', caseRestartWatch], ['update-applies', caseUpdateApplies], ['update-restarts', caseUpdateRestarts], ['update-windows', caseUpdateWindows], ['update-error', caseUpdateError], ['update-manual', caseUpdateManual], ['restart-resume', caseRestartResume], ['restart-already-done', caseRestartAlreadyDone], ['runtime-rollback', caseRuntimeRollback], ['chat-visibility', caseChatVisibility], ['github-signing', caseGithubSigning], ['skills', caseSkills], ['picker-memory', casePickerMemory], ['picker-memory-seeded', casePickerMemorySeeded], ['picker-memory-stale', casePickerMemoryStale], ['import-preview', caseImportPreview], ['sites-links', caseSitesLinks]]
 for (const [name, run] of cases) {
   await run()
   process.stdout.write(`ok ${name}\n`)

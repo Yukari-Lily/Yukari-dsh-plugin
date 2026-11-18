@@ -165,6 +165,37 @@ test('setPublicBase refuses a path-only value instead of turning /p into the hos
   assert.equal(store.publicBase, '/p', 'the default prefix is untouched')
 })
 
+test('setPublicBase tags each refusal with its own code', async (t) => {
+  // 面板按码给措辞：四种原因共用一个码时，用户看到的是最不相干的那句。
+  const { store } = await fixture(t)
+  const codeOf = async (value) => {
+    try {
+      await store.setPublicBase(value)
+      return null
+    } catch (error) {
+      return error.appCode
+    }
+  }
+  assert.equal(await codeOf('/p'), 'base-relative')
+  assert.equal(await codeOf('http://127.0.0.1:3080/p'), 'base-forbidden')
+  assert.equal(await codeOf('ftp://pages.example.com'), 'base-scheme')
+  assert.equal(await codeOf('https://'), 'base-invalid')
+})
+
+test('init ignores a saved prefix that no longer parses', async (t) => {
+  // 旧版本把默认的 `/p` 存进了 settings.json，升级后这里会解析失败：
+  // 一次坏值不能把整个站点页变成「加载失败」。
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'yk-sites-prefix-'))
+  t.after(() => rm(temporary, { recursive: true, force: true }))
+  const stateRoot = path.join(temporary, 'state')
+  await mkdir(path.join(stateRoot, 'sites'), { recursive: true })
+  await writeFile(path.join(stateRoot, 'settings.json'), JSON.stringify({ publicBase: '/p' }))
+  const store = new SiteStore({ root: path.join(temporary, 'publish'), stateRoot })
+  await store.init()
+  assert.equal(store.customPublicBase, null, 'the default prefix stays in effect')
+  assert.equal(store.publicBase, store.defaultPublicBase)
+})
+
 test('init refuses a state directory inside the publish root', async (t) => {
   // 发布根现在由宿主直接对外提供，状态目录落在里面就成了公开文件。
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'yk-sites-state-'))

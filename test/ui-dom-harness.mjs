@@ -25,9 +25,11 @@ function fakeFetch(routes) {
     for (const [prefix, route] of Object.entries(routes)) {
       if (!target.includes(prefix)) continue
       const body = typeof route === 'function' ? await route(target, init) : route
+      // `__status` 让用例模拟真实的状态码：面板是否给重试按钮，取决于 4xx 还是 5xx。
+      const status = Number.isInteger(body?.__status) ? body.__status : 200
       return {
-        ok: true,
-        status: 200,
+        ok: status < 400,
+        status,
         headers: { get: () => 'application/json' },
         json: async () => body,
       }

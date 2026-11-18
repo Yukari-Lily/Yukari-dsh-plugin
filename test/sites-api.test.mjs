@@ -117,6 +117,22 @@ test('settings: a non-public prefix is refused with a reason', async (t) => {
   assert.equal(result.json.code, 'base-forbidden', 'the panel can localize this failure')
 })
 
+test('settings: a path-only prefix is refused with its own code', async (t) => {
+  // 面板按码把失败翻成自己的措辞；相对路径与回环地址是两种错，不能共用一个码。
+  const { call } = await mount(t)
+  const result = await call('/publish/api/settings', { method: 'POST', body: { publicBase: '/p' } })
+  assert.equal(result.status, 400)
+  assert.equal(result.json.code, 'base-relative')
+  assert.match(result.json.error, /相对路径不是对外地址/u)
+})
+
+test('settings: a malformed prefix is refused with its own code', async (t) => {
+  const { call } = await mount(t)
+  const result = await call('/publish/api/settings', { method: 'POST', body: { publicBase: 'https://' } })
+  assert.equal(result.status, 400)
+  assert.equal(result.json.code, 'base-invalid')
+})
+
 test('settings: a public prefix is saved and returned', async (t) => {
   const { call } = await mount(t)
   const result = await call('/publish/api/settings', {

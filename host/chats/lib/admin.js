@@ -117,7 +117,7 @@ export function subagentDescendants(headers, roots) {
   const visited = new Set(roots)
   const walk = (id, depth) => {
     if (depth > MAX_LINEAGE_DEPTH) {
-      throw appError(`会话血统超过 ${MAX_LINEAGE_DEPTH} 层，已停止删除，请先核对会话血统`, 'chats-lineage-deep', { depth: MAX_LINEAGE_DEPTH })
+      throw appError(`会话层级超过 ${MAX_LINEAGE_DEPTH} 层，已停止删除，请核对父会话关系`, 'chats-lineage-deep', { depth: MAX_LINEAGE_DEPTH })
     }
     for (const child of children.get(id) ?? []) {
       if (visited.has(child)) continue

@@ -23,6 +23,8 @@ test('the real panel renders and keeps visited tabs alive', { timeout: 120_000 }
     timeout: 30_000,
     maxBuffer: 2 * 1024 * 1024,
   })
+  assert.match(stdout, /^ok failure-retry$/m)
+  assert.match(stdout, /^ok failure-network$/m)
   assert.match(stdout, /^ok tabs$/m)
   assert.match(stdout, /^ok keep-alive$/m)
   assert.match(stdout, /^ok confirm-focus$/m)

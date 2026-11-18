@@ -64,7 +64,7 @@ window.__ModuleLoader__.load({
       upUpdating: '正在更新…',
       upDone: '已更新到 {version}，已生效',
       upPending: '已安装 {version}，重启后生效',
-      upPendingManual: '已安装 {version}，请通过客户端自身控制重启',
+      upPendingManual: '已安装 {version}，请从客户端自带的入口重启',
       upRestart: '立即重启',
       upFailed: '检查更新失败：{error}',
       upUpdateFailed: '更新失败：{error}',
@@ -136,7 +136,7 @@ window.__ModuleLoader__.load({
       pRowName: '插件包名，例如 @deepseek-ai/dsh-tool-fs',
       pRowId: '行 id（可留空）',
       pRowConfig: 'config（JSON，可留空）',
-      pRowNameRequired: '插件包名不能为空',
+      pRowNameRequired: '插件包名不能为空。',
       pAdd: '添加',
       pAdvanced: '高级：组合 JSON',
       pAdvancedHint: '此处可整段替换能力行，也可调整分组、isolate 等结构字段。',
@@ -168,8 +168,16 @@ window.__ModuleLoader__.load({
       upManualNpm: '当前安装来自 npm，请在「插件」页更新',
       upManualPackage: '当前安装来自安装包，请重新安装新版本',
       refresh: '刷新',
-      failureSubject: '「{name}」加载失败：{reason}',
+      failureSubject: '「{name}」{action}失败：{reason}',
       failureNetwork: '网络请求失败，宿主可能未在运行。',
+      actLoad: '加载',
+      actSave: '保存',
+      actDelete: '删除',
+      actImport: '导入',
+      actUpload: '上传',
+      actUpdate: '更新',
+      actVerify: '验证',
+      actOperate: '操作',
       retry: '重试',
       cancel: '取消',
       save: '保存',
@@ -258,7 +266,7 @@ window.__ModuleLoader__.load({
       sPrefixUnsetTag: '默认前缀',
       sPrefixHint: '站点链接 = 前缀 + /站点名/。填写自有对外地址，例如 https://pages.example.com 或 https://dsh.example.com/p',
       sPrefixDefault: '恢复默认',
-      sPrefixUnset: '未填写对外前缀：站点链接按当前部署的 /p 解析。发布目录若由其它静态服务提供，请填写该对外地址，链接方可打开。',
+      sPrefixUnset: '未填写对外前缀，站点链接按当前部署的 /p 解析。发布目录由其它静态服务提供时，请填写该对外地址。',
       sCount: '共 {n} 个站点',
       sCountOne: '共 1 个站点',
       sEmpty: '暂无已发布站点',
@@ -544,7 +552,10 @@ window.__ModuleLoader__.load({
       rBack: '已恢复，正在刷新…',
       rHint: '重启时页面会断开数秒，会话不受影响。',
       'host_busy': '上一个操作尚未完成，请稍后再试。',
-      'host_base-forbidden': '该链接前缀不可用：它指向面板本身或本机地址。',
+      'host_base-relative': '访问前缀需为完整地址，例如 https://pages.example.com。',
+      'host_base-invalid': '访问前缀不是有效的网址。',
+      'host_base-scheme': '访问前缀只支持 http:// 与 https://。',
+      'host_base-forbidden': '访问前缀不能指向面板本身或本机地址。',
       'host_preset-in-use': '仍有 {count} 个会话在使用该预设，请先切换再删除。',
       'host_delete-too-many': '本次要删除 {count} 个会话，超过 {limit} 个上限，请分批删除。',
       'host_version-invalid': '版本号格式不正确：{version}。',
@@ -570,7 +581,7 @@ window.__ModuleLoader__.load({
       'host_rewind-stale': '预览已失效，请重新预览后再回撤。',
       'host_rewind-restore-failed': '有 {count} 个文件还原失败，对话未回撤。',
       'host_rules-workspace-unknown': '未知工作区。',
-      'host_rules-too-large': '约束有 {size} 字节，超过 {limit} 字节上限。',
+      'host_rules-too-large': '约束为 {size} 字节，超过 {limit} 字节上限。',
       'host_files-selection-empty': '请至少选择一个文件或文件夹。',
       'host_files-archive-empty': '所选项目没有可打包的内容。',
       'host_preset-store-broken': '预设存档损坏，修好前不会写入。',
@@ -578,21 +589,21 @@ window.__ModuleLoader__.load({
       'host_preset-not-found': '找不到该预设。',
       'host_preset-readonly': '内置预设只读，请先复制一份再修改。',
       'host_preset-default': '该预设是当前默认，请先切换默认后再删除。',
-      'host_chats-lineage-deep': '会话血统超过 {depth} 层，已停止删除。',
+      'host_chats-lineage-deep': '会话层级超过 {depth} 层，已停止删除。',
       'host_chats-no-selection': '未选择要删除的会话。',
       'host_chats-unselected-remain': '该目录中还有 {count} 个未选中的会话，请一并选中后再删除。',
       'host_rules-scope-invalid': '作用域必须是 global 或 workspace。',
       'host_rules-workspace-missing': '工作区目录不存在。',
       'host_restart-queued': '重启已经在队列里。',
       'host_runtime-update-unsupported': '当前平台不提供 dsh 自更新，请使用客户端自身的更新入口。',
-      'host_runtime-restart-unsupported': '当前平台不支持从面板重启 dsh，请使用客户端自身控制。',
+      'host_runtime-restart-unsupported': '当前平台不支持从面板重启 dsh，请使用客户端自身的重启入口。',
       'host_browser-retry-failed': '浏览器准备失败，可稍后重试。',
       bLaunchOk: '启动正常',
       bLibraries: '已自动补齐 {n} 个运行库包（解压至 DSH_HOME，无需 root）',
       bMissingLibs: '缺少 {n} 个系统库',
       bFixHint: '在容器内以 root 执行一次（重启容器后仍保留，前提是已写入镜像）：',
       bLaunchFail: '无法启动',
-      bLaunchFailHint: '浏览器已下载，但当前系统缺少运行库，实际调用时才会失败。按提示安装依赖，或设置 browser libraryPath。',
+      bLaunchFailHint: '浏览器已下载，但当前系统缺少运行库，首次调用会失败。安装依赖或设置 browser libraryPath。',
       bAutomatic: '自动准备',
       bRetrying: '宿主将自动重试数次（0 / 15 / 45 秒），成功后状态自动恢复；也可点击下方按钮立即重试。',
       bInstalling: '正在准备浏览器…',
@@ -632,7 +643,7 @@ window.__ModuleLoader__.load({
       skSaved: '已保存',
       skEditorTitle: '编辑技能',
       skEditorHint: '正文上限 {kb} KB，保存前会校验前言。',
-      skTruncated: '文件大于 {kb} KB，这里只显示开头；原文件未改动。',
+      skTruncated: '文件大于 {kb} KB，仅显示开头；原文件未改动。',
       skProblemLine: '这条技能不会被加载：{reason}',
       skProblemNoFrontmatter: '缺少以 --- 开头的 YAML 前言。',
       skProblemBadYaml: '前言不是有效的 YAML。',
@@ -675,7 +686,7 @@ window.__ModuleLoader__.load({
       upUpdating: 'Updating…',
       upDone: '{version} is installed and running',
       upPending: '{version} installed — restart to load it',
-      upPendingManual: '{version} installed — use the client’s own controls to restart',
+      upPendingManual: '{version} installed — restart from the client’s own controls',
       upRestart: 'Restart now',
       upFailed: 'Update check failed: {error}',
       upUpdateFailed: 'Update failed: {error}',
@@ -780,8 +791,16 @@ window.__ModuleLoader__.load({
       upManualPackage: 'This install came from a package file; reinstall the new version',
 
       refresh: 'Refresh',
-      failureSubject: 'Could not load {name}: {reason}',
+      failureSubject: '{name}: {action} failed — {reason}',
       failureNetwork: 'The request failed; the host may not be running.',
+      actLoad: 'Load',
+      actSave: 'Save',
+      actDelete: 'Delete',
+      actImport: 'Import',
+      actUpload: 'Upload',
+      actUpdate: 'Update',
+      actVerify: 'Verify',
+      actOperate: 'Action',
       retry: 'Retry',
       cancel: 'Cancel',
       save: 'Save',
@@ -870,7 +889,7 @@ window.__ModuleLoader__.load({
       sPrefixUnsetTag: 'default prefix',
       sPrefixHint: 'Site link = prefix + /name/. Enter the public address, e.g. https://pages.example.com or https://dsh.example.com/p',
       sPrefixDefault: 'Restore default',
-      sPrefixUnset: 'No public prefix set: site links resolve against /p on this deployment. If another static server serves the publish root, enter its address here so links open.',
+      sPrefixUnset: 'No public prefix set: site links resolve against /p on this deployment. If another static server serves the publish root, enter its public address here.',
       sCount: '{n} sites',
       sCountOne: '1 site',
       sEmpty: 'No sites published yet',
@@ -1157,7 +1176,10 @@ window.__ModuleLoader__.load({
       rBack: 'Back online — reloading…',
       rHint: 'A restart drops this page for a few seconds; chats are not affected.',
       'host_busy': 'Another operation is still running; try again when it finishes.',
-      'host_base-forbidden': 'That link prefix is not allowed: it points at the panel itself or a local address.',
+      'host_base-relative': 'Use a full address for the prefix, e.g. https://pages.example.com.',
+      'host_base-invalid': 'That is not a valid address.',
+      'host_base-scheme': 'The prefix must use http:// or https://.',
+      'host_base-forbidden': 'The prefix cannot point at the panel itself or a local address.',
       'host_preset-in-use': '{count} chats still use this preset; switch them before deleting it.',
       'host_delete-too-many': 'This deletes {count} chats, above the {limit} limit; split the batch.',
       'host_version-invalid': '{version} is not a valid version.',
@@ -1191,7 +1213,7 @@ window.__ModuleLoader__.load({
       'host_preset-not-found': 'That preset does not exist.',
       'host_preset-readonly': 'Built-in presets are read-only; copy one first.',
       'host_preset-default': 'That preset is the current default; switch the default before deleting.',
-      'host_chats-lineage-deep': 'The chat lineage is deeper than {depth} levels, so the delete stopped.',
+      'host_chats-lineage-deep': 'The chat hierarchy is deeper than {depth} levels, so the delete stopped.',
       'host_chats-no-selection': 'No chats were selected for deletion.',
       'host_chats-unselected-remain': '{count} chats in that folder are not selected; select them before deleting it.',
       'host_rules-scope-invalid': 'The scope must be global or workspace.',
@@ -1206,7 +1228,7 @@ window.__ModuleLoader__.load({
       bMissingLibs: '{n} system libraries missing',
       bFixHint: 'Run once as root inside the container (persists only if baked into the image):',
       bLaunchFail: 'Cannot launch',
-      bLaunchFailHint: 'The browser downloaded but this host lacks its runtime libraries; it will fail on first use. Install them or set browser libraryPath.',
+      bLaunchFailHint: 'The browser is downloaded but this host lacks its runtime libraries; first use will fail. Install them or set browser libraryPath.',
       bAutomatic: 'Automatic setup',
       bRetrying: 'The host retries automatically (0 / 15 / 45 s) and recovers when one succeeds; the button below retries immediately.',
       bInstalling: 'Preparing the browser…',
@@ -2243,6 +2265,34 @@ window.__ModuleLoader__.load({
       return /failed to fetch|networkerror|load failed|fetch failed/i.test(String(error?.message ?? ''))
     }
 
+    /**
+     * 这条失败值不值得重试。
+     *
+     * 请求本身不成立（令牌错、前缀格式错、目标不存在）时，同一个请求再发一次
+     * 只会得到同一句话；只有网络失败、服务端 5xx 与 408/429 才可能换个结果。
+     * @param error - 失败对象。
+     * @returns 是否显示重试。
+     */
+    function retryable(error) {
+      if (isNetworkFailure(error)) return true
+      const status = Number(error?.status)
+      if (!Number.isInteger(status)) return true
+      return status >= 500 || status === 408 || status === 429
+    }
+
+    /** 失败横幅里的动作词，取不到就按「操作」算。 */
+    function actionKeyOf(name) {
+      const key = String(name ?? '')
+      if (key === 'load') return 'actLoad'
+      if (key.startsWith('save') || key === 'prefix') return 'actSave'
+      if (key === 'delete' || key === 'remove') return 'actDelete'
+      if (key === 'import' || key === 'add') return 'actImport'
+      if (key === 'upload') return 'actUpload'
+      if (key === 'update') return 'actUpdate'
+      if (key === 'verify') return 'actVerify'
+      return 'actOperate'
+    }
+
     /** Error banner, or the off placeholder when the component is gone. */
     function Failure({ t, name, error, onRetry }) {
       if (error === null || error === undefined) return null
@@ -2251,8 +2301,11 @@ window.__ModuleLoader__.load({
       const reason = isNetworkFailure(error) ? t('failureNetwork') : hostText(t, error)
       return h(Banner, {
         kind: 'error',
-        text: fill(t('failureSubject'), { name: label, reason }),
-        action: onRetry ? h('button', { type: 'button', className: 'yk-btn', onClick: onRetry }, t('retry')) : undefined,
+        text: fill(t('failureSubject'), { name: label, action: t(actionKeyOf(error.action)), reason }),
+        action:
+          onRetry && retryable(error)
+            ? h('button', { type: 'button', className: 'yk-btn', onClick: onRetry }, t('retry'))
+            : undefined,
       })
     }
 
@@ -2278,7 +2331,22 @@ window.__ModuleLoader__.load({
     }
 
     /** Normalise a thrown value into `{ message, off }`. */
-    const failureOf = (error) => ({ message: messageOf(error), off: error?.off === true })
+    /**
+     * 把抛出的值整理成横幅读的对象。
+     *
+     * `code` / `params` / `status` 必须跟着走：宿主错误靠 `code` 翻成当前语言，
+     * 丢了就只能显示服务端原文；`status` 决定这条失败值不值得重试。
+     * @param error - 抛出的值。
+     * @param action - 失败的动作（`load` / `save` / `delete`…），决定横幅措辞。
+     */
+    const failureOf = (error, action = 'load') => ({
+      message: messageOf(error),
+      off: error?.off === true,
+      code: typeof error?.code === 'string' && error.code !== '' ? error.code : undefined,
+      params: error?.params ?? undefined,
+      status: Number.isInteger(error?.status) ? error.status : undefined,
+      action,
+    })
 
     /** Checkbox row with an optional hint underneath. */
     function Option({ checked, onChange, label, hint, danger, disabled }) {
@@ -2994,7 +3062,7 @@ window.__ModuleLoader__.load({
         try {
           return await operation()
         } catch (error) {
-          setFailure(failureOf(error))
+          setFailure(failureOf(error, name))
           return null
         } finally {
           setBusy('')
@@ -3067,7 +3135,7 @@ window.__ModuleLoader__.load({
         try {
           ui.openSession(id)
         } catch (error) {
-          setFailure(failureOf(error))
+          setFailure(failureOf(error, 'open'))
         }
       }
 
@@ -3490,7 +3558,7 @@ window.__ModuleLoader__.load({
         try {
           await operation()
         } catch (error) {
-          setFailure(failureOf(error))
+          setFailure(failureOf(error, name))
         } finally {
           setBusy('')
         }
@@ -4018,7 +4086,7 @@ window.__ModuleLoader__.load({
           anchor.click()
           setTimeout(() => URL.revokeObjectURL(url), 10000)
         } catch (error) {
-          if (alive.current) setFailure(failureOf(error))
+          if (alive.current) setFailure(failureOf(error, 'archive'))
         } finally {
           if (alive.current) setBusy('')
         }
@@ -4212,7 +4280,7 @@ window.__ModuleLoader__.load({
         try {
           await operation()
         } catch (error) {
-          setFailure(failureOf(error))
+          setFailure(failureOf(error, name))
           // A failed test or switch is what makes the host fail closed, and that
           // decision is not in the error body: re-read the state instead.
           void load()
@@ -4715,7 +4783,7 @@ window.__ModuleLoader__.load({
           setRepoFailure(null)
           show('save', payload.state.git?.helperInstalled ? t('ghTokenSaved') : t('ghSavedNoHelper'))
         } catch (error) {
-          if (alive.current) setFailure(failureOf(error))
+          if (alive.current) setFailure(failureOf(error, 'save'))
         } finally {
           if (alive.current) setBusy('')
         }
@@ -4731,7 +4799,7 @@ window.__ModuleLoader__.load({
           setState(payload.state)
           show('verify', t('ghVerified'))
         } catch (error) {
-          if (alive.current) setFailure(failureOf(error))
+          if (alive.current) setFailure(failureOf(error, 'verify'))
         } finally {
           if (alive.current) setBusy('')
         }
@@ -4747,7 +4815,7 @@ window.__ModuleLoader__.load({
           setState(payload.state)
           show('repair', t('ghRepaired'))
         } catch (error) {
-          if (alive.current) setFailure(failureOf(error))
+          if (alive.current) setFailure(failureOf(error, 'repair'))
         } finally {
           if (alive.current) setBusy('')
         }
@@ -4767,7 +4835,7 @@ window.__ModuleLoader__.load({
           setRepoResult(null)
           setRepoFailure(null)
         } catch (error) {
-          if (alive.current) setFailure(failureOf(error))
+          if (alive.current) setFailure(failureOf(error, 'clear'))
         } finally {
           if (alive.current) setBusy('')
         }
@@ -4783,7 +4851,7 @@ window.__ModuleLoader__.load({
           setState(payload.state)
           show('sign', payload.state.signing.registered ? t('ghSignReady') : t('ghSignReadyUnregistered'))
         } catch (error) {
-          if (alive.current) setFailure(failureOf(error))
+          if (alive.current) setFailure(failureOf(error, 'save'))
         } finally {
           if (alive.current) setBusy('')
         }
@@ -4800,7 +4868,7 @@ window.__ModuleLoader__.load({
           setConfirmSigningOff(false)
           show('signOff', t('ghSignOffDone'))
         } catch (error) {
-          if (alive.current) setFailure(failureOf(error))
+          if (alive.current) setFailure(failureOf(error, 'delete'))
         } finally {
           if (alive.current) setBusy('')
         }
@@ -4816,7 +4884,7 @@ window.__ModuleLoader__.load({
           setState(payload.state)
           show('sign', t('ghSignManualDone'))
         } catch (error) {
-          if (alive.current) setFailure(failureOf(error))
+          if (alive.current) setFailure(failureOf(error, 'save'))
         } finally {
           if (alive.current) setBusy('')
         }
@@ -5278,7 +5346,7 @@ window.__ModuleLoader__.load({
         try {
           await operation()
         } catch (error) {
-          setFailure(failureOf(error))
+          setFailure(failureOf(error, name))
         } finally {
           setBusy('')
           setConfirmClear('')
@@ -5647,7 +5715,7 @@ window.__ModuleLoader__.load({
         try {
           await operation()
         } catch (error) {
-          setFailure(failureOf(error))
+          setFailure(failureOf(error, name))
         } finally {
           setBusy('')
           setConfirmReset(false)
@@ -5829,7 +5897,7 @@ window.__ModuleLoader__.load({
         try {
           await operation()
         } catch (error) {
-          setFailure(failureOf(error))
+          setFailure(failureOf(error, name))
         } finally {
           setBusy('')
           setConfirmRestart(false)
@@ -6089,7 +6157,7 @@ window.__ModuleLoader__.load({
         try {
           await operation()
         } catch (error) {
-          if (alive.current) setFailure(failureOf(error))
+          if (alive.current) setFailure(failureOf(error, name))
         } finally {
           if (alive.current) {
             setBusy('')
@@ -6379,7 +6447,7 @@ window.__ModuleLoader__.load({
         try {
           await operation()
         } catch (error) {
-          setFailure(failureOf(error))
+          setFailure(failureOf(error, name))
         } finally {
           setBusy('')
           setCustomRow(null)
@@ -8350,8 +8418,12 @@ window.__ModuleLoader__.load({
 
     return {
       inject: ['slots', 'locale', 'uiWorkspace', 'workspaces'],
-      // 地址解析单独暴露，方便真实 DOM 用例直接断言；宿主只读 inject 与 apply。
+      // 地址解析与失败整理单独暴露，方便真实 DOM 用例直接断言；宿主只读 inject 与 apply。
       resolveLinkBase,
+      failureOf,
+      retryable,
+      hostText,
+      actionKeyOf,
       apply(ctx) {
         ctx.effect(() => ctx.locale.register(NS, 'en', en))
         ctx.effect(() => ctx.locale.register(NS, 'zh-CN', zh))

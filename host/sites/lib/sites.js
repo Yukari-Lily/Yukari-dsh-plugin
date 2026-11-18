@@ -10,6 +10,7 @@ import { chmod, cp, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rename, 
 import { isIP } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
+import { appError } from '../../shared/http.js'
 
 /** Allowed URL segment. */
 const SLUG = /^[a-z0-9][a-z0-9._-]{0,40}$/
@@ -145,21 +146,25 @@ function forbiddenHostReason(hostname) {
  *
  * 与面板同源是允许的：发布页挂在同一个域名下是最常见的用法，页面脚本能带着
  * 面板登录态访问接口这件事由使用者自己权衡。
+ *
+ * 返回码而不是一句话：面板按码给自己的措辞，服务端这句只做日志与兜底——
+ * 四种拒绝原因各不相同，共用一句话时用户只能看到最不相干的那条。
  * @param value - prefix text from the panel or the row config.
+ * @returns `{ code, reason }`，可用时返回 null。
  */
 export function publicBaseRejection(value) {
   const text = String(value ?? '').trim()
   if (text === '') return null
-  if (text.startsWith('/')) return '相对路径不是对外地址'
+  if (text.startsWith('/')) return { code: 'base-relative', reason: '相对路径不是对外地址' }
   let url
   try {
     url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `https://${text}`)
   } catch {
-    return '不是合法的网址'
+    return { code: 'base-invalid', reason: '不是有效的网址' }
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return '只支持 http 与 https'
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return { code: 'base-scheme', reason: '只支持 http 与 https' }
   const forbidden = forbiddenHostReason(url.hostname)
-  if (forbidden !== null) return forbidden
+  if (forbidden !== null) return { code: 'base-forbidden', reason: forbidden }
   return null
 }
 
@@ -296,11 +301,7 @@ export class SiteStore {
     await this.init()
     const text = String(value ?? '').trim()
     const rejection = publicBaseRejection(text)
-    if (rejection !== null) {
-      const error = new Error(`该前缀不能使用：${rejection}。请填写站点实际的对外地址。`)
-      error.appCode = 'base-forbidden'
-      throw error
-    }
+    if (rejection !== null) throw appError(`访问前缀不可用：${rejection.reason}`, rejection.code)
     this.customPublicBase = text === '' ? null : normalizePublicBase(text)
     const staging = `${this.settingsFile}.${process.pid}.tmp`
     await writeFile(staging, `${JSON.stringify({ publicBase: this.customPublicBase ?? '' }, null, 2)}\n`)
