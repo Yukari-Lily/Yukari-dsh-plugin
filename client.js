@@ -255,7 +255,6 @@ window.__ModuleLoader__.load({
       sSearch: '搜索站点名称或路径',
       sPrefix: '访问前缀',
       sSettings: '高级设置',
-      sAdopted: '沿用升级前的发布目录：{path}（未搬动任何文件）。',
       sPrefixUnsetTag: '默认前缀',
       sPrefixHint: '站点链接 = 前缀 + /站点名/。填写自有对外地址，例如 https://pages.example.com 或 https://dsh.example.com/p',
       sPrefixDefault: '恢复默认',
@@ -868,7 +867,6 @@ window.__ModuleLoader__.load({
       sSearch: 'Search sites',
       sPrefix: 'URL prefix',
       sSettings: 'Advanced',
-      sAdopted: 'Publishing into the directory from before the upgrade: {path} (nothing was moved).',
       sPrefixUnsetTag: 'default prefix',
       sPrefixHint: 'Site link = prefix + /name/. Enter the public address, e.g. https://pages.example.com or https://dsh.example.com/p',
       sPrefixDefault: 'Restore default',
@@ -3532,9 +3530,6 @@ window.__ModuleLoader__.load({
           h(RefreshButton, { t, onClick: load, spinning: busy === 'load' }),
         ),
         h(Failure, { t, name: 'sites', error: failure, onRetry: load }),
-        payload?.adoptedFrom
-          ? h('div', { className: 'yk-cardHint' }, fill(t('sAdopted'), { path: payload.adoptedFrom }))
-          : null,
 
         sites === null
           ? busy === 'load'
