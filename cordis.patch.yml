@@ -83,7 +83,9 @@
         # 缺少系统运行库时自动从 Debian 索引下载 .deb 解压到 DSH_HOME（无需 root）
         autoLibraries: true
         cjkFonts: true
-        allowLocalUrls: false
+        # 允许打开回环、局域网与 file: 地址：本地页面可以自己截图核对。代价是模型
+        # 也能访问面板、内网服务与本机文件，按需改回 false
+        allowLocalUrls: true
         allowAnyScreenshotPath: false
 
     - id: yukari-runtime
