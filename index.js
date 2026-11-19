@@ -248,32 +248,37 @@ export function directChildEnv() {
  * instance the Host uses is the only way to release it from inside a plugin.
  *
  * The host package is resolved from the running CLI entry, so this works on any
- * install; a Host that cannot be reached this way simply keeps its policy and the
- * update's direct-network preflight decides whether proceeding is safe.
+ * install. 找不到宿主模块时维持旧行为，由直连预检兜底；一旦确认 Host 正使用
+ * 本插件的回环路由，释放失败就必须取消更新，不能带着旧策略卸载监听器。
  *
  * @returns whether a direct policy was installed.
  */
 export async function releaseHostProxyPolicy() {
+  let hostProxy
   try {
     const hostEntry = process.argv[1]
     if (typeof hostEntry !== 'string' || hostEntry === '') return false
     const requireFromHost = createRequire(hostEntry)
     const modulePath = requireFromHost.resolve('@deepseek-ai/dsh-http-proxy')
-    const hostProxy = await import(pathToFileURL(modulePath).href)
-    if (typeof hostProxy.installProxyFromEnvironment !== 'function' || typeof hostProxy.proxyRouteFor !== 'function') return false
-    // Only a policy that routes through this machine's loopback listener is ours
-    // to drop; an operator-set proxy must survive.
-    const route = hostProxy.proxyRouteFor(new URL('https://github.com/'))
-    if (route?.proxied !== true || typeof route.proxy !== 'string') return false
-    const host = new URL(route.proxy).hostname.replace(/^\[|\]$/g, '').toLowerCase()
-    if (!LOOPBACK_NAMES.has(host)) return false
-    // An empty launch environment resolves to the direct policy. The disposer is
-    // deliberately dropped: the route must stay direct through the update.
-    await hostProxy.installProxyFromEnvironment({ get: () => undefined }, () => {})
-    return true
+    hostProxy = await import(pathToFileURL(modulePath).href)
   } catch {
     return false
   }
+  if (typeof hostProxy.installProxyFromEnvironment !== 'function' || typeof hostProxy.proxyRouteFor !== 'function') return false
+  // Only a policy that routes through this machine's loopback listener is ours
+  // to drop; an operator-set proxy must survive.
+  const route = hostProxy.proxyRouteFor(new URL('https://github.com/'))
+  if (route?.proxied !== true || typeof route.proxy !== 'string') return false
+  const host = new URL(route.proxy).hostname.replace(/^\[|\]$/g, '').toLowerCase()
+  if (!LOOPBACK_NAMES.has(host)) return false
+  // An empty launch environment resolves to the direct policy. The disposer is
+  // deliberately dropped: the route must stay direct through the update.
+  try {
+    await hostProxy.installProxyFromEnvironment({ get: () => undefined }, () => {})
+  } catch (error) {
+    throw new Error(`无法释放 Host 的本机代理策略，已取消更新：${messageOf(error)}`)
+  }
+  return true
 }
 
 /**
@@ -447,8 +452,9 @@ export async function updateProfile(ctx, install, before, options = {}) {
   // 重写、版本重新编号——会被它直接拒绝。更新只认 commit，所以这种情况走「按固定 commit 移除再装」。
   const newerVersion = compare(before.latest, before.installed ?? before.current ?? '0.0.0') > 0
   if (current.update === 'git' && newerVersion) {
-    // 原地替换：插件全程留在盘上，本机代理监听器不中断，pnpm 与 git 可以继续走当前路由安装，
-    // 因此这里既不释放代理也不要求直连。只有下面要把旧版拿掉的路径才需要那样的前提。
+    // HMR 的 updateBundle 会先卸载旧 bundle，本机代理监听器也随之消失；这和下面
+    // 手动移除再安装走的是同一条危险路径。没有 HMR 时才是覆盖安装，旧路由保持可用。
+    if (ctx.get('hmr') !== undefined) await prepareRemoval(ctx, install, options)
     const outcome = await manager.updateBundle(PACKAGE_NAME, before.latest, { spec: targetSpec })
     if (managerFailed(outcome.result)) throw managerError(outcome.result, outcome.restore)
     await verifyInstalled(manager, outcome.result)

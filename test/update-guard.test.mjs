@@ -115,10 +115,10 @@ async function profileFixture(t) {
   }
 }
 
-function updateContext(manager) {
+function updateContext(manager, hmr = true) {
   return {
     pluginManager: manager,
-    get: (name) => (name === 'hmr' ? {} : undefined),
+    get: (name) => (name === 'hmr' && hmr ? {} : undefined),
     logger: () => ({ warn: () => {} }),
   }
 }
@@ -156,7 +156,7 @@ test('update: a failed direct-network preflight cancels before the old copy is r
   assert.equal(removed, false, 'nothing is uninstalled before direct access is proven')
 })
 
-test('update: an in-place upgrade keeps the proxy route and needs no direct check', async (t) => {
+test('update: an HMR upgrade releases the local route before the manager removes the old copy', async (t) => {
   const { updateProfile } = await import('../index.js')
   const { install, before } = await profileFixture(t)
   const loopback = 'http://127.0.0.1:17890'
@@ -168,19 +168,66 @@ test('update: an in-place upgrade keeps the proxy route and needs no direct chec
       return [{ name: 'yukari-dsh-plugin', update: 'git', enabled: true }]
     },
     async updateBundle() {
-      // 安装期间插件仍在盘上，代理监听器也仍在：子进程可以用它自己的路由。
-      assert.equal(process.env.HTTPS_PROXY, loopback, 'the loopback route must still be published while pnpm runs')
+      // 官方管理器在 HMR 下先移除旧 bundle。进入它之前，安装器必须已不再依赖
+      // 即将随旧插件消失的 17890 监听器。
+      assert.equal(process.env.HTTPS_PROXY, undefined, 'the installer no longer points at the old plugin listener')
+      assert.equal(preflights, 1, 'direct access is proven before the old copy can be removed')
       return { result: { application: 'applied', changed: true, version: '0.9.0' } }
     },
   }
   const result = await updateProfile(updateContext(manager), install, before, {
+    preflight: async () => { preflights += 1 },
+  })
+  assert.equal(result.installed, '0.9.0')
+  assert.equal(preflights, 1)
+})
+
+test('update: a failed HMR preflight prevents the manager update entirely', async (t) => {
+  const { updateProfile } = await import('../index.js')
+  const { install, before } = await profileFixture(t)
+  let updates = 0
+  const manager = {
+    async listBundles() {
+      return [{ name: 'yukari-dsh-plugin', update: 'git', enabled: true }]
+    },
+    async updateBundle() {
+      updates += 1
+      throw new Error('must not run')
+    },
+  }
+  await assert.rejects(
+    updateProfile(updateContext(manager), install, before, {
+      preflight: async () => { throw new Error('direct github unavailable') },
+    }),
+    /direct github unavailable/,
+  )
+  assert.equal(updates, 0, 'the old bundle is still installed and its proxy listener is untouched')
+})
+
+test('update: a non-HMR upgrade keeps the live route and needs no direct check', async (t) => {
+  const { updateProfile } = await import('../index.js')
+  const { install, before } = await profileFixture(t)
+  const loopback = 'http://127.0.0.1:17890'
+  process.env.HTTP_PROXY = loopback
+  process.env.HTTPS_PROXY = loopback
+  let preflights = 0
+  const manager = {
+    async listBundles() {
+      return [{ name: 'yukari-dsh-plugin', update: 'git', enabled: true }]
+    },
+    async updateBundle() {
+      assert.equal(process.env.HTTPS_PROXY, loopback, 'an in-place upgrade leaves the listener available')
+      return { result: { application: 'restart-required', changed: true, version: '0.9.0' } }
+    },
+  }
+  const result = await updateProfile(updateContext(manager, false), install, before, {
     preflight: async () => {
       preflights += 1
-      throw new Error('direct github unavailable')
+      throw new Error('must not run')
     },
   })
   assert.equal(result.installed, '0.9.0')
-  assert.equal(preflights, 0, 'an in-place upgrade never requires direct access')
+  assert.equal(preflights, 0)
 })
 
 test('update: the direct child environment keeps everything but the proxy names', async (t) => {
@@ -206,6 +253,28 @@ test('update: releasing the host policy is safe when the host module is not reac
   const { releaseHostProxyPolicy } = await import('../index.js')
   // The test process entry is not the Host CLI, so no policy can be resolved.
   assert.equal(await releaseHostProxyPolicy(), false)
+})
+
+test('update: a loopback host policy that cannot be released cancels the update', async (t) => {
+  const { releaseHostProxyPolicy } = await import('../index.js')
+  const home = await fixture(t)
+  const moduleDir = path.join(home, 'node_modules', '@deepseek-ai', 'dsh-http-proxy')
+  await mkdir(moduleDir, { recursive: true })
+  await writeFile(path.join(moduleDir, 'package.json'), JSON.stringify({
+    name: '@deepseek-ai/dsh-http-proxy',
+    type: 'module',
+    exports: './index.js',
+  }))
+  await writeFile(path.join(moduleDir, 'index.js'), `
+    export const proxyRouteFor = () => ({ proxied: true, proxy: 'http://127.0.0.1:17890' })
+    export const installProxyFromEnvironment = async () => { throw new Error('policy release failed') }
+  `)
+  const previousEntry = process.argv[1]
+  process.argv[1] = path.join(home, 'bin.js')
+  t.after(() => { process.argv[1] = previousEntry })
+  // 光清 process.env 不会释放 Host 保存的子进程策略；这时继续卸载就会重现
+  // 「Git 预检成功，卸载后安装器仍拨死端口」。宁可更新失败，也不能移走旧版。
+  await assert.rejects(releaseHostProxyPolicy(), /无法释放 Host 的本机代理策略.*policy release failed/u)
 })
 
 test('update: the preflight seam is never read off the Cordis context', async () => {
