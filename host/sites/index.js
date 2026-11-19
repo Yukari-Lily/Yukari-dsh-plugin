@@ -1,50 +1,22 @@
 /**
  * Static site publishing for the Harness: copies a built site into the publish
- * directory served at `/p/`, keeps one manifest per site, and regenerates the index
- * page. The Host half also answers the panel's small JSON API and registers the
- * `publish_site` / `delete_site` / `list_sites` tools.
+ * directory served under the configured path, keeps one manifest per site, and
+ * regenerates the index page. The Host half also answers the panel's small JSON
+ * API and registers the `publish_site` / `delete_site` / `list_sites` tools.
  * @module @local/publish-sites
  */
 import { markMounted } from '../shared/mounted.js'
-import { SiteStore } from './lib/sites.js'
+import { DEFAULT_SITE_PATH, SiteStore } from './lib/sites.js'
 import { siteHandler } from './lib/serve.js'
-import { guardRoute, readJsonBody, sendJson } from '../shared/http.js'
+import { appError, guardRoute, messageOf, readJsonBody, sendJson } from '../shared/http.js'
+
+export { DEFAULT_SITE_PATH }
 
 /** JSON API prefix the Web panel calls. */
 export const API_PATH = '/publish/api'
 
-/** Path the Host serves published sites from when no absolute prefix is set. */
-export const SITE_PATH = '/p'
-
 /** Services this plugin needs. */
 export const inject = ['tools', 'webServer', 'connection']
-
-/** User agent the deployment's edge accepts; a bare curl UA is rejected with 403. */
-const BROWSER_UA =
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Safari/537.36'
-
-/** Best-effort reachability probe of the published URL; never throws. */
-async function probe(url) {
-  if (!/^https?:\/\//i.test(url)) return null
-  // Never fetch loopback, link-local or panel-origin addresses: the prefix is
-  // panel-writable, so an unchecked probe is a request the operator did not ask
-  // for, sent from the Host with its network position.
-  if (publicBaseRejection(url, '') !== null) return null
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), 8000)
-  try {
-    const response = await fetch(url, {
-      headers: { 'user-agent': BROWSER_UA, accept: 'text/html,application/xhtml+xml' },
-      signal: controller.signal,
-    })
-    await response.body?.cancel().catch(() => {})
-    return response.status
-  } catch {
-    return null
-  } finally {
-    clearTimeout(timer)
-  }
-}
 
 /** Human-readable byte count. */
 const mb = (bytes) => `${(Number(bytes) / 1048576).toFixed(1)} MB`
@@ -52,11 +24,14 @@ const mb = (bytes) => `${(Number(bytes) / 1048576).toFixed(1)} MB`
 /**
  * Register the Host half.
  * @param ctx - plugin context.
- * @param config - plugin row config: root, stateRoot, publicBase, maxMb, keep.
+ * @param config - plugin row config: root, stateRoot, path, maxMb, keep.
  */
 export function apply(ctx, config = {}) {
   markMounted(ctx, 'sites')
   const store = new SiteStore(config)
+  if (store.rowPathRejection !== null) {
+    ctx.logger?.warn?.(`yukari-sites: 行配置里的路径不可用（${store.rowPathRejection.reason}），按 ${DEFAULT_SITE_PATH} 提供`)
+  }
 
   /**
    * Origin a local browser reaches this Host at.
@@ -79,15 +54,72 @@ export function apply(ctx, config = {}) {
     return `${ctx.webServer.protocol ?? 'http:'}//${authority}:${port}`
   }
 
+  /** Disposer of the route currently answering the publish root. */
+  let releaseRoute = null
+  /** Path that live route is registered at. */
+  let mountedPath = null
+
+  /** Register the publish root at one path. */
+  const mountSite = (sitePath) => {
+    const release = ctx.webServer.register({ kind: 'prefix', path: sitePath, handler: siteHandler(store, sitePath) })
+    releaseRoute = release
+    mountedPath = sitePath
+  }
+
+  /**
+   * Move the publish root to another path, keeping the old one when the new one
+   * is taken. 同名路由在宿主里是硬冲突，先摘后挂才可能换成同一路径。
+   */
+  const swapSitePath = (sitePath) => {
+    const previous = mountedPath
+    releaseRoute?.()
+    releaseRoute = null
+    mountedPath = null
+    try {
+      mountSite(sitePath)
+    } catch (error) {
+      if (previous !== null) {
+        try {
+          mountSite(previous)
+        } catch (restoreError) {
+          ctx.logger?.warn?.(`publish-sites: 恢复路径 ${previous} 失败：${messageOf(restoreError)}`)
+        }
+      }
+      throw appError(`站点路径 ${sitePath} 已被其它功能占用`, 'path-taken')
+    }
+  }
+
+  // 发布根由宿主自己应答：默认本地部署没有别的静态服务器，少了这条，站点链接就是 404。
+  // 站点是公开产物，所以这条路由不经过 connection 的浏览器鉴权。
   ctx.effect(async () => {
     await store.init()
-    return () => {}
-  }, 'publish-sites: init')
+    try {
+      mountSite(store.sitePath)
+    } catch (error) {
+      // 保存的路径在启动时被占用：整个组件不能因此装不上，否则连面板里改回来的
+      // 入口都没有。退回默认路径，把原本想要的路径留给面板说明。
+      const wanted = store.sitePath
+      ctx.logger?.warn?.(`publish-sites: 路径 ${wanted} 无法挂载（${messageOf(error)}），回退 ${DEFAULT_SITE_PATH}`)
+      if (wanted !== DEFAULT_SITE_PATH) store.pathFallback = { path: wanted }
+      store.customSitePath = null
+      store.defaultSitePath = DEFAULT_SITE_PATH
+      try {
+        mountSite(DEFAULT_SITE_PATH)
+      } catch (fallbackError) {
+        ctx.logger?.warn?.(`publish-sites: 默认路径也无法挂载：${messageOf(fallbackError)}`)
+      }
+    }
+    return () => {
+      releaseRoute?.()
+      releaseRoute = null
+      mountedPath = null
+    }
+  }, 'publish-sites: publish root')
 
   ctx.tools.register({
     name: 'publish_site',
     description:
-      'Publish one built static site: copy the directory into the publish root, swap it in atomically, and return its URL. The Host answers the publish root at /p itself, so the returned path opens on this deployment (the panel resolves it against the address it is reached at). The source must have index.html at its top level and reference its assets with relative paths (./assets/...); absolute root paths such as /assets/x.js are rejected. Secrets and build junk (.env*, .git, node_modules, key files) are skipped.',
+      'Publish one built static site: copy the directory into the publish root, swap it in atomically, and return its URL. The URL is relative to the Host (the panel resolves it against the address it is reached at); the result also carries verifyUrl, the same path on the Host\'s own listen origin — use it to check the upload with a plain request, since a reverse proxy or deployment authentication in front of the public address is not part of this component. Files are served from the publish root that list_sites reports. The source must have index.html at its top level and reference its assets with relative paths (./assets/...); absolute root paths such as /assets/x.js are rejected. Secrets and build junk (.env*, .git, node_modules, key files) are skipped.',
     parameters: {
       type: 'object',
       additionalProperties: false,
@@ -120,13 +152,13 @@ export function apply(ctx, config = {}) {
           skipped: { type: 'number', description: 'Files left out of the publish because they hold secrets or build junk.' },
           bytes: { type: 'number', description: 'Total size in bytes.' },
           version: { type: 'number', description: 'Publish generation of this slug.' },
-          status: { type: 'number', description: 'HTTP status the public URL answered during the post-publish probe; absent when the probe could not run.' },
+          verifyUrl: { type: 'string', description: 'Address the Host itself answers on: its listen origin plus the site path. Use it to check the copy without going through a reverse proxy; absent when the listener is not bound yet.' },
         },
       },
       render: (_args, value) => [
         {
           type: 'text',
-          text: `published ${value.url} (${value.files} files, ${mb(value.bytes)}, v${value.version ?? 1})${value.status === undefined ? '' : ` · HTTP ${value.status}`}`,
+          text: `published ${value.url} (${value.files} files, ${mb(value.bytes)}, v${value.version ?? 1})${value.verifyUrl === undefined ? '' : ` · verify ${value.verifyUrl}`}`,
         },
       ],
     },
@@ -136,16 +168,16 @@ export function apply(ctx, config = {}) {
         slug: typeof args.slug === 'string' ? args.slug : undefined,
         title: typeof args.title === 'string' ? args.title : undefined,
       })
-      const status = await probe(record.url)
+      const origin = localBase()
       return {
         url: record.url,
+        ...(origin === null ? {} : { verifyUrl: `${origin}${record.url}` }),
         slug: record.slug,
         title: record.title,
         files: record.files,
         bytes: record.bytes,
         ...(record.skipped === undefined ? {} : { skipped: record.skipped }),
         version: record.version,
-        ...(status === null ? {} : { status }),
       }
     },
   })
@@ -158,8 +190,9 @@ export function apply(ctx, config = {}) {
       schema: {
         type: 'object',
         additionalProperties: false,
-        required: ['sites'],
+        required: ['sites', 'root'],
         properties: {
+          root: { type: 'string', description: 'Absolute path of the publish root these sites are served from.' },
           sites: {
             type: 'array',
             description: 'Published sites, newest first.',
@@ -185,13 +218,13 @@ export function apply(ctx, config = {}) {
           type: 'text',
           text:
             value.sites.length === 0
-              ? 'no published sites'
-              : value.sites.map((site) => `${site.slug}\t${site.url}\t${mb(site.bytes)}`).join('\n'),
+              ? `no published sites in ${value.root}`
+              : [`root: ${value.root}`, ...value.sites.map((site) => `${site.slug}\t${site.url}\t${mb(site.bytes)}`)].join('\n'),
         },
       ],
     },
     async execute() {
-      return { sites: await store.list() }
+      return { sites: await store.list(), root: store.root }
     },
   })
 
@@ -218,12 +251,34 @@ export function apply(ctx, config = {}) {
         },
       },
       render: (_args, value) => [
-        { type: 'text', text: value.deleted ? `unpublished /${value.slug}/` : `no site at /${value.slug}/` },
+        {
+          type: 'text',
+          text: value.deleted
+            ? `unpublished ${store.sitePath}/${value.slug}/`
+            : `no site at ${store.sitePath}/${value.slug}/`,
+        },
       ],
     },
     async execute(args) {
       return await store.remove(String(args.slug ?? ''))
     },
+  })
+
+  /**
+   * Everything the panel knows about the publish root, in one shape.
+   *
+   * 列表里的 URL 每次都按当前路径重算：换路径后已发布的站点不需要重新发布。
+   */
+  const describe = async () => ({
+    ok: true,
+    sites: await store.list(),
+    root: store.root,
+    localBase: localBase(),
+    adoptedFrom: store.adoptedFrom,
+    sitePath: store.sitePath,
+    defaultPath: store.defaultSitePath,
+    customSitePath: store.customSitePath !== null,
+    pathFallback: store.pathFallback,
   })
 
   ctx.effect(
@@ -234,22 +289,13 @@ export function apply(ctx, config = {}) {
         handler: guardRoute(ctx, async (req, res) => {
           const url = new URL(String(req.url), 'http://localhost')
           const action = url.pathname.slice(API_PATH.length).replace(/^\/+|\/+$/g, '')
-          
+
           if (action === 'list') {
             if (req.method !== 'GET') {
               sendJson(res, 405, { ok: false, error: 'use GET' })
               return
             }
-            sendJson(res, 200, {
-              ok: true,
-              sites: await store.list(),
-              root: store.root,
-              localBase: localBase(),
-              adoptedFrom: store.adoptedFrom,
-              publicBase: store.publicBase,
-              defaultPublicBase: store.defaultPublicBase,
-              customPublicBase: store.customPublicBase !== null,
-            })
+            sendJson(res, 200, await describe())
             return
           }
           if (req.method !== 'POST') {
@@ -258,17 +304,9 @@ export function apply(ctx, config = {}) {
           }
           const body = await readJsonBody(req)
           if (action === 'settings') {
-            await store.setPublicBase(body.publicBase)
-            sendJson(res, 200, {
-              ok: true,
-              sites: await store.list(),
-              root: store.root,
-              localBase: localBase(),
-              adoptedFrom: store.adoptedFrom,
-              publicBase: store.publicBase,
-              defaultPublicBase: store.defaultPublicBase,
-              customPublicBase: store.customPublicBase !== null,
-            })
+            // 换路径要同时动路由和配置：失败时两边都保持原样，面板看到的就是现状。
+            await store.setSitePath(body.path, swapSitePath)
+            sendJson(res, 200, await describe())
             return
           }
           if (action === 'delete') {
@@ -281,12 +319,5 @@ export function apply(ctx, config = {}) {
         }),
       }),
     `publish-sites: ${API_PATH}/*`,
-  )
-
-  // 发布根由宿主自己应答：默认本地部署没有别的静态服务器，少了这条，/p/… 就是 404。
-  // 站点是公开产物，所以这条路由不经过 connection 的浏览器鉴权。
-  ctx.effect(
-    () => ctx.webServer.register({ kind: 'prefix', path: SITE_PATH, handler: siteHandler(store) }),
-    `publish-sites: ${SITE_PATH}/*`,
   )
 }

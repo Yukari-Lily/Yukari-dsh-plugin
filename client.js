@@ -261,12 +261,13 @@ window.__ModuleLoader__.load({
       'cReason_unsafe-path': '路径不安全，已跳过',
 
       sSearch: '搜索站点名称或路径',
-      sPrefix: '访问前缀',
+      sSitePath: '站点路径',
       sSettings: '高级设置',
-      sPrefixUnsetTag: '默认前缀',
-      sPrefixHint: '站点链接 = 前缀 + /站点名/。填写自有对外地址，例如 https://pages.example.com 或 https://dsh.example.com/p',
-      sPrefixDefault: '恢复默认',
-      sPrefixUnset: '未填写对外前缀，站点链接按当前部署的 /p 解析。发布目录由其它静态服务提供时，请填写该对外地址。',
+      sSitePathUnsetTag: '默认路径',
+      sSitePathHint: '链接按当前页面的地址拼接：地址 + 站点路径 + /站点名/。保存后立即生效；反向代理需转发同一路径。',
+      sSitePathDefault: '恢复默认',
+      sSitePathUnset: '当前使用默认路径 {path}，链接按页面地址拼接。',
+      sPathFallback: '配置的路径 {path} 无法挂载，当前按默认路径提供。',
       sCount: '共 {n} 个站点',
       sCountOne: '共 1 个站点',
       sEmpty: '暂无已发布站点',
@@ -552,10 +553,9 @@ window.__ModuleLoader__.load({
       rBack: '已恢复，正在刷新…',
       rHint: '重启时页面会断开数秒，会话不受影响。',
       'host_busy': '上一个操作尚未完成，请稍后再试。',
-      'host_base-relative': '访问前缀需为完整地址，例如 https://pages.example.com。',
-      'host_base-invalid': '访问前缀不是有效的网址。',
-      'host_base-scheme': '访问前缀只支持 http:// 与 https://。',
-      'host_base-forbidden': '访问前缀不能指向面板本身或本机地址。',
+      'host_path-invalid': '站点路径格式不正确：以 / 开头，每段只用小写字母、数字、点、短横线和下划线。',
+      'host_path-reserved': '该路径由宿主保留，请换一个。',
+      'host_path-taken': '该路径已被其它功能占用，请换一个。',
       'host_preset-in-use': '仍有 {count} 个会话在使用该预设，请先切换再删除。',
       'host_delete-too-many': '本次要删除 {count} 个会话，超过 {limit} 个上限，请分批删除。',
       'host_version-invalid': '版本号格式不正确：{version}。',
@@ -884,12 +884,13 @@ window.__ModuleLoader__.load({
       'cReason_unsafe-path': 'unsafe path, skipped',
 
       sSearch: 'Search sites',
-      sPrefix: 'URL prefix',
+      sSitePath: 'Site path',
       sSettings: 'Advanced',
-      sPrefixUnsetTag: 'default prefix',
-      sPrefixHint: 'Site link = prefix + /name/. Enter the public address, e.g. https://pages.example.com or https://dsh.example.com/p',
-      sPrefixDefault: 'Restore default',
-      sPrefixUnset: 'No public prefix set: site links resolve against /p on this deployment. If another static server serves the publish root, enter its public address here.',
+      sSitePathUnsetTag: 'default path',
+      sSitePathHint: 'Links are built from this page: address + site path + /name/. Saving takes effect immediately; the reverse proxy must forward the same path.',
+      sSitePathDefault: 'Restore default',
+      sSitePathUnset: 'Currently on the default path {path}; links are built from the page address.',
+      sPathFallback: 'The configured path {path} could not be mounted; the default path is in effect.',
       sCount: '{n} sites',
       sCountOne: '1 site',
       sEmpty: 'No sites published yet',
@@ -1176,10 +1177,9 @@ window.__ModuleLoader__.load({
       rBack: 'Back online — reloading…',
       rHint: 'A restart drops this page for a few seconds; chats are not affected.',
       'host_busy': 'Another operation is still running; try again when it finishes.',
-      'host_base-relative': 'Use a full address for the prefix, e.g. https://pages.example.com.',
-      'host_base-invalid': 'That is not a valid address.',
-      'host_base-scheme': 'The prefix must use http:// or https://.',
-      'host_base-forbidden': 'The prefix cannot point at the panel itself or a local address.',
+      'host_path-invalid': 'That site path is not valid: start with / and use only lowercase letters, digits, dots, dashes and underscores per segment.',
+      'host_path-reserved': 'That path is reserved by the Host; choose another one.',
+      'host_path-taken': 'Another feature already answers that path; choose another one.',
       'host_preset-in-use': '{count} chats still use this preset; switch them before deleting it.',
       'host_delete-too-many': 'This deletes {count} chats, above the {limit} limit; split the batch.',
       'host_version-invalid': '{version} is not a valid version.',
@@ -2284,7 +2284,7 @@ window.__ModuleLoader__.load({
     function actionKeyOf(name) {
       const key = String(name ?? '')
       if (key === 'load') return 'actLoad'
-      if (key.startsWith('save') || key === 'prefix') return 'actSave'
+      if (key.startsWith('save')) return 'actSave'
       if (key === 'delete' || key === 'remove') return 'actDelete'
       if (key === 'import' || key === 'add') return 'actImport'
       if (key === 'upload') return 'actUpload'
@@ -3521,15 +3521,15 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState('')
       const [query, setQuery] = React.useState('')
       const [confirming, setConfirming] = React.useState('')
-      const [prefix, setPrefix] = React.useState('')
-      const [prefixTouched, setPrefixTouched] = React.useState(false)
+      const [path, setPath] = React.useState('')
+      const [pathTouched, setPathTouched] = React.useState(false)
       const { signal, alive } = useAbortOnUnmount()
 
       const adopt = (next) => {
         setPayload(next)
-        // 默认前缀是相对路径，显示成已保存的值会让人以为要保存它；留空加占位符更诚实。
-        setPrefix(next.customPublicBase ? next.publicBase ?? '' : '')
-        setPrefixTouched(false)
+        // 默认路径显示成已保存的值会让人以为要保存它；留空加占位符更诚实。
+        setPath(next.customSitePath ? next.sitePath ?? '' : '')
+        setPathTouched(false)
       }
 
       const load = React.useCallback(async () => {
@@ -3564,10 +3564,10 @@ window.__ModuleLoader__.load({
         }
       }
 
-      const savePrefix = (value) =>
-        run('prefix', async () => {
-          adopt(await postJson(`${API.sites}/settings`, { publicBase: value }))
-          show('prefix', t('saved'))
+      const savePath = (value) =>
+        run('save-path', async () => {
+          adopt(await postJson(`${API.sites}/settings`, { path: value }))
+          show('path', t('saved'))
         })
 
       const remove = (slug) =>
@@ -3680,35 +3680,38 @@ window.__ModuleLoader__.load({
         payload !== null
           ? h(
               Disclosure,
-              { title: t('sSettings'), badge: payload.customPublicBase ? null : h(Chip, null, t('sPrefixUnsetTag')) },
+              { title: t('sSettings'), badge: payload.customSitePath ? null : h(Chip, null, t('sSitePathUnsetTag')) },
+              payload.pathFallback === null || payload.pathFallback === undefined
+                ? null
+                : h('div', { className: 'yk-settingHint yk-settingWarn' }, fill(t('sPathFallback'), { path: payload.pathFallback.path })),
               h(
                 'div',
                 { className: 'yk-settingRow' },
-              h('span', { className: 'yk-settingLabel' }, h(LinkIcon, { width: 14, height: 14 }), t('sPrefix')),
-              h('input', {
-                className: 'yk-input yk-mono',
-                value: prefix,
-                placeholder: payload.defaultPublicBase,
-                'aria-label': t('sPrefix'),
-                onChange: (event) => {
-                  setPrefix(event.target.value)
-                  setPrefixTouched(true)
-                },
-                onKeyDown: (event) => {
-                  if (event.key === 'Enter' && prefixTouched) savePrefix(prefix)
-                },
-              }),
-              h(
-                'button',
-                { type: 'button', className: 'yk-btn yk-btn-solid', disabled: busy !== '' || !prefixTouched, onClick: () => savePrefix(prefix) },
-                busy === 'prefix' ? h(Spinner) : null,
-                flashed(flash, 'prefix', t('save')),
+                h('span', { className: 'yk-settingLabel' }, h(LinkIcon, { width: 14, height: 14 }), t('sSitePath')),
+                h('input', {
+                  className: 'yk-input yk-mono',
+                  value: path,
+                  placeholder: payload.defaultPath,
+                  'aria-label': t('sSitePath'),
+                  onChange: (event) => {
+                    setPath(event.target.value)
+                    setPathTouched(true)
+                  },
+                  onKeyDown: (event) => {
+                    if (event.key === 'Enter' && pathTouched) savePath(path)
+                  },
+                }),
+                h(
+                  'button',
+                  { type: 'button', className: 'yk-btn yk-btn-solid', disabled: busy !== '' || !pathTouched, onClick: () => savePath(path) },
+                  busy === 'save-path' ? h(Spinner) : null,
+                  flashed(flash, 'path', t('save')),
+                ),
+                payload.customSitePath
+                  ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', disabled: busy !== '', onClick: () => savePath('') }, t('sSitePathDefault'))
+                  : null,
               ),
-              payload.customPublicBase
-                ? h('button', { type: 'button', className: 'yk-btn yk-btn-ghost', disabled: busy !== '', onClick: () => savePrefix('') }, t('sPrefixDefault'))
-                : null,
-              h('div', { className: 'yk-settingHint' }, payload.customPublicBase ? t('sPrefixHint') : t('sPrefixUnset')),
-            ),
+              h('div', { className: 'yk-settingHint' }, payload.customSitePath ? t('sSitePathHint') : fill(t('sSitePathUnset'), { path: payload.defaultPath })),
             )
           : null,
 
@@ -3718,7 +3721,7 @@ window.__ModuleLoader__.load({
               { className: 'yk-foot' },
               h('span', null, counted(t, 'sCountOne', 'sCount', visible.length)),
               h('span', { className: 'yk-footDot' }, '·'),
-              h('span', null, payload.publicBase),
+              h('span', null, payload.sitePath),
             )
           : null,
       )

@@ -1,13 +1,13 @@
 /**
  * Filesystem side of static-site publishing.
  *
- * The publish root is the directory the web server exposes at `/p/`, so
- * everything inside it is public. Manifests, staging and trash therefore live
- * outside the root, under the state directory, and never reach the Web.
+ * The publish root is the directory the web server exposes under one path
+ * prefix, so everything inside it is public. Manifests, staging and trash
+ * therefore live outside the root, under the state directory, and never reach
+ * the Web.
  * @module @local/publish-sites/lib/sites
  */
 import { chmod, cp, lstat, mkdir, mkdtemp, readdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises'
-import { isIP } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import { appError } from '../../shared/http.js'
@@ -30,11 +30,22 @@ const DEFAULT_ROOT_NAME = 'publish'
 const LEGACY_DEFAULT_ROOTS = ['/workspace/publish']
 
 /**
- * Prefix assumed when the row names none.
+ * Path the Host answers published sites from when nothing else is configured.
  *
  * 相对路径，由面板拼上当前来源：换个部署、换个端口都不用改配置。
  */
-const DEFAULT_PUBLIC_BASE = '/p'
+export const DEFAULT_SITE_PATH = '/p'
+
+/** One segment of the mount path; the same alphabet as a slug. */
+const PATH_SEGMENT = /^[a-z0-9][a-z0-9._~-]*$/
+
+/**
+ * Prefixes the Host or another component already answers.
+ *
+ * 只列本仓库能确定会被占用的前缀：别的组件、别的插件注册的路由在这里看不全，
+ * 所以真正的冲突判断靠注册本身（`path-taken`），这份名单只是提前给个明确的理由。
+ */
+const RESERVED_PATHS = ['/api', '/plugins', '/publish']
 
 /** An asset reference that resolves against the origin root instead of the site. */
 const ROOT_LINK = /(?:src|href)\s*=\s*["']\/[^/"']/i
@@ -94,77 +105,69 @@ function stamp() {
 }
 
 /**
- * Validate one public URL prefix. A bare host gets `https://`; a trailing
- * slash, query or fragment is dropped.
+ * Normalize one mount path. Empty means "use the default"; trailing slashes
+ * and surrounding whitespace are dropped.
  * @param value - user input.
- * @returns the normalized prefix without a trailing slash.
+ * @returns the path without a trailing slash, always starting with `/`.
  */
-export function normalizePublicBase(value) {
-  let text = String(value ?? '').trim()
-  if (text === '') throw new Error('访问前缀不能为空')
-  // 只写路径的值（例如面板里显示的默认 `/p`）会在这里被当成主机名，解析成 `https://p`。
-  if (text.startsWith('/')) throw new Error('访问前缀需要完整地址（http:// 或 https://）；使用默认前缀请清空此项')
-  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) text = `https://${text}`
-  let url
-  try {
-    url = new URL(text)
-  } catch {
-    throw new Error(`不是有效的网址：${value}`)
-  }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error('访问前缀只支持 http:// 或 https://')
-  return `${url.origin}${url.pathname}`.replace(/\/+$/, '')
+export function normalizeSitePath(value) {
+  const text = String(value ?? '').trim()
+  if (text === '') return DEFAULT_SITE_PATH
+  return text.replace(/\/+$/, '') || DEFAULT_SITE_PATH
 }
 
 /**
- * Why a host cannot carry published pages, or null when it can.
+ * Why a mount path cannot be used, or null when it can.
  *
- * Loopback, unspecified and link-local addresses point back at this machine —
- * either at the panel itself or at the cloud metadata endpoint — so a prefix
- * naming one of them turns every publish probe into a request from the Host.
- * Private RFC1918 ranges stay allowed: publishing to the LAN is a real use.
- * @param hostname - parsed hostname, IPv6 brackets included or not.
+ * 路径就是站点对外的前缀，所以每个段都按 slug 的字母表限定：大小写、点段、
+ * 百分号编码、查询串在路由前缀匹配里都没有意义，只会让人误以为能写出 URL。
+ *
+ * 返回码而不是一句话：面板按码给自己的措辞，服务端这句只做日志与兜底。
+ * @param value - path text from the panel or the row config.
+ * @returns `{ code, reason }`，可用时返回 null。
  */
-function forbiddenHostReason(hostname) {
-  const host = String(hostname).trim().toLowerCase().replace(/^\[|\]$/g, '')
-  if (host === 'localhost' || host.endsWith('.localhost')) return '本机回环地址'
-  const version = isIP(host)
-  if (version === 4) {
-    const octets = host.split('.').map(Number)
-    if (octets[0] === 127 || octets[0] === 0) return '本机回环地址'
-    if (octets[0] === 169 && octets[1] === 254) return '链路本地地址'
+export function sitePathRejection(value) {
+  const text = String(value ?? '').trim()
+  if (text === '') return null
+  if (!text.startsWith('/')) return { code: 'path-invalid', reason: '路径必须以 / 开头' }
+  if (text.includes('//') || /[\\?#%\s]/.test(text)) return { code: 'path-invalid', reason: '路径里不能有空段、反斜杠、空格或 ? # %' }
+  const trimmed = text.replace(/\/+$/, '')
+  if (trimmed === '') return { code: 'path-reserved', reason: '根路径由宿主提供' }
+  for (const segment of trimmed.slice(1).split('/')) {
+    if (!PATH_SEGMENT.test(segment)) {
+      return { code: 'path-invalid', reason: `路径段「${segment}」只能用小写字母、数字、点、短横线和下划线` }
+    }
   }
-  if (version === 6) {
-    if (host === '::1' || host === '::') return '本机回环地址'
-    if (/^fe[89ab]/.test(host)) return '链路本地地址'
-    if (/^f[cd]/.test(host)) return '唯一本地地址'
+  for (const reserved of RESERVED_PATHS) {
+    if (trimmed === reserved || trimmed.startsWith(`${reserved}/`)) {
+      return { code: 'path-reserved', reason: `「${reserved}」由宿主保留` }
+    }
   }
   return null
 }
 
 /**
- * Why a prefix cannot be used, or null when it can.
+ * Mount path saved in settings.json, or null when the file names none.
  *
- * 与面板同源是允许的：发布页挂在同一个域名下是最常见的用法，页面脚本能带着
- * 面板登录态访问接口这件事由使用者自己权衡。
- *
- * 返回码而不是一句话：面板按码给自己的措辞，服务端这句只做日志与兜底——
- * 四种拒绝原因各不相同，共用一句话时用户只能看到最不相干的那条。
- * @param value - prefix text from the panel or the row config.
- * @returns `{ code, reason }`，可用时返回 null。
+ * 0.7.8 及更早存的是 `publicBase`：一个完整地址，其中路径就是当时对外的前缀
+ * （反代改写路径时唯一能配置的东西）。现在挂载路径本身就是对外路径，所以把那段
+ * 路径一次性迁移成 `path`，链接和路由都跟着走；没有路径的旧值迁移后就是默认。
+ * @param saved - parsed settings.json.
  */
-export function publicBaseRejection(value) {
-  const text = String(value ?? '').trim()
-  if (text === '') return null
-  if (text.startsWith('/')) return { code: 'base-relative', reason: '相对路径不是对外地址' }
-  let url
-  try {
-    url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `https://${text}`)
-  } catch {
-    return { code: 'base-invalid', reason: '不是有效的网址' }
+function savedSitePath(saved) {
+  if (typeof saved?.path === 'string') {
+    const text = saved.path.trim()
+    return text === '' || sitePathRejection(text) !== null ? null : normalizeSitePath(text)
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return { code: 'base-scheme', reason: '只支持 http 与 https' }
-  const forbidden = forbiddenHostReason(url.hostname)
-  if (forbidden !== null) return { code: 'base-forbidden', reason: forbidden }
+  if (typeof saved?.publicBase === 'string' && saved.publicBase.trim() !== '') {
+    try {
+      const url = new URL(saved.publicBase.trim())
+      const pathname = url.pathname
+      return pathname === '/' || sitePathRejection(pathname) !== null ? null : normalizeSitePath(pathname)
+    } catch {
+      return null
+    }
+  }
   return null
 }
 
@@ -173,7 +176,7 @@ const NEVER_PUBLISH = /(^|\/)(\.git|\.env[^/]*|node_modules)(\/|$)|(^|\/)[^/]+\.
 
 export class SiteStore {
   /**
-   * @param config - root, stateRoot, publicBase, maxMb, keep, legacyRoots.
+   * @param config - root, stateRoot, path, maxMb, keep, legacyRoots.
    */
   constructor(config = {}) {
     // 空字符串是「没配」，不是「当前目录」：path.resolve('') 会落到 cwd。
@@ -189,11 +192,14 @@ export class SiteStore {
     this.legacyRoots = Array.isArray(config.legacyRoots) && config.legacyRoots.length > 0
       ? config.legacyRoots.map((value) => path.resolve(String(value)))
       : LEGACY_DEFAULT_ROOTS.map((value) => path.resolve(value))
-    this.defaultPublicBase = typeof config.publicBase === 'string' && config.publicBase.trim() !== ''
-      ? config.publicBase.trim().replace(/\/+$/, '')
-      : DEFAULT_PUBLIC_BASE
-    /** Prefix saved from the panel; overrides the row config when set. */
-    this.customPublicBase = null
+    const configuredPath = String(config.path ?? '').trim()
+    /** 行配置里写错的路径不能拖垮启动：记下原因，按默认路径提供。 */
+    this.rowPathRejection = sitePathRejection(configuredPath)
+    this.defaultSitePath = this.rowPathRejection === null ? normalizeSitePath(configuredPath) : DEFAULT_SITE_PATH
+    /** Path saved from the panel; overrides the row config when set. */
+    this.customSitePath = null
+    /** 保存的路径挂不上（被别的组件占了）时退回默认，这里记下原本想要的路径。 */
+    this.pathFallback = null
     this.maxMb = positive(config.maxMb, 200)
     this.maxFiles = positive(config.maxFiles, DEFAULT_MAX_FILES)
     this.keep = positive(config.keep, 5)
@@ -202,9 +208,9 @@ export class SiteStore {
     this.queue = Promise.resolve()
   }
 
-  /** URL prefix every site link starts with. */
-  get publicBase() {
-    return this.customPublicBase ?? this.defaultPublicBase
+  /** Path prefix every site link starts with. */
+  get sitePath() {
+    return this.customSitePath ?? this.defaultSitePath
   }
 
   /** Panel settings, kept out of the public root. */
@@ -276,11 +282,9 @@ export class SiteStore {
         await mkdir(this.trashDir, { recursive: true })
         try {
           const saved = JSON.parse(await readFile(this.settingsFile, 'utf8'))
-          if (typeof saved?.publicBase === 'string' && saved.publicBase !== '') {
-            this.customPublicBase = normalizePublicBase(saved.publicBase)
-          }
+          this.customSitePath = savedSitePath(saved)
         } catch {
-          // No saved prefix yet, or an unreadable one: keep the row config.
+          // No saved path yet, or an unreadable one: keep the row config.
         }
       })().catch((error) => {
         // A failed first init must be retryable; a cached rejected promise
@@ -293,20 +297,56 @@ export class SiteStore {
   }
 
   /**
-   * Save the URL prefix site links use; an empty value restores the row config.
-   * @param value - e.g. `https://pages.example.com` or `https://dsh.example.com/p`.
-   * @returns the prefix now in effect.
+   * Save the mount path the Host answers published sites from.
+   *
+   * 三件事必须一起成立：settings.json、内存里的路径、宿主上的路由。所以先换路由
+   * （它可能因为路径被占用而失败），再写盘；写盘失败就把路由换回去。整个动作走
+   * 同一个队列，两个面板同时保存时不会交叉。
+   * @param value - e.g. `/sites`; an empty value restores the row config.
+   * @param mount - swaps the live route to the given path; throws when the path is taken.
+   * @returns the path now in effect.
    */
-  async setPublicBase(value) {
+  setSitePath(value, mount = null) {
+    return this.serialized(() => this.applySitePath(value, mount))
+  }
+
+  /** Body of {@link setSitePath}; callers go through the queue. */
+  async applySitePath(value, mount) {
     await this.init()
     const text = String(value ?? '').trim()
-    const rejection = publicBaseRejection(text)
-    if (rejection !== null) throw appError(`访问前缀不可用：${rejection.reason}`, rejection.code)
-    this.customPublicBase = text === '' ? null : normalizePublicBase(text)
+    const rejection = sitePathRejection(text)
+    if (rejection !== null) throw appError(`站点路径不可用：${rejection.reason}`, rejection.code)
+    const next = text === '' ? null : normalizeSitePath(text)
+    const previous = this.customSitePath
+    const target = next ?? this.defaultSitePath
+    const moved = mount !== null && target !== this.sitePath
+    // 启动时退回默认路径的那次失败也要能被清掉：这时内存里没有自定义值，
+    // 但盘上还留着挂不上的路径。
+    const dirty = next !== previous || this.pathFallback !== null
+    if (moved) mount(target)
+    try {
+      if (dirty) await this.#writeSettings(next)
+    } catch (error) {
+      // 路由已经换过去了，盘上的值没写成：两边必须回到同一个状态。
+      if (moved) {
+        try {
+          mount(this.sitePath)
+        } catch {
+          this.pathFallback = { path: target }
+        }
+      }
+      throw error
+    }
+    this.customSitePath = next
+    this.pathFallback = null
+    return this.sitePath
+  }
+
+  /** Write settings.json atomically. */
+  async #writeSettings(custom) {
     const staging = `${this.settingsFile}.${process.pid}.tmp`
-    await writeFile(staging, `${JSON.stringify({ publicBase: this.customPublicBase ?? '' }, null, 2)}\n`)
+    await writeFile(staging, `${JSON.stringify({ path: custom ?? '' }, null, 2)}\n`)
     await rename(staging, this.settingsFile)
-    return this.publicBase
   }
 
   /** Run one mutating operation after the previous one has finished. */
@@ -316,9 +356,9 @@ export class SiteStore {
     return next
   }
 
-  /** Public URL of one site. */
+  /** Public URL of one site, relative to whatever page links it. */
   urlOf(slug) {
-    return `${this.publicBase}/${slug}/`
+    return `${this.sitePath}/${slug}/`
   }
 
   /** Reject a slug that could escape the publish root. */
@@ -581,7 +621,7 @@ export class SiteStore {
     if (offenders.length > 0) {
       await rm(directory, { recursive: true, force: true })
       throw new Error(
-        `发现根路径资源引用：${offenders.slice(0, 5).join(', ')}；站点挂在 ${this.publicBase}/ 下，构建时请用相对路径（Vite 的 base: './'）`,
+        `发现根路径资源引用：${offenders.slice(0, 5).join(', ')}；站点挂在 ${this.sitePath}/ 下，构建时请用相对路径（Vite 的 base: './'）`,
       )
     }
   }

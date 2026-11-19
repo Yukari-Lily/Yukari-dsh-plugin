@@ -1,7 +1,7 @@
 /**
- * `/p` 的静态应答：默认本地部署没有别的静态服务器，宿主自己提供发布根，
+ * 发布根的静态应答：默认本地部署没有别的静态服务器，宿主自己提供发布根，
  * 发出来的链接才点得开。这里用真实临时目录走一遍处理器，覆盖目录跳转、
- * 类型、越界与隐藏文件。
+ * 类型、越界与隐藏文件，以及面板改路径之后路由是否跟着走。
  */
 import test from 'node:test'
 import assert from 'node:assert/strict'
@@ -9,7 +9,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { Writable } from 'node:stream'
 import os from 'node:os'
 import path from 'node:path'
-import { apply, SITE_PATH } from '../host/sites/index.js'
+import { apply, API_PATH, DEFAULT_SITE_PATH } from '../host/sites/index.js'
 
 /** Collect everything written to a fake response. */
 function response() {
@@ -44,23 +44,50 @@ async function mount(t) {
   await writeFile(path.join(root, 'Some Dir', 'index.html'), 'x')
 
   const routes = new Map()
+  const setups = []
   const ctx = {
     tools: { register: () => {} },
-    webServer: { register: (value) => { routes.set(value.path, value); return () => {} } },
+    webServer: {
+      register: (value) => {
+        if (routes.has(value.path)) throw new Error(`webserver: duplicate prefix route "${value.path}"`)
+        routes.set(value.path, value)
+        return () => { routes.delete(value.path) }
+      },
+    },
     connection: { requestRejection: () => undefined },
-    effect: (callback) => { const cleanup = callback(); return () => cleanup?.() },
+    effect: (callback) => { setups.push(Promise.resolve(callback())); return () => {} },
     logger: { warn: () => {}, info: () => {} },
     get: () => undefined,
   }
   apply(ctx, { root, stateRoot: path.join(temporary, 'state'), maxMb: 8, maxFiles: 100 })
-  const handler = routes.get(SITE_PATH)?.handler
-  assert.equal(typeof handler, 'function', 'the publish root route is registered')
+  await Promise.all(setups)
+  assert.equal(routes.has(DEFAULT_SITE_PATH), true, 'the publish root route is registered')
+  /** 每次调用都现取发布根路由：换路径之后调用的就该是新那条。 */
+  const siteRoute = () => {
+    const route = [...routes.values()].find((value) => value.path !== API_PATH)
+    assert.equal(typeof route?.handler, 'function', 'the publish root route is registered')
+    return route
+  }
   const call = async (target, method = 'GET') => {
     const res = response()
-    await handler({ url: target, method, headers: {} }, res)
+    await siteRoute().handler({ url: target, method, headers: {} }, res)
     return res
   }
-  return { call, root }
+  /** 走真实的 settings 接口换路径，返回新注册的路径。 */
+  const moveTo = async (sitePath) => {
+    const res = response()
+    const payload = Buffer.from(JSON.stringify({ path: sitePath }))
+    const req = {
+      url: `${API_PATH}/settings`,
+      method: 'POST',
+      headers: {},
+      async *[Symbol.asyncIterator]() { yield payload },
+    }
+    await routes.get(API_PATH).handler(req, res)
+    assert.equal(res.statusCode, 200)
+    return siteRoute().path
+  }
+  return { call, root, routes, moveTo, siteRoute }
 }
 
 test('serve: a directory URL answers its index.html', async (t) => {
@@ -127,4 +154,16 @@ test('serve: hidden names and files outside the root never arrive', async (t) =>
   const leak = await call('/p/demo/leak.txt')
   assert.equal(leak.statusCode, 403, 'a symlink pointing outside the root is refused')
   assert.equal(leak.text(), '')
+})
+
+test('serve: a path change moves the publish root and drops the old prefix', async (t) => {
+  const { call, routes, moveTo } = await mount(t)
+  assert.equal(await moveTo('/sites'), '/sites', 'the route follows the saved path')
+  assert.equal(routes.has('/p'), false, 'the old prefix is no longer answered')
+  assert.equal((await call('/sites/demo/')).statusCode, 200)
+  assert.equal((await call('/sites/demo/')).text(), '<h1>demo</h1>')
+  assert.equal((await call('/p/demo/')).statusCode, 404, 'a request on the old prefix finds no site handler')
+  const redirect = await call('/sites/demo')
+  assert.equal(redirect.statusCode, 301)
+  assert.equal(redirect.headers.location, '/sites/demo/', 'the redirect keeps the configured prefix')
 })

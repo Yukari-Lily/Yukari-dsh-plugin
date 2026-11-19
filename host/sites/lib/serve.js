@@ -1,9 +1,9 @@
 /**
  * Static responses for the publish root.
  *
- * 宿主自己把 `/p/<slug>/` 答出来：默认本地部署（127.0.0.1、Windows 客户端）没有
- * 别的静态服务器，少了这一段，发布出来的链接就是 404。这里只读发布根，状态目录、
- * 隐藏文件与打包垃圾都不能通过它离开磁盘。
+ * 宿主自己把 `<路径>/<slug>/` 答出来：默认本地部署（127.0.0.1、Windows 客户端）
+ * 没有别的静态服务器，少了这一段，发布出来的链接就是 404。这里只读发布根，状态
+ * 目录、隐藏文件与打包垃圾都不能通过它离开磁盘。
  * @module @local/publish-sites/lib/serve
  */
 import { createReadStream } from 'node:fs'
@@ -63,12 +63,12 @@ function badSegment(segment) {
 }
 
 /**
- * 把一次 `/p/…` 请求映射为发布根里的文件。
+ * 把一次挂在 `prefix` 下的请求映射为发布根里的文件。
  * @param store - SiteStore；只用它的 `root`，第一次请求时完成 `init()`。
- * @param prefix - 挂载路径，默认 `/p`。
+ * @param prefix - 挂载路径，由注册这条路由的人给出（面板可以改）。
  * @returns `(req, res) => Promise<void>`。
  */
-export function siteHandler(store, prefix = '/p') {
+export function siteHandler(store, prefix) {
   return async (req, res) => {
     await store.init()
     if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -139,7 +139,7 @@ export function siteHandler(store, prefix = '/p') {
       return
     }
     if (info.isDirectory()) {
-      // 不带尾斜杠时先把浏览器带回目录 URL，否则页面里的相对资源会挂到 /p/ 下。
+      // 不带尾斜杠时先把浏览器带回目录 URL，否则页面里的相对资源会挂到挂载路径下。
       if (!trailing) {
         send(res, 301, { location: `${url.pathname}/` })
         return

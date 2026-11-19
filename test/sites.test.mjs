@@ -21,14 +21,18 @@ async function emptyStaging(store) {
   assert.deepEqual(await readdir(store.stagingDir), [])
 }
 
-test('defaults: an empty row config publishes under the home directory with a relative prefix', () => {
-  const store = new SiteStore({ root: '', publicBase: '' })
+test('defaults: an empty row config publishes under the home directory at the default path', () => {
+  const store = new SiteStore({ root: '', path: '' })
   assert.equal(store.root, path.join(os.homedir(), 'publish'), 'an empty root is not the process cwd')
   assert.equal(store.stateRoot, path.join(os.homedir(), '.publish-state'))
-  assert.equal(store.publicBase, '/p', 'the default prefix is relative to this deployment')
-  assert.equal(store.urlOf('demo'), '/p/demo/')
-  const absolute = new SiteStore({ publicBase: 'https://pages.example.com/' })
-  assert.equal(absolute.publicBase, 'https://pages.example.com')
+  assert.equal(store.sitePath, '/p', 'the default path is relative to this deployment')
+  assert.equal(store.urlOf('demo'), '/p/demo/', 'links stay relative; the panel resolves them against its own address')
+  const nested = new SiteStore({ path: '/sites/v1/' })
+  assert.equal(nested.sitePath, '/sites/v1', 'the row config is normalized')
+  assert.equal(nested.urlOf('demo'), '/sites/v1/demo/')
+  const broken = new SiteStore({ path: '/Sites' })
+  assert.equal(broken.sitePath, '/p', 'a row config that cannot be routed falls back instead of failing the boot')
+  assert.equal(broken.rowPathRejection.code, 'path-invalid')
 })
 
 test('defaults: an upgrade keeps publishing into the directory the old default used', async (t) => {
@@ -55,7 +59,7 @@ test('defaults: an upgrade keeps publishing into the directory the old default u
   assert.equal(upgraded.root, legacy, 'the existing publish root wins over the new default')
   assert.equal(upgraded.adoptedFrom, legacy)
   assert.deepEqual(listed.map((site) => site.slug), ['old-site'])
-  assert.equal(upgraded.publicBase, '/p')
+  assert.equal(upgraded.sitePath, '/p')
 
   // 显式配过目录就不猜：新目录自己说了算。
   const explicit = new SiteStore({ root: path.join(temporary, 'fresh'), legacyRoots: [legacy] })
@@ -118,11 +122,16 @@ test('list_sites schema includes every returned file and version field', () => {
     connection: { requestRejection: () => null },
   }
   apply(ctx, {})
-  const schema = tools.find((tool) => tool.name === 'list_sites').output.schema.properties.sites.items
+  const list = tools.find((tool) => tool.name === 'list_sites').output.schema
+  const item = list.properties.sites.items
   for (const field of ['files', 'version']) {
-    assert.ok(schema.properties[field])
-    assert.ok(schema.required.includes(field))
+    assert.ok(item.properties[field])
+    assert.ok(item.required.includes(field))
   }
+  assert.ok(list.properties.root, 'the listing names the directory the files live in')
+  assert.ok(list.required.includes('root'))
+  const publish = tools.find((tool) => tool.name === 'publish_site').output.schema
+  assert.ok(publish.properties.verifyUrl, 'the publish result names the address the Host itself answers on')
 })
 
 test('publish skips secrets and build junk instead of serving them', async (t) => {
@@ -145,55 +154,92 @@ test('publish removes real source maps but keeps unrelated .map files', async (t
   assert.deepEqual((await readdir(path.join(root, 'maps'))).sort(), ['app.js', 'district.map', 'index.html'])
 })
 
-test('setPublicBase accepts the panel origin and refuses non-public hosts', async (t) => {
+test('setSitePath accepts a nested path and refuses the shapes that cannot be routed', async (t) => {
   const { store } = await fixture(t)
-  // 与面板同源是本项目最常见的用法：反代把 /p 和面板放在同一个域名下。
-  assert.equal(await store.setPublicBase('https://dsh.example.com/p'), 'https://dsh.example.com/p')
-  await assert.rejects(store.setPublicBase('http://127.0.0.1:3080/p'), /回环/)
-  await assert.rejects(store.setPublicBase('http://169.254.169.254/p'), /链路本地/)
-  await assert.rejects(store.setPublicBase('ftp://pages.example.com'), /http 与 https/)
-  const base = await store.setPublicBase('https://pages.example.com')
-  assert.equal(base, 'https://pages.example.com')
-  assert.equal(await store.setPublicBase(''), store.defaultPublicBase)
-})
-
-test('setPublicBase refuses a path-only value instead of turning /p into the host p', async (t) => {
-  // 面板把默认前缀 `/p` 显示在输入框里，保存时必须拒绝：normalizePublicBase
-  // 会把它当成主机名解析成 `https://p`，之后每条链接都指到不存在的域。
-  const { store } = await fixture(t)
-  await assert.rejects(store.setPublicBase('/p'), /相对路径不是对外地址/)
-  assert.equal(store.publicBase, '/p', 'the default prefix is untouched')
-})
-
-test('setPublicBase tags each refusal with its own code', async (t) => {
-  // 面板按码给措辞：四种原因共用一个码时，用户看到的是最不相干的那句。
-  const { store } = await fixture(t)
+  assert.equal(await store.setSitePath('/sites/'), '/sites', 'a trailing slash is normalized away')
   const codeOf = async (value) => {
     try {
-      await store.setPublicBase(value)
+      await store.setSitePath(value)
       return null
     } catch (error) {
       return error.appCode
     }
   }
-  assert.equal(await codeOf('/p'), 'base-relative')
-  assert.equal(await codeOf('http://127.0.0.1:3080/p'), 'base-forbidden')
-  assert.equal(await codeOf('ftp://pages.example.com'), 'base-scheme')
-  assert.equal(await codeOf('https://'), 'base-invalid')
+  assert.equal(await codeOf('sites'), 'path-invalid', 'a path without the leading slash is a typo, not a host')
+  assert.equal(await codeOf('/Sites'), 'path-invalid', 'the path is matched literally by the router')
+  assert.equal(await codeOf('/a//b'), 'path-invalid')
+  assert.equal(await codeOf('/a/../b'), 'path-invalid', 'a dot segment has no meaning in a prefix')
+  assert.equal(await codeOf('/a?b'), 'path-invalid')
+  assert.equal(await codeOf('/'), 'path-reserved')
+  assert.equal(await codeOf('/api'), 'path-reserved')
+  assert.equal(await codeOf('/api/remote.mux'), 'path-reserved')
+  assert.equal(await codeOf('/plugins'), 'path-reserved')
+  assert.equal(await codeOf('/publish/api'), 'path-reserved')
+  assert.equal(store.sitePath, '/sites', 'a refused value leaves the saved one in effect')
 })
 
-test('init ignores a saved prefix that no longer parses', async (t) => {
-  // 旧版本把默认的 `/p` 存进了 settings.json，升级后这里会解析失败：
-  // 一次坏值不能把整个站点页变成「加载失败」。
-  const temporary = await mkdtemp(path.join(os.tmpdir(), 'yk-sites-prefix-'))
+test('setSitePath persists the path and goes back to the row config when cleared', async (t) => {
+  const { store } = await fixture(t)
+  await store.setSitePath('/sites')
+  const reopened = new SiteStore({ root: store.root, stateRoot: store.stateRoot, path: '/row' })
+  await reopened.init()
+  assert.equal(reopened.sitePath, '/sites', 'a saved path beats the row config')
+  assert.equal(await reopened.setSitePath(''), '/row', 'clearing the field restores the row config')
+  const cleared = new SiteStore({ root: store.root, stateRoot: store.stateRoot, path: '/row' })
+  await cleared.init()
+  assert.equal(cleared.customSitePath, null)
+})
+
+test('setSitePath swaps the route first and leaves the settings untouched when the swap fails', async (t) => {
+  const { store } = await fixture(t)
+  const mounted = []
+  // 换路由的回调自己负责把旧路由挂回去（index.js 的 swapSitePath 就是这么做的），
+  // store 只保证：换失败时不动内存里的值、也不写盘。
+  const mount = (value) => {
+    if (value === '/taken') throw new Error('站点路径 /taken 已被其它功能占用')
+    mounted.push(value)
+  }
+  await store.setSitePath('/sites', mount)
+  assert.deepEqual(mounted, ['/sites'], 'the route moves before the settings file is written')
+  await assert.rejects(store.setSitePath('/taken', mount), /已被其它功能占用/)
+  assert.equal(store.sitePath, '/sites', 'the live path did not move')
+  const reopened = new SiteStore({ root: store.root, stateRoot: store.stateRoot })
+  await reopened.init()
+  assert.equal(reopened.sitePath, '/sites', 'nothing was written for the refused path')
+})
+
+test('setSitePath puts the route back when the settings write fails', async (t) => {
+  const { store } = await fixture(t)
+  await store.init()
+  const mounted = []
+  // 状态目录改成不存在的路径：换路由会成功，写盘一定失败。
+  store.stateRoot = path.join(store.stateRoot, 'missing', 'nested')
+  await assert.rejects(store.setSitePath('/sites', (value) => mounted.push(value)), /ENOENT/)
+  assert.deepEqual(mounted, ['/sites', '/p'], 'the route follows the settings file back to the old path')
+  assert.equal(store.sitePath, '/p', 'the live path did not move')
+})
+
+test('init migrates the old public prefix into a mount path', async (t) => {
+  // 0.7.8 及更早存的是完整地址，其中的路径就是当时的对外前缀。现在挂载路径
+  // 本身就是对外路径，所以按那段路径迁移一次；没有路径的旧值回落到默认。
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'yk-sites-migrate-'))
   t.after(() => rm(temporary, { recursive: true, force: true }))
   const stateRoot = path.join(temporary, 'state')
   await mkdir(path.join(stateRoot, 'sites'), { recursive: true })
-  await writeFile(path.join(stateRoot, 'settings.json'), JSON.stringify({ publicBase: '/p' }))
-  const store = new SiteStore({ root: path.join(temporary, 'publish'), stateRoot })
-  await store.init()
-  assert.equal(store.customPublicBase, null, 'the default prefix stays in effect')
-  assert.equal(store.publicBase, store.defaultPublicBase)
+  const cases = [
+    [{ publicBase: 'https://dsh.example.com/foo' }, '/foo', 'the old public path becomes the mount path'],
+    [{ publicBase: 'https://pages.example.com' }, '/p', 'an address without a path keeps the default'],
+    [{ publicBase: '/p' }, '/p', 'the old malformed value is still ignored'],
+    [{ publicBase: 'not a url' }, '/p', 'an unreadable old value is still ignored'],
+    [{ path: '/sites' }, '/sites', 'the new shape is read as is'],
+    [{ path: '/Sites' }, '/p', 'a saved path that cannot be routed falls back'],
+  ]
+  for (const [saved, expected, message] of cases) {
+    await writeFile(path.join(stateRoot, 'settings.json'), JSON.stringify(saved))
+    const store = new SiteStore({ root: path.join(temporary, 'publish'), stateRoot })
+    await store.init()
+    assert.equal(store.sitePath, expected, message)
+  }
 })
 
 test('init refuses a state directory inside the publish root', async (t) => {

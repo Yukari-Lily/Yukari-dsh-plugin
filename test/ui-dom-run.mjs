@@ -1090,26 +1090,37 @@ async function caseImportPreview() {
 
 async function caseSitesLinks() {
   // Windows 客户端的页面用 dsh-app://app 加载，location.origin 点开没有反应；
-  // 链接必须改由宿主回报的监听地址拼出来。默认的 /p 前缀也不能当已保存值回填。
+  // 链接必须改由宿主回报的监听地址拼出来。默认路径也不能当已保存值回填。
+  const posted = []
+  const listPayload = (sitePath) => ({
+    ok: true,
+    sites: [{
+      slug: 'demo',
+      title: 'Demo',
+      url: `${sitePath}/demo/`,
+      files: 1,
+      bytes: 12,
+      version: 1,
+      publishedAt: '2026-11-18T00:00:00.000Z',
+    }],
+    root: '/tmp/publish',
+    localBase: 'http://127.0.0.1:3080',
+    adoptedFrom: null,
+    sitePath,
+    defaultPath: '/p',
+    customSitePath: sitePath !== '/p',
+    pathFallback: null,
+  })
   const panel = mountPanel({
     ...routes,
-    '/publish/api/list': {
-      ok: true,
-      sites: [{
-        slug: 'demo',
-        title: 'Demo',
-        url: '/p/demo/',
-        files: 1,
-        bytes: 12,
-        version: 1,
-        publishedAt: '2026-11-18T00:00:00.000Z',
-      }],
-      root: '/tmp/publish',
-      localBase: 'http://127.0.0.1:3080',
-      adoptedFrom: null,
-      publicBase: '/p',
-      defaultPublicBase: '/p',
-      customPublicBase: false,
+    '/publish/api/list': listPayload('/p'),
+    '/publish/api/settings': (_target, init) => {
+      const body = JSON.parse(init.body)
+      posted.push(body)
+      if (body.path === '/taken') {
+        return { __status: 400, ok: false, error: '站点路径 /taken 已被其它功能占用', code: 'path-taken' }
+      }
+      return listPayload(body.path || '/p')
     },
   })
   await panel.renderMain()
@@ -1141,22 +1152,48 @@ async function caseSitesLinks() {
   assert.equal(await panel.waitFor(() => tab.querySelector('.yk-itemTitle') !== null), true, 'the site row rendered')
   const link = tab.querySelector('.yk-itemTitle')
   assert.equal(link.getAttribute('href'), 'http://127.0.0.1/p/demo/', 'the link uses the page origin')
-  // 前缀输入框在折叠区里：展开之后才能读到值。
+  // 路径输入框在折叠区里：展开之后才能读到值。
   tab.querySelector('.yk-disclosureBtn').dispatchEvent(new panel.window.MouseEvent('click', { bubbles: true }))
   await panel.tick()
   await panel.tick()
   const input = tab.querySelector('.yk-input')
-  assert.equal(input.value, '', 'the default relative prefix is not pre-filled as a saved value')
-  assert.equal(input.getAttribute('placeholder'), '/p')
+  assert.equal(input.value, '', 'the default path is not pre-filled as a saved value')
+  assert.equal(input.getAttribute('placeholder'), '/p', 'the default path is only a placeholder')
+  const buttonWith = (text) => [...tab.querySelectorAll('button')].find((node) => node.textContent.includes(text))
+  assert.equal(buttonWith('save').disabled, true, 'nothing to save until the field changes')
+  const setValue = Object.getOwnPropertyDescriptor(panel.window.HTMLInputElement.prototype, 'value').set
+  setValue.call(input, '/sites')
+  input.dispatchEvent(new panel.window.Event('input', { bubbles: true }))
+  await panel.tick()
+  buttonWith('save').dispatchEvent(new panel.window.MouseEvent('click', { bubbles: true }))
+  assert.equal(await panel.waitFor(() => posted.length === 1), true, 'saving posts the new path')
+  assert.deepEqual(posted[0], { path: '/sites' }, 'the panel sends only the path it shows')
+  assert.equal(
+    await panel.waitFor(() => tab.querySelector('.yk-itemTitle')?.getAttribute('href') === 'http://127.0.0.1/sites/demo/'),
+    true,
+    'the listed link follows the saved path without a reload',
+  )
+  const foot = [...tab.querySelectorAll('.yk-foot span')].map((node) => node.textContent)
+  assert.ok(foot.includes('/sites'), 'the footer shows the path now in effect')
+
+  // 路径被占用：失败走横幅，4xx 不给重试；输入框里的值留着，方便改一个再存。
+  setValue.call(input, '/taken')
+  input.dispatchEvent(new panel.window.Event('input', { bubbles: true }))
+  await panel.tick()
+  buttonWith('save').dispatchEvent(new panel.window.MouseEvent('click', { bubbles: true }))
+  assert.equal(await panel.waitFor(() => tab.querySelector('.yk-bannerError') !== null), true, 'a refused path shows a banner')
+  assert.deepEqual(posted[1], { path: '/taken' }, 'the refused path was still submitted')
+  assert.equal(tab.querySelector('.yk-bannerError button') === null, true, 'a refused path offers no retry')
+  assert.equal(input.value, '/taken', 'the refused value stays in the field')
   await panel.close()
 }
 
 async function caseFailureRetry() {
-  // 4xx 是请求本身不成立（前缀格式错这类），重试同一请求只会得到同一句话：
+  // 4xx 是请求本身不成立（路径格式错这类），重试同一请求只会得到同一句话：
   // 横幅不给重试按钮，并且失败对象必须带着 code 走到面板，才能翻成自己的措辞。
   const panel = mountPanel({
     ...routes,
-    '/publish/api/list': { __status: 400, ok: false, error: '访问前缀不可用：相对路径不是对外地址', code: 'base-relative' },
+    '/publish/api/list': { __status: 400, ok: false, error: '站点路径不可用：路径必须以 / 开头', code: 'path-invalid' },
   })
   await panel.renderMain()
   tabOf(panel.window, 'sites').dispatchEvent(new panel.window.MouseEvent('click', { bubbles: true }))
@@ -1166,14 +1203,14 @@ async function caseFailureRetry() {
   assert.equal(await panel.waitFor(() => tab.querySelector('.yk-bannerError') !== null), true, 'the failure banner rendered')
   assert.equal(tab.querySelector('.yk-bannerError button') === null, true, 'a rejected request offers no retry')
 
-  const thrown = Object.assign(new Error('raw'), { code: 'base-relative', params: { n: 1 }, status: 400 })
+  const thrown = Object.assign(new Error('raw'), { code: 'path-invalid', params: { n: 1 }, status: 400 })
   const kept = panel.exports.failureOf(thrown, 'save')
-  assert.equal(kept.code, 'base-relative', 'the banner keeps the stable code')
+  assert.equal(kept.code, 'path-invalid', 'the banner keeps the stable code')
   assert.equal(kept.status, 400, 'the banner keeps the status')
   assert.equal(kept.action, 'save', 'the banner keeps which action failed')
   assert.deepEqual(kept.params, { n: 1 })
-  const translate = (key) => (key === 'host_base-relative' ? '访问前缀需为完整地址' : key)
-  assert.equal(panel.exports.hostText(translate, kept), '访问前缀需为完整地址', 'the code reaches the translation table')
+  const translate = (key) => (key === 'host_path-invalid' ? '站点路径格式不正确' : key)
+  assert.equal(panel.exports.hostText(translate, kept), '站点路径格式不正确', 'the code reaches the translation table')
 
   assert.equal(panel.exports.retryable({ status: 400 }), false, '4xx is not retryable')
   assert.equal(panel.exports.retryable({ status: 422 }), false)
