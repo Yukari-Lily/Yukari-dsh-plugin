@@ -237,6 +237,14 @@ test('publish: the result carries the address the Host itself answers on', async
   const sites = await listed.execute({})
   assert.equal(sites.root, path.join(root, 'publish'), 'the listing names the publish root')
   assert.deepEqual(sites.sites.map((site) => site.slug), ['demo'])
+
+  // 小站点是常态：按 B / KB 显示，而不是一律 0.0 MB。
+  const publishText = publish.output.render([], result)[0].text
+  assert.match(publishText, /19 B/u)
+  assert.doesNotMatch(publishText, /0\.0 MB/u)
+  const listText = listed.output.render([], sites)[0].text
+  assert.match(listText, /19 B/u)
+  assert.match(listText, /root: /u, 'the rendered listing names the directory too')
 })
 
 test('publish: an unbound listener leaves verifyUrl out instead of inventing one', async (t) => {

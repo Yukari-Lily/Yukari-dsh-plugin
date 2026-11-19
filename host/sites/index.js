@@ -6,7 +6,7 @@
  * @module @local/publish-sites
  */
 import { markMounted } from '../shared/mounted.js'
-import { DEFAULT_SITE_PATH, SiteStore } from './lib/sites.js'
+import { DEFAULT_SITE_PATH, SiteStore, formatBytes } from './lib/sites.js'
 import { siteHandler } from './lib/serve.js'
 import { appError, guardRoute, messageOf, readJsonBody, sendJson } from '../shared/http.js'
 
@@ -17,9 +17,6 @@ export const API_PATH = '/publish/api'
 
 /** Services this plugin needs. */
 export const inject = ['tools', 'webServer', 'connection']
-
-/** Human-readable byte count. */
-const mb = (bytes) => `${(Number(bytes) / 1048576).toFixed(1)} MB`
 
 /**
  * Register the Host half.
@@ -158,7 +155,7 @@ export function apply(ctx, config = {}) {
       render: (_args, value) => [
         {
           type: 'text',
-          text: `published ${value.url} (${value.files} files, ${mb(value.bytes)}, v${value.version ?? 1})${value.verifyUrl === undefined ? '' : ` · verify ${value.verifyUrl}`}`,
+          text: `published ${value.url} (${value.files} files, ${formatBytes(value.bytes)}, v${value.version ?? 1})${value.verifyUrl === undefined ? '' : ` · verify ${value.verifyUrl}`}`,
         },
       ],
     },
@@ -219,7 +216,7 @@ export function apply(ctx, config = {}) {
           text:
             value.sites.length === 0
               ? `no published sites in ${value.root}`
-              : [`root: ${value.root}`, ...value.sites.map((site) => `${site.slug}\t${site.url}\t${mb(site.bytes)}`)].join('\n'),
+              : [`root: ${value.root}`, ...value.sites.map((site) => `${site.slug}\t${site.url}\t${formatBytes(site.bytes)}`)].join('\n'),
         },
       ],
     },

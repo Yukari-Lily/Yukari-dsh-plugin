@@ -58,8 +58,8 @@ function positive(value, fallback) {
   return Number.isFinite(value) && value > 0 ? Number(value) : fallback
 }
 
-/** Human-readable byte count. */
-function formatBytes(bytes) {
+/** Human-readable byte count: small sites are the common case, so KB before MB. */
+export function formatBytes(bytes) {
   const value = Number(bytes) || 0
   if (value < 1024) return `${value} B`
   if (value < 1048576) return `${(value / 1024).toFixed(1)} KB`
