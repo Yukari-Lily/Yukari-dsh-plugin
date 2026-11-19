@@ -653,6 +653,25 @@ async function caseUpdateApplies() {
   await panel.close()
 }
 
+async function caseUpdateUnknownVersion() {
+  // Windows 上 Node 取不到 raw.githubusercontent.com 时只剩 commit 可信。界面必须说
+  // 「(6ef03e4)」而不是「v0.7.8」——后者会让人以为要更新到当前版本。
+  const panel = mountPanel(routes)
+  await panel.renderMain()
+  assert.equal(
+    panel.exports.updateTargetLabel({ latest: '0.7.8', latestKnown: false, latestCommit: '6ef03e4' }),
+    '(6ef03e4)',
+    'an unknown target version is never shown as the current one',
+  )
+  assert.equal(
+    panel.exports.updateTargetLabel({ latest: '0.8.0', latestKnown: true, latestCommit: '6ef03e4' }),
+    'v0.8.0 (6ef03e4)',
+    'a known version still names the version',
+  )
+  assert.equal(panel.exports.updateTargetLabel({ latest: '0.8.0', latestKnown: false }), '', 'no version and no commit shows nothing')
+  await panel.close()
+}
+
 async function caseUpdateRestarts() {
   // 点一次「更新」就该走完：装上、重启、页面自己回来，不再出现「装好了，请再点重启」。
   const posts = []
@@ -1309,7 +1328,7 @@ async function caseFailureNetwork() {
   await panel.close()
 }
 
-const cases = [['failure-retry', caseFailureRetry], ['failure-network', caseFailureNetwork], ['tabs', caseTabs], ['keep-alive', caseKeepAlive], ['confirm-focus', caseConfirmFocus], ['chat-counts', caseChatCounts], ['chat-preview', caseChatPreview], ['chat-preview-below', caseChatPreviewBelow], ['chat-preview-tap', caseChatPreviewTap], ['chat-preview-gone', caseChatPreviewGone], ['files-markdown', caseFilesMarkdown], ['probe-note', caseProbeNote], ['restart-watch', caseRestartWatch], ['update-applies', caseUpdateApplies], ['update-restarts', caseUpdateRestarts], ['update-windows', caseUpdateWindows], ['update-error', caseUpdateError], ['update-manual', caseUpdateManual], ['restart-resume', caseRestartResume], ['restart-already-done', caseRestartAlreadyDone], ['runtime-rollback', caseRuntimeRollback], ['chat-visibility', caseChatVisibility], ['github-signing', caseGithubSigning], ['skills', caseSkills], ['picker-memory', casePickerMemory], ['picker-memory-seeded', casePickerMemorySeeded], ['picker-memory-stale', casePickerMemoryStale], ['import-preview', caseImportPreview], ['sites-links', caseSitesLinks], ['proxy-bypass', caseProxyBypass]]
+const cases = [['failure-retry', caseFailureRetry], ['failure-network', caseFailureNetwork], ['tabs', caseTabs], ['keep-alive', caseKeepAlive], ['confirm-focus', caseConfirmFocus], ['chat-counts', caseChatCounts], ['chat-preview', caseChatPreview], ['chat-preview-below', caseChatPreviewBelow], ['chat-preview-tap', caseChatPreviewTap], ['chat-preview-gone', caseChatPreviewGone], ['files-markdown', caseFilesMarkdown], ['probe-note', caseProbeNote], ['restart-watch', caseRestartWatch], ['update-applies', caseUpdateApplies], ['update-unknown-version', caseUpdateUnknownVersion], ['update-restarts', caseUpdateRestarts], ['update-windows', caseUpdateWindows], ['update-error', caseUpdateError], ['update-manual', caseUpdateManual], ['restart-resume', caseRestartResume], ['restart-already-done', caseRestartAlreadyDone], ['runtime-rollback', caseRuntimeRollback], ['chat-visibility', caseChatVisibility], ['github-signing', caseGithubSigning], ['skills', caseSkills], ['picker-memory', casePickerMemory], ['picker-memory-seeded', casePickerMemorySeeded], ['picker-memory-stale', casePickerMemoryStale], ['import-preview', caseImportPreview], ['sites-links', caseSitesLinks], ['proxy-bypass', caseProxyBypass]]
 for (const [name, run] of cases) {
   await run()
   process.stdout.write(`ok ${name}\n`)

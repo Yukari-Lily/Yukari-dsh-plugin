@@ -122,6 +122,26 @@ test('rewritten history: a lower version still updates through the pinned commit
   ])
 })
 
+test('unknown remote version without HMR: installs the commit and omits the unchecked version', async () => {
+  const calls = []
+  const ctx = context({ source: 'github:owner/repo' }, {
+    installBundle: async (spec, options) => {
+      calls.push(['install', spec, options])
+      return { changed: true, application: 'restart-required', restartReason: 'no-hmr', version: '0.8.0' }
+    },
+  })
+  ctx.get = () => undefined
+  const result = await runUpdate(ctx, install, {
+    latest: '0.7.8',
+    latestKnown: false,
+    installed: '0.7.8',
+    latestSha: NEW_SHA,
+    installedSha: OLD_SHA,
+  })
+  assert.equal(result.installed, '0.8.0')
+  assert.deepEqual(calls, [['install', `github:owner/repo#${NEW_SHA}`, { enabled: true }]])
+})
+
 test('branch install: the one-time migration installs a pinned target through the manager', async () => {
   const calls = []
   const ctx = context({ source: 'github:owner/repo' }, {
@@ -142,6 +162,39 @@ test('branch install: the one-time migration installs a pinned target through th
       enabled: true,
       expected: { name: 'yukari-dsh-plugin', version: '1.5.1' },
     }],
+  ])
+})
+
+test('unknown remote version: install the pinned commit without expecting the running version', async () => {
+  // Windows 上 raw.githubusercontent.com 的 Node fetch 可能失败，而 git ls-remote 正常。
+  // 此时 latest 只是界面兜底的当前版本，绝不能作为目标包的 expected.version：
+  // 0.7.8 → 6ef03e4 实际是 0.8.0，旧代码会安装成功后校验失败并回滚。
+  const calls = []
+  const ctx = context({ update: 'git' }, {
+    updateBundle: async () => {
+      throw new Error('版本未知时不能走需要 semver 比较的 updateBundle')
+    },
+    removeBundle: async (name) => {
+      calls.push(['remove', name])
+      return { application: 'applied' }
+    },
+    installBundle: async (spec, options) => {
+      calls.push(['install', spec, options])
+      return { changed: true, application: 'applied', version: '0.8.0' }
+    },
+  })
+  const result = await runUpdate(ctx, install, {
+    latest: '0.7.8',
+    latestKnown: false,
+    installed: '0.7.8',
+    latestSha: NEW_SHA,
+    installedSha: OLD_SHA,
+  })
+  assert.equal(result.installed, '0.8.0', 'the installed package reports its real version')
+  // 管理器要求 expected 带成对的名字与版本，传半截会被当成装错了包；版本未知就不传。
+  assert.deepEqual(calls, [
+    ['remove', 'yukari-dsh-plugin'],
+    ['install', `github:owner/repo#${NEW_SHA}`, { enabled: true }],
   ])
 })
 

@@ -7327,6 +7327,17 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /**
+     * 更新提示里的目标版本。
+     *
+     * 远端版本号取不到时只剩 commit 可信；此时显示当前版本会让人以为目标就是旧版，
+     * 而那正是更新反复回滚时界面上看到的东西。
+     */
+    function updateTargetLabel(info) {
+      const commit = typeof info?.latestCommit === 'string' && info.latestCommit !== '' ? ` (${info.latestCommit})` : ''
+      return info?.latestKnown === false ? commit.trim() : `v${info?.latest ?? ''}${commit}`
+    }
+
     /** Header update control: check first, then offer the update, then the restart. */
     function UpdateControl({ t, components, onRestart, onFailure }) {
       const [phase, setPhase] = React.useState('idle')
@@ -7393,7 +7404,7 @@ window.__ModuleLoader__.load({
         phase === 'checking' ? { kind: 'busy', text: t('upChecking') }
           : phase === 'updating' ? { kind: 'busy', text: t('upUpdating') }
             : phase === 'latest' ? { kind: 'ok', text: t('upLatest') }
-              : phase === 'available' ? { kind: 'warn', text: fill(t('upAvailable'), { version: `v${info?.latest ?? ''}${info?.latestCommit ? ` (${info.latestCommit})` : ''}` }), action: h('button', { type: 'button', className: 'yk-btn yk-btn-solid yk-btn-sm', onClick: update }, t('upNow')) }
+              : phase === 'available' ? { kind: 'warn', text: fill(t('upAvailable'), { version: updateTargetLabel(info) }), action: h('button', { type: 'button', className: 'yk-btn yk-btn-solid yk-btn-sm', onClick: update }, t('upNow')) }
                 : phase === 'manual' ? { kind: 'warn', text: t(manualText) }
                   : phase === 'done' ? { kind: 'ok', text: fill(t('upDone'), { version: `v${info?.installed ?? info?.latest ?? ''}` }) }
                   : phase === 'pending' ? {
@@ -8517,6 +8528,7 @@ window.__ModuleLoader__.load({
       inject: ['slots', 'locale', 'uiWorkspace', 'workspaces'],
       // 地址解析与失败整理单独暴露，方便真实 DOM 用例直接断言；宿主只读 inject 与 apply。
       resolveLinkBase,
+      updateTargetLabel,
       failureOf,
       retryable,
       hostText,

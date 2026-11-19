@@ -360,6 +360,7 @@ async function checkUpdate() {
     return {
       ...base,
       latest: onDisk,
+      latestKnown: true,
       currentCommit: null,
       latestCommit: null,
       latestSha: null,
@@ -375,14 +376,19 @@ async function checkUpdate() {
   if (latestCommit === null && latestVersion === null) {
     throw new Error('连不上 GitHub，无法检查更新（检查网络或在「代理」里启用节点）')
   }
-  const newerVersion = latestVersion !== null && compare(latestVersion, onDisk) > 0
+  // 版本号取不到（例如 Windows 上 raw.githubusercontent.com 的 fetch 失败）时，
+  // latest 只是界面兜底，不能当成远端版本：它既不能用来比较新旧，也不能作为
+  // 安装目标的 expected.version，否则装上的 0.8.0 会被当成 0.7.8 拒收并回滚。
+  const latestKnown = latestVersion !== null
+  const newerVersion = latestKnown && compare(latestVersion, onDisk) > 0
   const newerCommit = latestCommit !== null && installed !== null && latestCommit !== installed
   // Installed on disk but not loaded yet: the copy changed since this process started.
   const pendingRestart =
     onDisk !== RUNNING_VERSION || (installed !== null && RUNNING_COMMIT !== null && installed !== RUNNING_COMMIT)
   return {
     ...base,
-    latest: latestVersion ?? RUNNING_VERSION,
+    latest: latestVersion ?? onDisk,
+    latestKnown,
     currentCommit: (RUNNING_COMMIT ?? installed)?.slice(0, 7) ?? null,
     latestCommit: latestCommit?.slice(0, 7) ?? null,
     latestSha: latestCommit,
@@ -391,6 +397,16 @@ async function checkUpdate() {
     pendingRestart,
     updatable: true,
   }
+}
+
+/**
+ * 交给官方管理器的 `expected`。
+ *
+ * 管理器要求 `{ name, version }` 成对出现，版本未知时传一半会被判成
+ * `unexpected-package`。这时宁可不传：安装结果仍由 commit 与插件列表校验。
+ */
+function expectedTarget(knownVersion, version) {
+  return knownVersion ? { expected: { name: PACKAGE_NAME, version } } : {}
 }
 
 /** 固定完整 commit，官方更新器才能精确恢复旧版。 */
@@ -441,7 +457,9 @@ function managerApplied(result, fallbackVersion) {
  * 首次先迁移成固定 commit，之后由 updateBundle 负责兼容检查、替换和回滚。
  */
 export async function updateProfile(ctx, install, before, options = {}) {
-  if (!isVersionText(before.latest)) throw new Error('没有取得目标版本号，无法通过插件管理器更新')
+  // 版本号只是界面信息；安装认的是 commit。拿不到远端版本号时照常按 commit 安装，
+  // 但不能再把它当成目标包的版本参与校验。
+  const knownVersion = before.latestKnown !== false && isVersionText(before.latest)
   const targetSpec = pinnedSpec(install.repo, before.latestSha)
   const manager = ctx.pluginManager
   const bundles = await manager.listBundles()
@@ -450,7 +468,7 @@ export async function updateProfile(ctx, install, before, options = {}) {
 
   // 官方管理器的 updateBundle 要求目标版本严格大于已装版本（semver.gt），版本号回退——比如把历史
   // 重写、版本重新编号——会被它直接拒绝。更新只认 commit，所以这种情况走「按固定 commit 移除再装」。
-  const newerVersion = compare(before.latest, before.installed ?? before.current ?? '0.0.0') > 0
+  const newerVersion = knownVersion && compare(before.latest, before.installed ?? before.current ?? '0.0.0') > 0
   if (current.update === 'git' && newerVersion) {
     // HMR 的 updateBundle 会先卸载旧 bundle，本机代理监听器也随之消失；这和下面
     // 手动移除再安装走的是同一条危险路径。没有 HMR 时才是覆盖安装，旧路由保持可用。
@@ -473,9 +491,9 @@ export async function updateProfile(ctx, install, before, options = {}) {
   if (ctx.get('hmr') === undefined) {
     const result = await managerSettled(() => manager.installBundle(targetSpec, {
       enabled: current.enabled !== false,
-      expected: { name: PACKAGE_NAME, version: before.latest },
+      ...(expectedTarget(knownVersion, before.latest)),
     }))
-    const applied = managerApplied(result, before.latest)
+    const applied = managerApplied(result, knownVersion ? before.latest : packageVersion())
     await verifyInstalled(manager, result)
     return applied
   }
@@ -487,7 +505,7 @@ export async function updateProfile(ctx, install, before, options = {}) {
   const enabled = current.enabled !== false
   const result = await managerSettled(() => manager.installBundle(targetSpec, {
     enabled,
-    expected: { name: PACKAGE_NAME, version: before.latest },
+    ...(expectedTarget(knownVersion, before.latest)),
   }))
   if (managerFailed(result)) {
     if (result.stage === 'enable') await managerSettled(() => manager.removeBundle(PACKAGE_NAME))
@@ -496,7 +514,7 @@ export async function updateProfile(ctx, install, before, options = {}) {
     throw managerError(result, restore)
   }
   await verifyInstalled(manager, result)
-  return managerApplied(result, before.latest)
+  return managerApplied(result, knownVersion ? before.latest : packageVersion())
 }
 
 /**
