@@ -52,7 +52,8 @@
       name: yukari-dsh-plugin/proxy
       config:
         localPort: 17890
-        bypass: localhost,127.0.0.1,::1
+        # 额外的直连域名后缀；回环与私有网段始终直连，不需要列在这里
+        bypass: ''
         autoStart: false
 
     - id: yukari-presets

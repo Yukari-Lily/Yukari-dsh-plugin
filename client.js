@@ -342,6 +342,12 @@ window.__ModuleLoader__.load({
       pSettings: '高级设置',
       pLocalPort: '本地端口',
       pBypass: '直连名单',
+      pBypassCount: '{n} 项',
+      pBypassEmpty: '暂无直连项。',
+      pBypassAdd: '添加',
+      pBypassRemove: '移除',
+      pBypassRemoveOf: '移除 {host}',
+      pBypassNote: '回环、私有网段与链路本地地址始终直连，无需列出。',
       pInvalidPort: '本地端口需在 1024–65535 之间',
       pReset: '清空全部节点',
       pConfirmReset: '确认清空全部节点？',
@@ -965,6 +971,12 @@ window.__ModuleLoader__.load({
       pSettings: 'Advanced',
       pLocalPort: 'Local port',
       pBypass: 'Direct list',
+      pBypassCount: '{n} entries',
+      pBypassEmpty: 'No direct entries.',
+      pBypassAdd: 'Add',
+      pBypassRemove: 'Remove',
+      pBypassRemoveOf: 'Remove {host}',
+      pBypassNote: 'Loopback, private and link-local addresses are always direct; they need no entry here.',
       pInvalidPort: 'Local port must be 1024–65535',
       pReset: 'Remove all nodes',
       pConfirmReset: 'Clear every node?',
@@ -1527,6 +1539,12 @@ window.__ModuleLoader__.load({
 .yk-editorHead { display: flex; align-items: center; justify-content: space-between; }
 .yk-importBox { display: flex; align-items: flex-end; gap: 8px; }
 .yk-importBox .yk-textarea { flex: 1; }
+.yk-fieldWide { grid-column: 1 / -1; }
+.yk-bypassToggle { justify-content: flex-start; gap: 6px; }
+.yk-bypassList { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: .5px solid var(--yk-line); border-radius: var(--dsw-radius-md); }
+.yk-bypassRow { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.yk-bypassHost { flex: 1; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
+.yk-bypassAdd { display: flex; align-items: center; gap: 8px; }
 .yk-settingRow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px 10px; }
 .yk-settingLabel { font-size: 13px; font-weight: 500; white-space: nowrap; }
 .yk-settingHint { grid-column: 1 / -1; font-size: 12px; color: var(--yk-muted); }
@@ -4249,12 +4267,15 @@ window.__ModuleLoader__.load({
       const [confirmReset, setConfirmReset] = React.useState(false)
       const [showSettings, setShowSettings] = React.useState(false)
       const [settings, setSettings] = React.useState({ localPort: '', bypass: '' })
+      const [bypassOpen, setBypassOpen] = React.useState(false)
+      const [bypassDraft, setBypassDraft] = React.useState('')
       const { signal, alive } = useAbortOnUnmount()
 
       const adopt = (next) => {
         if (next === null || next === undefined) return
         setState(next)
         setSettings({ localPort: String(next.localPort ?? ''), bypass: next.bypass ?? '' })
+        setBypassDraft('')
       }
 
       const load = React.useCallback(async () => {
@@ -4398,6 +4419,20 @@ window.__ModuleLoader__.load({
           setSelected([])
           finishImport(payload)
         })
+
+      const bypassList = settings.bypass.split(/[\s,]+/).filter((entry) => entry !== '')
+
+      const addBypass = () => {
+        const entry = bypassDraft.trim().toLowerCase()
+        if (entry === '') return
+        if (!bypassList.includes(entry)) {
+          setSettings((current) => ({ ...current, bypass: [...bypassList, entry].join(',') }))
+        }
+        setBypassDraft('')
+      }
+
+      const removeBypass = (entry) =>
+        setSettings((current) => ({ ...current, bypass: bypassList.filter((value) => value !== entry).join(',') }))
 
       const saveSettings = () => {
         const localPort = Number(settings.localPort)
@@ -4689,10 +4724,69 @@ window.__ModuleLoader__.load({
                         h('input', { className: 'yk-input', value: settings.localPort, inputMode: 'numeric', onChange: (event) => setSettings((s) => ({ ...s, localPort: event.target.value })) }),
                       ),
                       h(
-                        'label',
-                        { className: 'yk-field' },
+                        'div',
+                        { className: 'yk-field yk-fieldWide' },
                         h('span', { className: 'yk-fieldLabel' }, t('pBypass')),
-                        h('input', { className: 'yk-input', value: settings.bypass, placeholder: 'localhost,127.0.0.1,::1', onChange: (event) => setSettings((s) => ({ ...s, bypass: event.target.value })) }),
+                        h(
+                          'button',
+                          {
+                            type: 'button',
+                            className: 'yk-btn yk-btn-ghost yk-bypassToggle',
+                            'aria-expanded': bypassOpen ? 'true' : 'false',
+                            onClick: () => setBypassOpen((value) => !value),
+                          },
+                          h(bypassOpen ? ChevronDownIcon : ChevronRightIcon, { width: 14, height: 14 }),
+                          fill(t('pBypassCount'), { n: bypassList.length }),
+                        ),
+                        bypassOpen
+                          ? h(
+                              'div',
+                              { className: 'yk-bypassList' },
+                              bypassList.length === 0
+                                ? h('div', { className: 'yk-cardHint' }, t('pBypassEmpty'))
+                                : bypassList.map((entry) =>
+                                    h(
+                                      'div',
+                                      { className: 'yk-bypassRow', key: entry },
+                                      h('span', { className: 'yk-mono yk-bypassHost' }, entry),
+                                      h(
+                                        'button',
+                                        {
+                                          type: 'button',
+                                          className: 'yk-btn yk-btn-ghost yk-iconBtn',
+                                          title: t('pBypassRemove'),
+                                          'aria-label': fill(t('pBypassRemoveOf'), { host: entry }),
+                                          onClick: () => removeBypass(entry),
+                                        },
+                                        h(MinusIcon, { width: 14, height: 14 }),
+                                      ),
+                                    )),
+                              h(
+                                'div',
+                                { className: 'yk-bypassAdd' },
+                                h('input', {
+                                  className: 'yk-input yk-mono',
+                                  value: bypassDraft,
+                                  placeholder: 'example.com',
+                                  'aria-label': t('pBypassAdd'),
+                                  onChange: (event) => setBypassDraft(event.target.value),
+                                  onKeyDown: (event) => {
+                                    if (event.key === 'Enter') {
+                                      event.preventDefault()
+                                      addBypass()
+                                    }
+                                  },
+                                }),
+                                h(
+                                  'button',
+                                  { type: 'button', className: 'yk-btn', disabled: bypassDraft.trim() === '', onClick: addBypass },
+                                  h(PlusIcon, { width: 14, height: 14 }),
+                                  t('pBypassAdd'),
+                                ),
+                              ),
+                              h('div', { className: 'yk-cardHint' }, t('pBypassNote')),
+                            )
+                          : null,
                       ),
                     ),
                     h(

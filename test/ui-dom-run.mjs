@@ -1088,6 +1088,70 @@ async function caseImportPreview() {
 }
 
 
+async function caseProxyBypass() {
+  // 直连名单改成可展开的列表：看得见现有条目、逐条移除、按需添加；保存仍发逗号串。
+  const base = {
+    enabled: false,
+    running: false,
+    direct: true,
+    listenerError: null,
+    localPort: 17890,
+    node: { server: '', port: 8388, method: 'aes-256-gcm', hasPassword: false },
+    passwordStored: false,
+    activeId: null,
+    nodes: [],
+    bypass: 'localhost,127.0.0.1,::1',
+    methods: ['aes-128-gcm', 'aes-256-gcm', 'chacha20-ietf-poly1305'],
+    stats: { active: 0, total: 0, bytesUp: 0, bytesDown: 0, failures: 0 },
+    egress: null,
+    lastError: null,
+    lastTest: null,
+    startedAt: null,
+    stateFile: '/home/node/.dsh/ss-proxy.json',
+  }
+  const posted = []
+  const panel = mountPanel({
+    ...routes,
+    '/ssproxy/api/state': { ok: true, state: base },
+    '/ssproxy/api/configure': (_url, init) => {
+      const body = JSON.parse(init.body)
+      posted.push(body)
+      return { ok: true, state: { ...base, localPort: body.localPort, bypass: body.bypass } }
+    },
+  })
+  await panel.renderMain()
+  const click = async (node) => {
+    node.dispatchEvent(new panel.window.MouseEvent('click', { bubbles: true }))
+    await panel.tick()
+    await panel.tick()
+  }
+  await click(tabOf(panel.window, 'proxy'))
+  const tab = panelOf(panel.window, 'proxy')
+  const buttonWith = (text) => [...tab.querySelectorAll('button')].find((node) => node.textContent.includes(text))
+  assert.equal(await panel.waitFor(() => buttonWith('pSettings') !== undefined), true, 'the settings section is offered')
+  await click(buttonWith('pSettings'))
+  assert.equal(await panel.waitFor(() => buttonWith('pBypassCount') !== undefined), true, 'the direct list has its own entry')
+  assert.equal(tab.querySelectorAll('.yk-bypassRow').length, 0, 'the entries stay hidden until the list is opened')
+  await click(buttonWith('pBypassCount'))
+  assert.equal(await panel.waitFor(() => tab.querySelectorAll('.yk-bypassRow').length === 3), true, 'every saved entry is listed')
+  assert.deepEqual([...tab.querySelectorAll('.yk-bypassHost')].map((node) => node.textContent), ['localhost', '127.0.0.1', '::1'])
+  assert.equal(tab.textContent.includes('pBypassNote'), true, 'the always-direct ranges are explained next to the list')
+  await click(tab.querySelector('.yk-bypassRow button'))
+  assert.equal(await panel.waitFor(() => tab.querySelectorAll('.yk-bypassRow').length === 2), true, 'an entry can be removed from the list')
+  const input = tab.querySelector('.yk-bypassAdd input')
+  const setValue = Object.getOwnPropertyDescriptor(panel.window.HTMLInputElement.prototype, 'value').set
+  setValue.call(input, 'example.com')
+  input.dispatchEvent(new panel.window.Event('input', { bubbles: true }))
+  await panel.tick()
+  await click(buttonWith('pBypassAdd'))
+  assert.equal(await panel.waitFor(() => tab.querySelectorAll('.yk-bypassRow').length === 3), true, 'an entry can be added')
+  assert.deepEqual([...tab.querySelectorAll('.yk-bypassHost')].map((node) => node.textContent), ['127.0.0.1', '::1', 'example.com'])
+  await click(buttonWith('save'))
+  assert.equal(await panel.waitFor(() => posted.length === 1), true, 'the list is saved with the port')
+  assert.deepEqual(posted[0], { localPort: 17890, bypass: '127.0.0.1,::1,example.com' }, 'the API still takes one comma-separated string')
+  await panel.close()
+}
+
 async function caseSitesLinks() {
   // Windows 客户端的页面用 dsh-app://app 加载，location.origin 点开没有反应；
   // 链接必须改由宿主回报的监听地址拼出来。默认路径也不能当已保存值回填。
@@ -1245,7 +1309,7 @@ async function caseFailureNetwork() {
   await panel.close()
 }
 
-const cases = [['failure-retry', caseFailureRetry], ['failure-network', caseFailureNetwork], ['tabs', caseTabs], ['keep-alive', caseKeepAlive], ['confirm-focus', caseConfirmFocus], ['chat-counts', caseChatCounts], ['chat-preview', caseChatPreview], ['chat-preview-below', caseChatPreviewBelow], ['chat-preview-tap', caseChatPreviewTap], ['chat-preview-gone', caseChatPreviewGone], ['files-markdown', caseFilesMarkdown], ['probe-note', caseProbeNote], ['restart-watch', caseRestartWatch], ['update-applies', caseUpdateApplies], ['update-restarts', caseUpdateRestarts], ['update-windows', caseUpdateWindows], ['update-error', caseUpdateError], ['update-manual', caseUpdateManual], ['restart-resume', caseRestartResume], ['restart-already-done', caseRestartAlreadyDone], ['runtime-rollback', caseRuntimeRollback], ['chat-visibility', caseChatVisibility], ['github-signing', caseGithubSigning], ['skills', caseSkills], ['picker-memory', casePickerMemory], ['picker-memory-seeded', casePickerMemorySeeded], ['picker-memory-stale', casePickerMemoryStale], ['import-preview', caseImportPreview], ['sites-links', caseSitesLinks]]
+const cases = [['failure-retry', caseFailureRetry], ['failure-network', caseFailureNetwork], ['tabs', caseTabs], ['keep-alive', caseKeepAlive], ['confirm-focus', caseConfirmFocus], ['chat-counts', caseChatCounts], ['chat-preview', caseChatPreview], ['chat-preview-below', caseChatPreviewBelow], ['chat-preview-tap', caseChatPreviewTap], ['chat-preview-gone', caseChatPreviewGone], ['files-markdown', caseFilesMarkdown], ['probe-note', caseProbeNote], ['restart-watch', caseRestartWatch], ['update-applies', caseUpdateApplies], ['update-restarts', caseUpdateRestarts], ['update-windows', caseUpdateWindows], ['update-error', caseUpdateError], ['update-manual', caseUpdateManual], ['restart-resume', caseRestartResume], ['restart-already-done', caseRestartAlreadyDone], ['runtime-rollback', caseRuntimeRollback], ['chat-visibility', caseChatVisibility], ['github-signing', caseGithubSigning], ['skills', caseSkills], ['picker-memory', casePickerMemory], ['picker-memory-seeded', casePickerMemorySeeded], ['picker-memory-stale', casePickerMemoryStale], ['import-preview', caseImportPreview], ['sites-links', caseSitesLinks], ['proxy-bypass', caseProxyBypass]]
 for (const [name, run] of cases) {
   await run()
   process.stdout.write(`ok ${name}\n`)

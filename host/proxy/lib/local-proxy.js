@@ -1,12 +1,15 @@
 /**
  * Local mixed proxy: HTTP (CONNECT and absolute-form requests) plus SOCKS5.
  *
- * Every accepted connection is tunneled through the configured Shadowsocks
- * node, so a client only has to point at `127.0.0.1:<port>`. Destination host
- * names travel inside the tunnel, which keeps DNS on the node's side.
+ * Accepted connections are tunneled through the configured Shadowsocks node,
+ * so a client only has to point at `127.0.0.1:<port>`. Destination host names
+ * travel inside the tunnel, which keeps DNS on the node's side. 目标落在本机或
+ * 局域网时改走直连：那条路径穿不过隧道，让子进程的 `curl http://127.0.0.1:...`
+ * 也走节点只会得到一个 502。
  * @module @local/ss-proxy/local-proxy
  */
 import net from 'node:net'
+import { isLocalNetwork } from '../../shared/net.js'
 import { openTunnel, isNodeFailure } from './shadowsocks.js'
 
 /** Reply code for a SOCKS5 "connection refused". */
@@ -182,12 +185,16 @@ export class LocalProxy {
   /**
    * Open the upstream for one destination: inside the tunnel, or straight out.
    *
-   * Direct mode exists because a host can pin its children to `HTTP_PROXY`
-   * pointing at this port even while the route is off; refusing the connection
-   * would then take the whole machine offline instead of going direct.
+   * Direct mode exists for two reasons. A host can pin its children to
+   * `HTTP_PROXY` pointing at this port even while the route is off, and
+   * refusing the connection would take the whole machine offline instead of
+   * going direct. A destination inside this machine or the local network is
+   * unreachable from the node by definition, so it is dialed directly even
+   * while the tunnel is up — that is not configurable, and it is not part of
+   * the bypass list.
    */
   #open(node, target) {
-    if (node !== null) return openTunnel(node, target)
+    if (node !== null && !isLocalNetwork(target.host)) return openTunnel(node, target)
     return new Promise((resolve, reject) => {
       const socket = net.connect({ host: target.host, port: target.port })
       const fail = (error) => {

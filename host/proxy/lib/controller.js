@@ -21,7 +21,8 @@ import { appError } from '../../shared/http.js'
 const DEFAULT_NODE = { server: '', port: 8388, method: 'aes-256-gcm', password: '' }
 
 /** Host suffix list kept direct. */
-const DEFAULT_BYPASS = 'localhost,127.0.0.1,::1'
+// 回环与私有网段由 local-proxy 与 egress 固定直连，默认名单从空开始。
+const DEFAULT_BYPASS = ''
 
 /** Probe used by `test` when the caller names no target. */
 const DEFAULT_TEST_TARGET = 'www.gstatic.com:80'

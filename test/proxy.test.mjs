@@ -545,6 +545,18 @@ test('controller: a restart clears inherited proxy variables that point at the d
   assert.equal(process.env.NO_PROXY, 'localhost,127.0.0.1', 'the direct list is left alone')
 })
 
+test('egress: local and private destinations bypass the node without a list entry', async () => {
+  // 节点看不到本机与局域网，把这些地址写进可配置名单只会让每个安装都抄一遍：
+  // 判断写死在代码里，名单只管用户自己的域名后缀。
+  const { isBypassed } = await import('../host/proxy/lib/egress.js')
+  for (const host of ['localhost', 'app.localhost', '127.0.0.1', '10.1.2.3', '172.16.0.9', '172.31.255.1', '192.168.1.1', '169.254.169.254', '[::1]', 'fe80::1', 'fd00::1', '::ffff:127.0.0.1']) {
+    assert.equal(isBypassed(host, ''), true, host)
+  }
+  assert.equal(isBypassed('example.com', ''), false)
+  assert.equal(isBypassed('172.15.0.1', ''), false, '172.15 is outside the private range')
+  assert.equal(isBypassed('pages.example.com', 'example.com'), true, 'the configured list still applies')
+})
+
 test('egress: dispose restores direct access instead of a self-referential proxy', async (t) => {
   const { installEgress } = await import('../host/proxy/lib/egress.js')
   const saved = { HTTP_PROXY: process.env.HTTP_PROXY, http_proxy: process.env.http_proxy }
@@ -774,6 +786,39 @@ test('local proxy: a node that fails the AEAD check reports a node-level failure
   await connectAndWaitForClose(port)
   await waitFor(() => failures.length === 1)
   assert.match(failures[0].message, /authenticat|state|error/i)
+})
+
+test('local proxy: a local destination is dialed directly even with a node configured', async (t) => {
+  // 会话里 curl 打到 172.26.0.2 拿到 502：请求被送进隧道，节点到达不了那个地址。
+  // 目标在本机或局域网时固定直连，和名单、节点是否启用都无关。
+  const server = http.createServer((_req, res) => {
+    res.writeHead(200, { 'content-type': 'text/plain' })
+    res.end('direct')
+  })
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+  t.after(() => new Promise((resolve) => server.close(resolve)))
+  const target = server.address().port
+  const failures = []
+  const proxy = new LocalProxy({
+    // 连不上的节点：只要请求进了隧道，这里就是 502。
+    resolveNode: () => ({ server: '127.0.0.1', port: 1, method: 'aes-256-gcm', password: 'pw' }),
+    onFailure: (error) => failures.push(error),
+  })
+  const port = await proxy.listen(0)
+  t.after(() => proxy.close())
+
+  const reply = await new Promise((resolve, reject) => {
+    const socket = net.connect({ host: '127.0.0.1', port }, () => {
+      socket.write(`GET http://127.0.0.1:${target}/local HTTP/1.1\r\nHost: 127.0.0.1:${target}\r\nConnection: close\r\n\r\n`)
+    })
+    let text = ''
+    socket.on('data', (chunk) => { text += chunk.toString('latin1') })
+    socket.on('error', reject)
+    socket.on('close', () => resolve(text))
+  })
+  assert.match(reply, /200 OK/)
+  assert.match(reply, /\r\n\r\n[^]*direct/)
+  assert.deepEqual(failures, [], 'a direct local dial is not a node failure')
 })
 
 test('local proxy: absolute-form forwarding strips every proxy-* header', async (t) => {

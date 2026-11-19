@@ -5,19 +5,18 @@
  * every `fetch()` caller — the LLM provider stack, web search/fetch, HTTP MCP —
  * through the local proxy. Child processes and Chromium read the standard
  * proxy environment variables, which this module publishes alongside it.
- * Loopback and the configured bypass list stay direct.
+ * Loopback, private and link-local destinations stay direct, as does the
+ * configured bypass list; the first group is fixed, the second is user data.
  * @module @local/ss-proxy/egress
  */
 import { Agent, Pool, ProxyAgent, getGlobalDispatcher, setGlobalDispatcher } from 'undici'
+import { isLocalNetwork } from '../../shared/net.js'
 
 /** Proxy variables published for children (Chromium, curl, git, pnpm). */
 const PROXY_NAMES = ['HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy']
 
 /** Bypass list variables. */
 const BYPASS_NAMES = ['NO_PROXY', 'no_proxy']
-
-/** Loopback names that never go through the proxy. */
-const LOOPBACK_PATTERN = /^(localhost|127(\.\d{1,3}){3}|::1|0(\.0){3}|::ffff:127(\.\d{1,3}){3})$/i
 
 /** Split a bypass string into normalized entries. */
 function bypassEntries(text) {
@@ -32,7 +31,8 @@ export function isBypassed(hostname, bypass) {
   const host = String(hostname ?? '')
     .toLowerCase()
     .replace(/^\[|\]$/g, '')
-  if (host.length === 0 || LOOPBACK_PATTERN.test(host)) return true
+  // 本机与局域网地址固定直连：节点看不到它们，写进名单只会让每个安装都要抄一遍。
+  if (host.length === 0 || isLocalNetwork(host)) return true
   for (const entry of bypassEntries(bypass)) {
     if (entry === '*') return true
     const withoutPort = entry.replace(/:\d+$/, '')
