@@ -45,6 +45,7 @@ test('the real panel renders and keeps visited tabs alive', { timeout: 120_000 }
   assert.match(stdout, /^ok restart-already-done$/m)
   assert.match(stdout, /^ok runtime-rollback$/m)
   assert.match(stdout, /^ok chat-visibility$/m)
+  assert.match(stdout, /^ok rewind-hiding$/m)
   assert.match(stdout, /^ok github-signing$/m)
   assert.match(stdout, /^ok skills$/m)
   assert.match(stdout, /^ok picker-memory$/m)

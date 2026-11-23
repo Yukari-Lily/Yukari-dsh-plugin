@@ -132,6 +132,10 @@ export function mountPanel(routes = {}, options = {}) {
         registrations.set(definition.key ?? definition.name ?? definition.id, component)
         return () => {}
       },
+      // 对话页的行由宿主注册在 `conversation.chat.node` 上；用例自带条目时，回撤那层
+      // 才会真的接管行渲染（默认没有条目，行为与改动前一致）。
+      entries: (slot) => (slot === 'conversation.chat.node' && Array.isArray(options.chatNodes) ? options.chatNodes : []),
+      subscribe: () => () => {},
     },
     // 宿主总是带 listDirectory：缺少它会让面板对每个用例都报一次降级警告。
     uiWorkspace: {
@@ -195,5 +199,5 @@ export function mountPanel(routes = {}, options = {}) {
       delete globalThis[key]
     }
   }
-  return { window, container, renderMain, registrations, exports: module, tick, waitFor, reportIntersection, close, picker: ctx.uiWorkspace, workspaces: ctx.workspaces }
+  return { window, container, renderMain, registrations, exports: module, tick, waitFor, reportIntersection, close, picker: ctx.uiWorkspace, workspaces: ctx.workspaces, chatNodes: options.chatNodes ?? [] }
 }

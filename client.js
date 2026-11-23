@@ -7865,10 +7865,66 @@ window.__ModuleLoader__.load({
     let rewindTeardown = null
 
     /**
+     * 一行在区间计算里需要的信息。
+     * @param row - flow item。
+     * @returns 节点 key、行上的区间序号（没有或不合法为 null）、所在轮次。
+     */
+    function rowFactsOf(row) {
+      const tag = row.getAttribute(REWIND_ATTR)
+      const seq = tag === null ? NaN : Number(tag.slice(tag.lastIndexOf(':') + 1))
+      return {
+        key: row.getAttribute('data-chat-node-key') ?? '',
+        tag: Number.isSafeInteger(seq) ? seq : null,
+        turn: row.getAttribute('data-chat-turn'),
+      }
+    }
+
+    /**
+     * 一条回撤区间要隐藏哪几行。
+     *
+     * 终点只认区间自己的内容：命中消息 id 的行，或打上区间序号的行。不能用"下一条
+     * 打了标记的行"去推——回撤之后追加的行（`/compact` 的命令卡片、压缩检查点、
+     * 注入行）既没有按钮也没有标记，按那种推法会被算进区间，界面上就是提示刚出现
+     * 又消失。两者都命中不到时返回 null，宁可少藏也不误藏。
+     * @param rows - `rowFactsOf` 的结果，按界面顺序。
+     * @param cut - 宿主给的区间 `{ start|target, marker, ids }`。
+     * @returns `[firstIndex, lastIndex]`，没有可隐藏的行时返回 null。
+     */
+    function rewindHiddenRange(rows, cut) {
+      const start = Number.isSafeInteger(cut?.start) ? cut.start : cut?.target
+      const marker = Number.isSafeInteger(cut?.marker) ? cut.marker : null
+      const ids = Array.isArray(cut?.ids) ? cut.ids : []
+      const hits = []
+      if (ids.length > 0) {
+        rows.forEach((row, index) => {
+          if (row.key !== '' && ids.some((id) => row.key.endsWith(id))) hits.push(index)
+        })
+      }
+      if (hits.length > 0) {
+        // 助手与工具行也有消息 id，收到最后一个命中就够了；再往后只跟进同一轮里的
+        // 容器行（轮尾动作行这类），碰到打了标记的行立刻停。
+        let end = hits[hits.length - 1]
+        const turn = rows[end].turn
+        while (turn !== null && end + 1 < rows.length
+          && rows[end + 1].tag === null && rows[end + 1].turn === turn) end += 1
+        return [hits[0], end]
+      }
+      if (!Number.isSafeInteger(start) || marker === null) return null
+      let first = -1
+      let last = -1
+      rows.forEach((row, index) => {
+        if (row.tag === null || row.tag < start || row.tag > marker) return
+        if (first === -1) first = index
+        last = index
+      })
+      return first === -1 ? null : [first, last]
+    }
+
+    /**
      * 按区间隐藏 flow item。
      *
-     * 先用区间里的消息 id 去匹配行（`data-chat-node-key` 以 id 结尾），命中就从第一个
-     * 命中的行隐藏到最后一个；命中不到时退回按序号打标（未打标的行跟随上一条）。
+     * 每行先抽成 `rowFactsOf` 的描述符，再由 `rewindHiddenRange` 给出要收起的下标区间；
+     * 隐藏写成 `display: none`，并记下原值以便取消回撤或卸载时还原。
      * 作用域取自按钮自己所在的会话容器——页面上可能同时挂着多个会话容器。
      * @returns `{ rows, tagged, hidden }`，用于界面与控制台核对。
      */
@@ -7886,41 +7942,12 @@ window.__ModuleLoader__.load({
         const cuts = rewindCuts.get(sessionId) ?? []
         const list = [...scope.querySelectorAll('[data-chat-flow-key]')]
         rows += list.length
+        const facts = list.map(rowFactsOf)
         const wanted = new Set()
         for (const cut of cuts) {
-          const ids = Array.isArray(cut.ids) ? cut.ids : []
-          const hits = []
-          if (ids.length > 0) {
-            list.forEach((row, index) => {
-              const key = row.getAttribute('data-chat-node-key') ?? ''
-              if (key !== '' && ids.some((id) => key.endsWith(id))) hits.push(index)
-            })
-          }
-          if (hits.length > 0) {
-            // 命中之后，一直隐藏到"下一条属于本次回撤之后"的已打标行为止——
-            // 结尾的助手/工具行没有 id 可匹配，靠这条边界才收得干净。
-            let end = list.length - 1
-            for (let index = hits[0]; index < list.length; index += 1) {
-              const tag = list[index].getAttribute(REWIND_ATTR)
-              if (tag === null) continue
-              const seq = Number(tag.slice(tag.lastIndexOf(':') + 1))
-              if (Number.isSafeInteger(seq) && seq > cut.marker) {
-                end = index - 1
-                break
-              }
-            }
-            for (let index = hits[0]; index <= end; index += 1) wanted.add(list[index])
-            continue
-          }
-          let effective = Number.NEGATIVE_INFINITY
-          for (const row of list) {
-            const tag = row.getAttribute(REWIND_ATTR)
-            if (tag !== null) {
-              const seq = Number(tag.slice(tag.lastIndexOf(':') + 1))
-              if (Number.isSafeInteger(seq)) effective = seq
-            }
-            if (effective >= (cut.start ?? cut.target) && effective <= cut.marker) wanted.add(row)
-          }
+          const range = rewindHiddenRange(facts, cut)
+          if (range === null) continue
+          for (let index = range[0]; index <= range[1]; index += 1) wanted.add(list[index])
         }
         for (const row of list) {
           if (row.getAttribute(REWIND_ATTR) !== null) tagged += 1
@@ -8533,6 +8560,7 @@ window.__ModuleLoader__.load({
       retryable,
       hostText,
       actionKeyOf,
+      rewindHiddenRange,
       apply(ctx) {
         ctx.effect(() => ctx.locale.register(NS, 'en', en))
         ctx.effect(() => ctx.locale.register(NS, 'zh-CN', zh))

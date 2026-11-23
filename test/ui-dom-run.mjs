@@ -19,6 +19,9 @@ const bootstrap = new JSDOM('<!doctype html><html><body></body></html>')
 globalThis.window = bootstrap.window
 globalThis.document = bootstrap.window.document
 const { mountPanel } = await import('./ui-dom-harness.mjs')
+// React 已在 harness 里随同一个 bootstrap 文档加载，这里复用同一份实例。
+const React = (await import('react')).default
+const ReactDOMClient = await import('react-dom/client')
 
 /** 目录选择器记忆在浏览器本地存储里的键。 */
 const PICKER_KEY = 'yukari-dsh-plugin:picker-directory'
@@ -1328,7 +1331,63 @@ async function caseFailureNetwork() {
   await panel.close()
 }
 
-const cases = [['failure-retry', caseFailureRetry], ['failure-network', caseFailureNetwork], ['tabs', caseTabs], ['keep-alive', caseKeepAlive], ['confirm-focus', caseConfirmFocus], ['chat-counts', caseChatCounts], ['chat-preview', caseChatPreview], ['chat-preview-below', caseChatPreviewBelow], ['chat-preview-tap', caseChatPreviewTap], ['chat-preview-gone', caseChatPreviewGone], ['files-markdown', caseFilesMarkdown], ['probe-note', caseProbeNote], ['restart-watch', caseRestartWatch], ['update-applies', caseUpdateApplies], ['update-unknown-version', caseUpdateUnknownVersion], ['update-restarts', caseUpdateRestarts], ['update-windows', caseUpdateWindows], ['update-error', caseUpdateError], ['update-manual', caseUpdateManual], ['restart-resume', caseRestartResume], ['restart-already-done', caseRestartAlreadyDone], ['runtime-rollback', caseRuntimeRollback], ['chat-visibility', caseChatVisibility], ['github-signing', caseGithubSigning], ['skills', caseSkills], ['picker-memory', casePickerMemory], ['picker-memory-seeded', casePickerMemorySeeded], ['picker-memory-stale', casePickerMemoryStale], ['import-preview', caseImportPreview], ['sites-links', caseSitesLinks], ['proxy-bypass', caseProxyBypass]]
+async function caseRewindHiding() {
+  // 回撤的隐藏区间只能覆盖被撤的那些行。回撤之后追加的命令卡片、压缩检查点既没有
+  // 按钮也没有区间标记，过去被"藏到下一条打了标记的行"这条规则一起藏掉，界面上
+  // 就是提示刚出现又消失；被撤的行仍然要收起来。
+  const h = React.createElement
+  const ActionBar = ({ extraActions }) => h('div', { className: 'hostActions' }, extraActions ?? null)
+  const HostUserRow = ({ actions }) => h('div', { className: 'hostRow' }, typeof actions === 'function' ? actions('value') : null)
+  const chatNode = { options: { key: 'user' }, component: (props) => h(HostUserRow, { actions: () => h(ActionBar, {}) }) }
+  const cut = { start: 9, target: 9, marker: 47, ids: ['u9', 'a10'] }
+  const panel = mountPanel({
+    ...routes,
+    '/rewind/api/cuts': (url) => (url.includes('sessionId=s1') ? { ok: true, cuts: [cut] } : { ok: true, cuts: [] }),
+  }, { chatNodes: [chatNode] })
+
+  const { document } = panel.window
+  const scope = document.createElement('div')
+  scope.setAttribute('data-conversation-session', 's1')
+  document.body.appendChild(scope)
+  const rowOf = (key, tag, turn) => {
+    const element = document.createElement('div')
+    element.setAttribute('data-chat-flow-key', key)
+    element.setAttribute('data-chat-node-key', key)
+    if (tag !== undefined) element.setAttribute('data-yk-rewind', tag)
+    if (turn !== undefined) element.setAttribute('data-chat-turn', turn)
+    scope.appendChild(element)
+    return element
+  }
+  const target = rowOf('1:u9', 's1:9', '30')
+  const answer = rowOf('2:a10', undefined, '30')
+  const checkpoint = rowOf('0:manual-compaction', undefined, undefined)
+  const later = rowOf('1:u60', 's1:60', '31')
+
+  // 真挂一行：回撤按钮在官方操作行里，它挂上后才会给行打标并触发隐藏。
+  const root = ReactDOMClient.createRoot(target)
+  root.render(h(chatNode.component, { node: { data: { seq: 9, content: [{ type: 'text', text: '把对话退回这条' }] } }, inputActions: {} }))
+
+  const hidden = (element) => element.style.display === 'none'
+  assert.equal(await panel.waitFor(() => hidden(target)), true, 'the rewound row is hidden')
+  assert.equal(hidden(answer), true, 'the assistant row inside the span is hidden')
+  assert.equal(hidden(checkpoint), false, 'a row appended after the marker stays visible')
+  assert.equal(hidden(later), false, 'the next user message stays visible')
+
+  const facts = [
+    { key: '1:u9', tag: 9, turn: '30' },
+    { key: '2:a10', tag: null, turn: '30' },
+    { key: '0:manual-compaction', tag: null, turn: null },
+    { key: '1:u60', tag: 60, turn: '31' },
+  ]
+  assert.deepEqual(panel.exports.rewindHiddenRange(facts, cut), [0, 1], 'the span ends at the last matched row')
+  assert.deepEqual(panel.exports.rewindHiddenRange(facts, { ...cut, ids: [] }), [0, 0], 'without ids only tagged rows bound the range')
+  assert.equal(panel.exports.rewindHiddenRange(facts, { target: 9, ids: [] }), null, 'no usable range hides nothing')
+
+  root.unmount()
+  await panel.close()
+}
+
+const cases = [['failure-retry', caseFailureRetry], ['failure-network', caseFailureNetwork], ['tabs', caseTabs], ['keep-alive', caseKeepAlive], ['confirm-focus', caseConfirmFocus], ['chat-counts', caseChatCounts], ['chat-preview', caseChatPreview], ['chat-preview-below', caseChatPreviewBelow], ['chat-preview-tap', caseChatPreviewTap], ['chat-preview-gone', caseChatPreviewGone], ['files-markdown', caseFilesMarkdown], ['probe-note', caseProbeNote], ['restart-watch', caseRestartWatch], ['update-applies', caseUpdateApplies], ['update-unknown-version', caseUpdateUnknownVersion], ['update-restarts', caseUpdateRestarts], ['update-windows', caseUpdateWindows], ['update-error', caseUpdateError], ['update-manual', caseUpdateManual], ['restart-resume', caseRestartResume], ['restart-already-done', caseRestartAlreadyDone], ['runtime-rollback', caseRuntimeRollback], ['chat-visibility', caseChatVisibility], ['rewind-hiding', caseRewindHiding], ['github-signing', caseGithubSigning], ['skills', caseSkills], ['picker-memory', casePickerMemory], ['picker-memory-seeded', casePickerMemorySeeded], ['picker-memory-stale', casePickerMemoryStale], ['import-preview', caseImportPreview], ['sites-links', caseSitesLinks], ['proxy-bypass', caseProxyBypass]]
 for (const [name, run] of cases) {
   await run()
   process.stdout.write(`ok ${name}\n`)
